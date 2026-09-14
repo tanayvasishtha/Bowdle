@@ -1,5 +1,42 @@
 # Build log
 
+## M4a — Online movement
+
+Status: done.
+
+Built:
+
+- Complete Colyseus schema state for players, inputs, arrows, match fields, and future ability/cosmetic fields.
+- Plain authoritative movement tick that consumes buffered frames one at a time through the shared simulation.
+- `tdm` room with sanitized reliable inputs, repeated-idle policy, 30 Hz fixed timestep with two physics substeps, warmup/live phases, team assignment, and 15-second reconnection.
+- Client join flow, fixed-rate input sending, local rollback reconciliation, 100 ms remote interpolation, angle interpolation, and remote doodle-player rendering.
+- Temporary Practice/Play menu and online test hooks.
+
+Tests added:
+
+- Schema-to-`PlayerSim` compatibility test.
+- Server join/team test, 90-wire-frame parity test at explicit 1e-6 tolerance, and reconnect identity test.
+- Two-browser shared movement test and screenshots at `test-results/qa/m4a/`.
+
+QA:
+
+- `npm run check`: passed with 36 tests.
+- `npm run e2e`: 4 passed.
+- `npm run size`: client JavaScript 208 KB gzipped, 900 KB budget.
+- Break check: manual only. Multiplying the reconciler's local forward input is a visual rubber-band/debug-panel check rather than a stable assertion; it remains in Verify below.
+
+Installed API notes:
+
+- The installed client room resolves before the `onJoin` player addition is necessarily decoded. The join flow waits on `Callbacks.onAdd("players")` before constructing the reconciler.
+- The input schema is passed explicitly to `room.input({ type: PlayerInput, mode: "reliable" })`; the installed API also supports reflected discovery.
+- The installed `Predict` reconciler observes `input.send()` and receives `context.isReplay`/`context.reckonTime`; no separate local step call is needed.
+
+Verify by hand:
+
+- Open two windows and confirm self movement feels identical to Practice while the remote player stays smooth.
+- Enable the prediction debug panel and confirm the reconciler remains matched.
+- Temporarily multiply local `moveZ` by 1.5 and confirm visible correction plus divergence reporting, then revert.
+
 ## M3 — Bow, arrows, dagger, and Practice Range
 
 Status: done.

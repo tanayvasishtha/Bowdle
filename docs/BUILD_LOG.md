@@ -1,5 +1,42 @@
 # Build log
 
+## M3 — Bow, arrows, dagger, and Practice Range
+
+Status: done.
+
+Built:
+
+- Shared bow timing, cancel/release edge detection, cooldowns, draw fraction, arrow speed, and damage curves.
+- Closed-form projectile integration with swept-sphere world collision, player head/body hitboxes, headshot multiplier, dagger arc/range/backstab checks, damage, death, and regeneration.
+- Practice Range geometry with five standing targets, two rail targets, slide bars, and step-up course.
+- Playable practice session with arrows, wall/body sticking, target damage and respawn, melee, draw crosshair, hit/headshot feedback, and a procedural bow viewmodel.
+- Procedural WebAudio draw, release, impact, headshot, and dagger sounds with delayed audio-context creation.
+- Deterministic `fireAt` browser hook using the production ballistic and hitbox functions.
+
+Tests added:
+
+- Bow boundary, early-release, cooldown, speed, and damage tests.
+- Ballistic position, 95 m/s thin-wall sweep, head/body priority, and crouched-hitbox tests.
+- Dagger range, arc, and backstab tests.
+- Practice Range validation and browser full-draw headshot test.
+- Screenshot at `test-results/qa/m3/practice-range.png`.
+
+QA:
+
+- `npm run check`: passed with 32 tests.
+- `npm run e2e`: 3 passed.
+- `npm run size`: client JavaScript 142 KB gzipped, 900 KB budget.
+- Break check: replacing the swept world collision with an endpoint test made the 95 m/s arrow pass through the 0.1 m wall and fail its test; restoring the sweep returned it to green.
+
+Deviation: none.
+
+Verify by hand:
+
+- Confirm full-draw drop remains readable at 30 m and tap shots drop substantially more.
+- Confirm the 40 m moving target requires visible lead.
+- Confirm front dagger hits need two strikes and a rear strike kills.
+- Confirm stuck arrows remain for about 8 seconds and procedural sounds feel crisp rather than harsh.
+
 ## M2 — Movement
 
 Status: done.

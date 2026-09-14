@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 5199;
+const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -12,6 +13,7 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     // WebGL without a GPU (CI, Codex cloud): software rendering through SwiftShader.
     launchOptions: {
+      ...(executablePath ? { executablePath } : {}),
       args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
     },
   },

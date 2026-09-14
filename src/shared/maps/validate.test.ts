@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { notebookMap } from "./notebook.ts";
+import { rangeMap } from "./range.ts";
 import type { MapData } from "./types.ts";
 import { validateMap } from "./validate.ts";
 
@@ -9,6 +10,7 @@ function changed(change: Partial<MapData>): MapData {
 
 describe("map validation", () => {
   it("accepts Notebook Page", () => expect(validateMap(notebookMap)).toEqual([]));
+  it("accepts Practice Range", () => expect(validateMap(rangeMap)).toEqual([]));
 
   it("rejects inverted boxes", () => {
     const boxes = [...notebookMap.boxes, { id: "bad", min: [1, 0, 0], max: [0, 1, 1], ink: "blue", tags: ["solid"] } as const];

@@ -2,12 +2,15 @@ import {
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
+  ConeGeometry,
   CylinderGeometry,
+  Group,
   Matrix4,
   Mesh,
   PerspectiveCamera,
   QuadraticBezierCurve3,
   Scene,
+  SphereGeometry,
   TorusGeometry,
   Triangle,
   TubeGeometry,
@@ -18,12 +21,16 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { InkName, MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
+import type { PracticeTarget } from "../../shared/maps/range.ts";
+import { BODY_RADIUS, EYE_STAND, HEAD_RADIUS, STAND_HEIGHT } from "../../shared/constants.ts";
+import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
 import { InkMaterial } from "./InkMaterial.ts";
 import { INK_ID } from "./palette.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
+const arrowDirection = new Vector3();
 
 function mapMeshes(map: MapData): Mesh[] {
   const groups = new Map<InkName, BufferGeometry[]>();
@@ -82,16 +89,45 @@ function cylinderBetween(from: Vector3, to: Vector3, radius: number, material: I
   return mesh;
 }
 
-function addViewmodel(scene: Scene): void {
+function addViewmodel(scene: Scene): Group {
   const material = new InkMaterial(INK_ID.blue);
+  const group = new Group();
   const curve = new QuadraticBezierCurve3(new Vector3(0, -0.85, 0), new Vector3(0.5, 0, -0.15), new Vector3(0, 0.85, 0));
   const bow = new Mesh(new TubeGeometry(curve, 18, 0.025, 5, false), material);
   bow.position.set(0.62, -0.34, -1.25);
-  scene.add(bow);
+  group.add(bow);
   const top = new Vector3(0.62, 0.51, -1.25);
   const middle = new Vector3(0.38, -0.34, -1.08);
   const bottom = new Vector3(0.62, -1.19, -1.25);
-  scene.add(cylinderBetween(top, middle, 0.008, material), cylinderBetween(middle, bottom, 0.008, material));
+  group.add(cylinderBetween(top, middle, 0.008, material), cylinderBetween(middle, bottom, 0.008, material));
+  scene.add(group);
+  return group;
+}
+
+function createTarget(): Group {
+  const group = new Group();
+  const material = new InkMaterial(INK_ID.red);
+  const torsoHeight = STAND_HEIGHT - HEAD_RADIUS * 2;
+  const torso = new Mesh(new CylinderGeometry(BODY_RADIUS, BODY_RADIUS, torsoHeight, 8), material);
+  torso.position.y = torsoHeight / 2;
+  const head = new Mesh(new SphereGeometry(HEAD_RADIUS, 12, 8), material);
+  head.position.y = EYE_STAND + 0.05;
+  group.add(torso, head);
+  return group;
+}
+
+function createArrowVisual(): Group {
+  const group = new Group();
+  const material = new InkMaterial(INK_ID.blue);
+  const shaft = new Mesh(new CylinderGeometry(0.012, 0.012, 0.8, 6), material);
+  const head = new Mesh(new ConeGeometry(0.055, 0.14, 6), material);
+  head.position.y = 0.47;
+  const featherA = new Mesh(new BoxGeometry(0.14, 0.12, 0.015), material);
+  featherA.position.y = -0.34;
+  const featherB = new Mesh(new BoxGeometry(0.015, 0.12, 0.14), material);
+  featherB.position.y = -0.34;
+  group.add(shaft, head, featherA, featherB);
+  return group;
 }
 
 export type SnapshotFractions = { paper: number; ink: number };
@@ -105,6 +141,8 @@ export class Renderer {
   private readonly viewScene = new Scene();
   private readonly viewCamera = new PerspectiveCamera(70, 1, 0.01, 10);
   private readonly planes: Mesh[] = [];
+  private readonly targets = new Map<string, Group>();
+  private readonly viewBow: Group;
   private readonly overlay: HTMLDivElement | null;
   private previousTime = performance.now();
   private frames = 0;
@@ -114,27 +152,35 @@ export class Renderer {
   private grounded = false;
   private sliding = false;
 
-  constructor(container: HTMLElement, debug: boolean) {
+  constructor(container: HTMLElement, debug: boolean, map: MapData = notebookMap, practice: readonly PracticeTarget[] = []) {
     this.renderer = new WebGLRenderer({ antialias: false, alpha: false });
     this.canvas = this.renderer.domElement;
     this.canvas.id = "game-canvas";
     container.append(this.canvas);
-    for (const mesh of mapMeshes(notebookMap)) this.worldScene.add(mesh);
-    addSun(this.worldScene);
-    const planeMaterial = new InkMaterial(INK_ID.blue);
-    for (let index = 0; index < 2; index += 1) {
-      const plane = new Mesh(planeGeometry(), planeMaterial);
-      this.planes.push(plane);
-      this.worldScene.add(plane);
+    for (const mesh of mapMeshes(map)) this.worldScene.add(mesh);
+    if (map.id === "notebook") {
+      addSun(this.worldScene);
+      const planeMaterial = new InkMaterial(INK_ID.blue);
+      for (let index = 0; index < 2; index += 1) {
+        const plane = new Mesh(planeGeometry(), planeMaterial);
+        this.planes.push(plane);
+        this.worldScene.add(plane);
+      }
+      const spiralMaterial = new InkMaterial(INK_ID.blue);
+      for (let index = 0; index < 18; index += 1) {
+        const ring = new Mesh(new TorusGeometry(0.62, 0.075, 5, 10), spiralMaterial);
+        ring.position.set(-28 + index * (56 / 17), 7, 21);
+        ring.rotation.y = Math.PI / 2;
+        this.worldScene.add(ring);
+      }
     }
-    const spiralMaterial = new InkMaterial(INK_ID.blue);
-    for (let index = 0; index < 18; index += 1) {
-      const ring = new Mesh(new TorusGeometry(0.62, 0.075, 5, 10), spiralMaterial);
-      ring.position.set(-28 + index * (56 / 17), 7, 21);
-      ring.rotation.y = Math.PI / 2;
-      this.worldScene.add(ring);
+    for (const target of practice) {
+      const visual = createTarget();
+      visual.position.set(target.pos[0], target.pos[1], target.pos[2]);
+      this.targets.set(target.id, visual);
+      this.worldScene.add(visual);
     }
-    addViewmodel(this.viewScene);
+    this.viewBow = addViewmodel(this.viewScene);
     this.camera.rotation.order = "YXZ";
     this.overlay = debug ? this.createOverlay(container) : null;
     this.resize();
@@ -166,6 +212,34 @@ export class Renderer {
     this.speed = Math.hypot(player.vx, player.vz);
     this.grounded = player.grounded;
     this.sliding = player.sliding;
+  }
+
+  setDrawFraction(fraction: number): void {
+    this.viewBow.position.z = fraction * 0.2;
+  }
+
+  setTargetPosition(id: string, x: number, y: number, z: number, visible: boolean): void {
+    const target = this.targets.get(id);
+    if (!target) return;
+    target.position.set(x, y, z);
+    target.visible = visible;
+  }
+
+  spawnArrowVisual(arrow: ArrowSim): Group {
+    const visual = createArrowVisual();
+    this.worldScene.add(visual);
+    this.updateArrowVisual(visual, arrow);
+    return visual;
+  }
+
+  updateArrowVisual(visual: Group, arrow: ArrowSim): void {
+    visual.position.set(arrow.x, arrow.y, arrow.z);
+    arrowDirection.set(arrow.vx, arrow.vy, arrow.vz).normalize();
+    visual.quaternion.setFromUnitVectors(up, arrowDirection);
+  }
+
+  removeVisual(visual: Group): void {
+    this.worldScene.remove(visual);
   }
 
   render(timeMs = performance.now()): void {

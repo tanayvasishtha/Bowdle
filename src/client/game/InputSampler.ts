@@ -6,11 +6,12 @@ export class InputSampler {
   private readonly canvas: HTMLCanvasElement;
   private readonly keys = new Set<string>();
   private mouseButtons = 0;
-  private yaw = -Math.PI / 2;
+  private yaw: number;
   private pitch = 0;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, initialYaw = -Math.PI / 2) {
     this.canvas = canvas;
+    this.yaw = initialYaw;
     window.addEventListener("keydown", (event) => this.keys.add(event.code));
     window.addEventListener("keyup", (event) => this.keys.delete(event.code));
     window.addEventListener("mousedown", (event) => { this.mouseButtons |= 1 << event.button; });
@@ -33,6 +34,9 @@ export class InputSampler {
     if (this.keys.has("Space")) buttons |= BTN.JUMP;
     if (this.keys.has("KeyC") || this.keys.has("ControlLeft")) buttons |= BTN.CROUCH;
     if ((this.mouseButtons & 2) !== 0) buttons |= BTN.AIM;
+    if ((this.mouseButtons & 1) !== 0) buttons |= BTN.FIRE;
+    if (this.keys.has("KeyV")) buttons |= BTN.MELEE;
+    if (this.keys.has("KeyR")) buttons |= BTN.CANCEL;
     out.buttons = buttons;
   }
 }

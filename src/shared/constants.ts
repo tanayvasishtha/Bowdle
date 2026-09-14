@@ -81,3 +81,7 @@ export const DEFAULT_FOV = 90;
 export const AIM_FOV = 65;
 export const AIM_FOV_MS = 120;
 export const MOUSE_SENSITIVITY = 0.002;
+export const PRACTICE_RESPAWN_MS = 2000;
+export const STUCK_ARROW_MS = 8000;
+export const MASTER_VOLUME = 0.6;
+export const PRACTICE_RAIL_HALF_WIDTH = 3;

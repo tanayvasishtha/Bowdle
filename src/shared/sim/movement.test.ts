@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { JUMP_VELOCITY, MAX_HORIZONTAL_SPEED, RUN_SPEED, SLIDE_BOOST, STEP_HEIGHT } from "../constants.ts";
+import { JUMP_VELOCITY, MAX_HORIZONTAL_SPEED, RUN_SPEED, SLIDE_BOOST } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData } from "../maps/types.ts";
 import { createPlayerSim, stepPlayer, type PlayerSim } from "./movement.ts";
@@ -74,9 +74,9 @@ describe("movement", () => {
 
   it("steps up 0.45 m and refuses 0.5 m", () => {
     const climb = createPlayerSim();
-    run(climb, { ...idle, moveZ: 1 }, 10, arena(STEP_HEIGHT));
+    run(climb, { ...idle, moveZ: 1 }, 10, arena(0.45));
     expect(climb.x).toBeGreaterThan(2);
-    expect(climb.y).toBeCloseTo(STEP_HEIGHT, 5);
+    expect(climb.y).toBeCloseTo(0.45, 5);
     const blocked = createPlayerSim();
     run(blocked, { ...idle, moveZ: 1 }, 10, arena(0.5));
     expect(blocked.x).toBeLessThan(2);

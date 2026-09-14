@@ -17,16 +17,13 @@ import {
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { InkName, MapData } from "../../shared/maps/types.ts";
+import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { CompositePass } from "./CompositePass.ts";
 import { InkMaterial } from "./InkMaterial.ts";
 import { INK_ID } from "./palette.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
-const forward = new Vector3();
-const right = new Vector3();
 const up = new Vector3(0, 1, 0);
-const move = new Vector3();
-const cameraEuler = { yaw: -1.15, pitch: -0.18 };
 
 function mapMeshes(map: MapData): Mesh[] {
   const groups = new Map<InkName, BufferGeometry[]>();
@@ -107,13 +104,15 @@ export class Renderer {
   private readonly worldScene = new Scene();
   private readonly viewScene = new Scene();
   private readonly viewCamera = new PerspectiveCamera(70, 1, 0.01, 10);
-  private readonly keys = new Set<string>();
   private readonly planes: Mesh[] = [];
   private readonly overlay: HTMLDivElement | null;
   private previousTime = performance.now();
   private frames = 0;
   private fpsAt = this.previousTime;
   private fps = 0;
+  private speed = 0;
+  private grounded = false;
+  private sliding = false;
 
   constructor(container: HTMLElement, debug: boolean) {
     this.renderer = new WebGLRenderer({ antialias: false, alpha: false });
@@ -136,10 +135,8 @@ export class Renderer {
       this.worldScene.add(ring);
     }
     addViewmodel(this.viewScene);
-    this.camera.position.set(-27, 7, 17);
     this.camera.rotation.order = "YXZ";
     this.overlay = debug ? this.createOverlay(container) : null;
-    this.bindInput();
     this.resize();
     window.addEventListener("resize", () => this.resize());
   }
@@ -150,17 +147,6 @@ export class Renderer {
     overlay.style.cssText = "position:absolute;left:12px;top:12px;padding:8px 10px;background:#f3eedfcc;color:#233c9b;font:16px monospace;white-space:pre;pointer-events:none";
     container.append(overlay);
     return overlay;
-  }
-
-  private bindInput(): void {
-    window.addEventListener("keydown", (event) => this.keys.add(event.code));
-    window.addEventListener("keyup", (event) => this.keys.delete(event.code));
-    this.canvas.addEventListener("click", () => void this.canvas.requestPointerLock());
-    window.addEventListener("mousemove", (event) => {
-      if (document.pointerLockElement !== this.canvas) return;
-      cameraEuler.yaw -= event.movementX * 0.002;
-      cameraEuler.pitch = Math.max(-1.553, Math.min(1.553, cameraEuler.pitch - event.movementY * 0.002));
-    });
   }
 
   private resize(): void {
@@ -176,24 +162,14 @@ export class Renderer {
     this.composite.resize(width, height, dpr);
   }
 
-  private updateCamera(dt: number): void {
-    this.camera.rotation.set(cameraEuler.pitch, cameraEuler.yaw, 0);
-    this.camera.getWorldDirection(forward);
-    right.crossVectors(forward, up).normalize();
-    move.set(0, 0, 0);
-    if (this.keys.has("KeyW")) move.add(forward);
-    if (this.keys.has("KeyS")) move.sub(forward);
-    if (this.keys.has("KeyD")) move.add(right);
-    if (this.keys.has("KeyA")) move.sub(right);
-    if (this.keys.has("Space")) move.y += 1;
-    if (this.keys.has("ShiftLeft")) move.y -= 1;
-    if (move.lengthSq() > 0) this.camera.position.addScaledVector(move.normalize(), dt * 12);
+  setDebugMovement(player: PlayerSim): void {
+    this.speed = Math.hypot(player.vx, player.vz);
+    this.grounded = player.grounded;
+    this.sliding = player.sliding;
   }
 
   render(timeMs = performance.now()): void {
-    const dt = Math.min((timeMs - this.previousTime) / 1000, 0.1);
     this.previousTime = timeMs;
-    this.updateCamera(dt);
     for (let index = 0; index < this.planes.length; index += 1) {
       const plane = this.planes[index]!;
       const radius = index === 0 ? 18 : 24;
@@ -215,7 +191,7 @@ export class Renderer {
       this.fps = this.frames * 1000 / (timeMs - this.fpsAt);
       this.frames = 0;
       this.fpsAt = timeMs;
-      if (this.overlay) this.overlay.textContent = `fps ${this.fps.toFixed(0)}\ndraw calls ${this.renderer.info.render.calls}`;
+      if (this.overlay) this.overlay.textContent = `fps ${this.fps.toFixed(0)}\ndraw calls ${this.renderer.info.render.calls}\nspeed ${this.speed.toFixed(2)}\ngrounded ${this.grounded}\nsliding ${this.sliding}`;
     }
   }
 

@@ -1,4 +1,6 @@
 import { Renderer, type SnapshotFractions } from "./render/Renderer.ts";
+import { InputSampler } from "./game/InputSampler.ts";
+import { OfflineSession } from "./game/OfflineSession.ts";
 
 declare global {
   interface Window {
@@ -12,11 +14,8 @@ if (!app) throw new Error("Missing #app element");
 const params = new URLSearchParams(location.search);
 if (params.get("scene") === "map") {
   const renderer = new Renderer(app, params.has("debug"));
-  const frame = (time: number) => {
-    renderer.render(time);
-    requestAnimationFrame(frame);
-  };
-  requestAnimationFrame(frame);
+  const session = new OfflineSession(renderer, new InputSampler(renderer.canvas));
+  session.start();
   if (params.has("test")) window.__bowdleTest = { snapshot: () => renderer.snapshot() };
 } else {
   const title = document.createElement("h1");

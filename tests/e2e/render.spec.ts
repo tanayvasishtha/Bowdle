@@ -11,5 +11,6 @@ test("Notebook Page renders as ink on paper", async ({ page }) => {
   expect(fractions.paper).toBeGreaterThanOrEqual(0.4);
   expect(fractions.ink).toBeGreaterThanOrEqual(0.02);
   await page.screenshot({ path: "test-results/qa/m1/notebook-map.png", fullPage: true });
+  await page.screenshot({ path: "test-results/qa/m2/notebook-movement.png", fullPage: true });
   expect(errors).toEqual([]);
 });

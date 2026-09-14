@@ -1,5 +1,5 @@
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
 
 describe("game server", () => {
@@ -7,6 +7,10 @@ describe("game server", () => {
 
   beforeAll(async () => {
     colyseus = await boot(server);
+  });
+
+  beforeEach(async () => {
+    await colyseus.cleanup();
   });
 
   afterAll(async () => {

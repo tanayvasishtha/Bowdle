@@ -31,6 +31,7 @@ import type { MapData } from "../maps/types.ts";
 import { clamp } from "../math/angles.ts";
 import { lengthXZ, normalizeXZ, type Vec3 } from "../math/vec3.ts";
 import { canOccupy, movePlayer } from "./collision.ts";
+import { stepCombat, type CombatEvent } from "./bow.ts";
 
 export type PlayerSim = {
   name: string;
@@ -49,7 +50,7 @@ export type PlayerSim = {
 };
 
 export type StepContext = { nowMs: number };
-export type PlayerEvent = never;
+export type PlayerEvent = CombatEvent;
 
 const wish: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -175,6 +176,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     }
     capHorizontal(state, MAX_HORIZONTAL_SPEED);
   }
+  const events = stepCombat(state, input, 1000 / TICK_HZ);
   state.prevButtons = input.buttons;
-  return [];
+  return events;
 }

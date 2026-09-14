@@ -3,9 +3,9 @@ import type { Box, MapData, SpawnPoint } from "./types.ts";
 
 const solid = ["solid"] as const;
 const redHalf: Box[] = [
-  { id: "red-spawn-cover", min: [-24, 0, -5], max: [-22.5, 2, 5], ink: "blue", tags: solid },
-  { id: "red-sharpener-n", min: [-17, 0, 3], max: [-15.5, 1.6, 6], ink: "blue", tags: solid },
-  { id: "red-sharpener-s", min: [-17, 0, -6], max: [-15.5, 1.6, -3], ink: "blue", tags: solid },
+  { id: "red-spawn-cover", min: [-24, 0, -3], max: [-22.5, 1.2, 3], ink: "blue", tags: solid },
+  { id: "red-sharpener-n", min: [-17, 0, 0], max: [-15.5, 2, 6], ink: "blue", tags: solid },
+  { id: "red-sharpener-s", min: [-17, 0, -6], max: [-15.5, 2, 0], ink: "blue", tags: solid },
   { id: "red-mug", min: [-20, 0, 7.5], max: [-17, 3.5, 10.5], ink: "orange", tags: ["solid", "grapple"] },
   { id: "red-pencil-case", min: [-11, 0, -13], max: [-5, 1.3, -11.5], ink: "blue", tags: solid },
   { id: "red-eraser-n", min: [-6.5, 0, 5.5], max: [-5, 1.1, 8.5], ink: "blue", tags: solid },

@@ -39,4 +39,9 @@ export class InputSampler {
     if (this.keys.has("KeyR")) buttons |= BTN.CANCEL;
     out.buttons = buttons;
   }
+
+  setLook(yaw: number, pitch: number): void {
+    this.yaw = yaw;
+    this.pitch = clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
+  }
 }

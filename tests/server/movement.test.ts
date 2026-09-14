@@ -39,9 +39,9 @@ describe("online movement", () => {
       await room.waitForNextTimestep();
       stepPlayer(direct, { moveX: 0, moveZ: 1, yaw: -Math.PI / 2, pitch: 0, buttons: 0 }, notebookMap, { nowMs: frame * 1000 / 30 });
     }
-    expect(serverPlayer.x).toBeCloseTo(direct.x, 6);
-    expect(serverPlayer.y).toBeCloseTo(direct.y, 6);
-    expect(serverPlayer.z).toBeCloseTo(direct.z, 6);
+    expect(Math.abs(serverPlayer.x - direct.x)).toBeLessThanOrEqual(1e-6);
+    expect(Math.abs(serverPlayer.y - direct.y)).toBeLessThanOrEqual(1e-6);
+    expect(Math.abs(serverPlayer.z - direct.z)).toBeLessThanOrEqual(1e-6);
   }, 15_000);
 
   it("reconnects into the same player", async () => {

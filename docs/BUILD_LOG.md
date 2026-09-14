@@ -97,7 +97,7 @@ QA:
 
 Deviation:
 
-- The spawn-cover box was widened from z -3…3 to -5…5 and raised from 1.2 m to 2 m. The documented box dimensions left direct eye-height sightlines between opposing spawns; this is the smallest single symmetric cover adjustment that makes validation rule 9 pass without adding geometry.
+- The north/south sharpener pair was joined at z 0 and raised from 1.6 m to 2 m. The documented dimensions left direct eye-height sightlines between opposing spawns; this symmetric mid-lane adjustment satisfies validation rule 9 while keeping every spawn's forward lane open.
 
 Verify by hand:
 

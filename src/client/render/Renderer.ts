@@ -104,7 +104,7 @@ function addViewmodel(scene: Scene): Group {
   return group;
 }
 
-function createTarget(): Group {
+function createPlayer(): Group {
   const group = new Group();
   const material = new InkMaterial(INK_ID.red);
   const torsoHeight = STAND_HEIGHT - HEAD_RADIUS * 2;
@@ -142,6 +142,7 @@ export class Renderer {
   private readonly viewCamera = new PerspectiveCamera(70, 1, 0.01, 10);
   private readonly planes: Mesh[] = [];
   private readonly targets = new Map<string, Group>();
+  private readonly players = new Map<string, Group>();
   private readonly viewBow: Group;
   private readonly overlay: HTMLDivElement | null;
   private previousTime = performance.now();
@@ -175,7 +176,7 @@ export class Renderer {
       }
     }
     for (const target of practice) {
-      const visual = createTarget();
+      const visual = createPlayer();
       visual.position.set(target.pos[0], target.pos[1], target.pos[2]);
       this.targets.set(target.id, visual);
       this.worldScene.add(visual);
@@ -240,6 +241,29 @@ export class Renderer {
 
   removeVisual(visual: Group): void {
     this.worldScene.remove(visual);
+  }
+
+  setPlayerPosition(id: string, team: number, x: number, y: number, z: number, yaw: number, visible = true): void {
+    let player = this.players.get(id);
+    if (!player) {
+      player = createPlayer();
+      const inkId = team === 0 ? INK_ID.red : INK_ID.green;
+      player.traverse((child) => {
+        if (child instanceof Mesh) child.material = new InkMaterial(inkId);
+      });
+      this.players.set(id, player);
+      this.worldScene.add(player);
+    }
+    player.position.set(x, y, z);
+    player.rotation.y = yaw;
+    player.visible = visible;
+  }
+
+  removePlayer(id: string): void {
+    const player = this.players.get(id);
+    if (!player) return;
+    this.worldScene.remove(player);
+    this.players.delete(id);
   }
 
   render(timeMs = performance.now()): void {

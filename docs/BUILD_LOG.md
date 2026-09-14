@@ -1,5 +1,38 @@
 # Build log
 
+## M2 — Movement
+
+Status: done.
+
+Built:
+
+- Complete gameplay and netcode constant catalog, allocation-free vector helpers, seeded Mulberry32 RNG, angle helpers, and held-button input frames.
+- Shared fixed-step player simulation with Quake-style ground/air acceleration, friction, speed cap, jump buffer, coyote time, automatic bunny hopping, crouch, slide boost/steering/cooldown, aim slowdown, and deterministic state.
+- Axis-separated swept player collision with stair step-up, floor/ceiling handling, and a standing-clearance check.
+- Browser input sampling with pointer lock and first-person fixed-step offline session using interpolation between simulation states.
+- Camera crouch and aim-FOV easing, plus speed, grounded, and sliding values in the F3 overlay.
+
+Tests added:
+
+- Nine movement tests: run acceleration, friction stop, jump apex, air strafe cap, slide rules, bunny-hop retention, exact 0.45 m step-up versus 0.5 m refusal, 10,000-substep wall collision, and 600-frame determinism.
+- M2 Notebook Page screenshot at `test-results/qa/m2/notebook-movement.png`.
+
+QA:
+
+- `npm run check`: passed with 20 tests.
+- `npm run e2e`: 2 passed.
+- `npm run size`: client JavaScript 138 KB gzipped, 900 KB budget.
+- Break check: lowering `STEP_HEIGHT` to 0.3 made the independent 0.45 m step test fail at the obstacle boundary; restoring 0.45 returned the suite to green.
+
+Deviation: none.
+
+Verify by hand:
+
+- Confirm running settles near 8 m/s and sliding peaks near 10.5 m/s.
+- Confirm the book stack is jumpable, the pencil case is not, and both authored staircases walk cleanly.
+- Confirm chained hops retain momentum and wall contact never sticks or penetrates.
+- Confirm crouch height and aim FOV transitions feel quick without snapping.
+
 ## M1 — Doodle renderer and map data
 
 Status: done.

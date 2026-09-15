@@ -1,5 +1,41 @@
 # Build log
 
+## M6 — Highlight moments
+
+Status: done.
+
+Built:
+
+- A preallocated three-second, 30 Hz transform history for eight players and all possible arrows, with a 1.2-second arrow-follow replay at 0.35x speed and a skip control.
+- Post-replay killer spectating, hidden first-person bow during replay, and automatic return on respawn.
+- Practice long-shot picture-in-picture using the shot's recorded ballistic trajectory at replay speed.
+- Seeded 9–14-point team-ink headshot splats, near-wall body pinning, three-second body arrows, eight-second wall arrows, and screen-edge directional damage arcs.
+- Swept segment-to-segment arrow clash detection every physics substep, global Robin Hood messages, deferred reward records, banner, and procedural paper-tear sound.
+- Headshot and 35 m long-shot banners plus a no-op platform happy-time boundary for future publishing integrations.
+
+Tests added:
+
+- Segment distance tests for crossing, parallel, and endpoint-separated paths.
+- Server proof that two opposing head-on arrows both disappear and create reward records.
+- Online arrow-cam visibility assertion and screenshot at `test-results/qa/m6/arrow-cam.png`.
+- Practice trajectory replay assertion and screenshot at `test-results/qa/m6/practice-replay.png`.
+
+QA:
+
+- `npm run check`: passed with 53 tests.
+- `npm run e2e`: 5 passed.
+- `npm run size`: client JavaScript 237 KB gzipped, 900 KB budget.
+- Break check: changing the clash distance threshold to zero left both arrows alive and failed the head-on server test; restoring twice the arrow radius returned it to green.
+- Visual inspection: the online replay cleanly removes the viewmodel, frames the splatted/pinned victim, keeps the headshot banner readable, and exposes the skip control. The practice inset shows the captured arc on ruled paper.
+
+Deviation: none.
+
+Verify by hand:
+
+- Die to a long-range arrow and confirm the slow flight remains readable before the view settles on the killer; verify skip exits cleanly.
+- Confirm a headshot leaves a team-color splat, a near-wall arrow kill pins the body, and damage arcs point toward the attacker.
+- Capture a replay clip and judge whether the camera spacing and timing feel worth sharing; tune only if the motion feels cramped at the chosen capture resolution.
+
 ## M5 — Computer-controlled teams
 
 Status: done.

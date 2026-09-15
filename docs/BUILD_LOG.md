@@ -1,5 +1,38 @@
 # Build log
 
+## W3 — Props and ambience
+
+Status: done.
+
+Built:
+
+- Added deterministic low-poly builders for all 26 field-guide prop kinds: jungle plants and trees, ruin masonry and carvings, traversal structures, water and mist, expedition camp pieces, and the unmarked plane wreck.
+- Batched each prop kind through instanced rendering, applied seed-derived variation, and compacted visible instances each frame so specimens beyond 90 metres are hidden.
+- Added visual-only flame flicker, rope and bridge sway, drifting waterfall sheets, and rippling water surfaces.
+- Added `/?scene=props`, a jungle-clearing field guide with every prop in a grid and a floating handwritten label for every specimen.
+- Added a procedural WebAudio ambience layer with a seeded insect bed and bird cadence, soft wind, distance-driven water, boulder rumble and roll layers, lever clunk, and speed-driven zip whine. It starts only after user interaction.
+- Exposed test-only renderer draw-call and triangle statistics.
+
+Tests added:
+
+- Browser gallery proof for all 26 labels, correct scene selection, zero console errors after audio activation, no more than 150 draw calls, and no more than 300,000 visible triangles.
+- Gallery screenshot at `test-results/qa/w3/prop-gallery.png`.
+
+QA:
+
+- `npm run check`: passed with 84 tests.
+- `npm run e2e`: 9 passed.
+- `npm run size`: client JavaScript 247 KB gzipped, 900 KB budget.
+- Diff review: no dependency changes, unsafe randomness, weak typing, forbidden imports, per-frame object creation, or reduced tests were introduced. Prop geometry and seed variation are created once; frame updates reuse matrices.
+
+Deviation: none.
+
+Verify by hand:
+
+- Walk through `/?scene=props` and confirm all silhouettes remain readable at distance and share one loose ink-and-watercolor hand.
+- Watch flames, water, waterfalls, ropes, and the bridge from near and far; confirm the motion adds life without making collision surfaces appear to move.
+- Leave ambience active for five minutes near and far from water, then ride a zip and trigger a boulder; confirm the mix stays subtle and the hazard cues remain clear.
+
 ## W2 — Map kit v2
 
 Status: done.

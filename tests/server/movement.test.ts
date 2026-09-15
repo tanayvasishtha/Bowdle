@@ -18,6 +18,9 @@ describe("online movement", () => {
     const player = client.state.players.get(client.sessionId);
     expect(player?.name).toBe("Archer");
     expect(player?.team).toBe(0);
+    expect(client.state.players.size).toBe(8);
+    expect([...client.state.players.values()].filter((entry) => entry.team === 0)).toHaveLength(4);
+    expect([...client.state.players.values()].filter((entry) => entry.team === 1)).toHaveLength(4);
   });
 
   it("90 wire inputs match 90 direct shared steps", async () => {

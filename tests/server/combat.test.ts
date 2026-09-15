@@ -15,7 +15,7 @@ describe("authoritative online combat", () => {
   afterAll(async () => { await colyseus.shutdown(); });
 
   async function setup() {
-    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Shooter" });
+    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Shooter", test: true });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
     const shooter = room.state.players.get(client.sessionId)!; shooter.x = -25; shooter.y = 0; shooter.z = -8; shooter.yaw = -Math.PI / 2;

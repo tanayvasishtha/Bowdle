@@ -1,4 +1,4 @@
-import { BOT_LONG_LINK_M, BOT_SLIDE_CHANCE } from "../constants.ts";
+import { BOT_LONG_LINK_M, BOT_SLIDE_CHANCE, BOT_WAYPOINT_REACHED_M } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData, Waypoint, WaypointLink } from "../maps/types.ts";
 import { wrapAngle } from "../math/angles.ts";
@@ -44,7 +44,7 @@ function linkTo(point: Waypoint, targetId: string): WaypointLink | undefined { r
 export function followPath(player: PlayerSim, path: readonly Waypoint[], index: number, rng: SeededRng, out: BotMove): number {
   if (path.length === 0) { out.moveX = 0; out.moveZ = 0; out.buttons = 0; return index; }
   let nextIndex = Math.min(index, path.length - 1); let target = path[nextIndex]!;
-  if (Math.hypot(target.pos[0] - player.x, target.pos[2] - player.z) < 0.8 && nextIndex < path.length - 1) target = path[nextIndex += 1]!;
+  if (Math.hypot(target.pos[0] - player.x, target.pos[2] - player.z) < BOT_WAYPOINT_REACHED_M && nextIndex < path.length - 1) target = path[nextIndex += 1]!;
   const yaw = Math.atan2(-(target.pos[0] - player.x), -(target.pos[2] - player.z));
   const delta = wrapAngle(yaw - player.yaw); out.yaw = yaw; out.pitch = 0; out.moveZ = Math.max(0, Math.cos(delta)); out.moveX = Math.sin(delta);
   out.buttons = 0;

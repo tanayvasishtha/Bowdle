@@ -22,7 +22,8 @@ import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { InkName, MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import type { PracticeTarget } from "../../shared/maps/range.ts";
-import { BODY_RADIUS, EYE_STAND, HEAD_RADIUS, STAND_HEIGHT } from "../../shared/constants.ts";
+import { BODY_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
+import { mulberry32 } from "../../shared/math/rng.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
 import { InkMaterial } from "./InkMaterial.ts";
@@ -145,6 +146,7 @@ export class Renderer {
   private readonly players = new Map<string, Group>();
   private readonly viewBow: Group;
   private readonly overlay: HTMLDivElement | null;
+  private readonly map: MapData;
   private previousTime = performance.now();
   private frames = 0;
   private fpsAt = this.previousTime;
@@ -154,6 +156,7 @@ export class Renderer {
   private sliding = false;
 
   constructor(container: HTMLElement, debug: boolean, map: MapData = notebookMap, practice: readonly PracticeTarget[] = []) {
+    this.map = map;
     this.renderer = new WebGLRenderer({ antialias: false, alpha: false });
     this.canvas = this.renderer.domElement;
     this.canvas.id = "game-canvas";
@@ -219,6 +222,8 @@ export class Renderer {
     this.viewBow.position.z = fraction * 0.2;
   }
 
+  setViewmodelVisible(visible: boolean): void { this.viewBow.visible = visible; }
+
   setTargetPosition(id: string, x: number, y: number, z: number, visible: boolean): void {
     const target = this.targets.get(id);
     if (!target) return;
@@ -265,6 +270,34 @@ export class Renderer {
     this.worldScene.remove(player);
     this.players.delete(id);
   }
+
+  addInkSplat(x: number, y: number, z: number, team: number, seed: number): void {
+    const rng = mulberry32(seed); const count = SPLAT_MIN_VERTICES + Math.floor(rng() * (SPLAT_MAX_VERTICES - SPLAT_MIN_VERTICES + 1));
+    const vertices = new Float32Array(count * 9);
+    for (let index = 0; index < count; index += 1) {
+      const a0 = index / count * Math.PI * 2, a1 = (index + 1) / count * Math.PI * 2;
+      const r0 = 0.18 + rng() * 0.3, r1 = 0.18 + rng() * 0.3, offset = index * 9;
+      vertices[offset] = 0; vertices[offset + 1] = 0; vertices[offset + 2] = 0;
+      vertices[offset + 3] = Math.cos(a0) * r0; vertices[offset + 4] = Math.sin(a0) * r0; vertices[offset + 5] = 0;
+      vertices[offset + 6] = Math.cos(a1) * r1; vertices[offset + 7] = Math.sin(a1) * r1; vertices[offset + 8] = 0;
+    }
+    const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(vertices, 3)); geometry.computeVertexNormals();
+    const splat = new Mesh(geometry, new InkMaterial(team === 0 ? INK_ID.red : INK_ID.green)); splat.position.set(x, y + EYE_STAND, z); this.worldScene.add(splat);
+  }
+
+  pinPlayer(id: string, fromX: number, fromZ: number): void {
+    const player = this.players.get(id); if (!player) return;
+    let dx = player.position.x - fromX, dz = player.position.z - fromZ; const length = Math.hypot(dx, dz); if (length <= 0) return; dx /= length; dz /= length;
+    for (let distance = PIN_SEARCH_STEP_M; distance <= PIN_SEARCH_M; distance += PIN_SEARCH_STEP_M) {
+      const x = player.position.x + dx * distance, z = player.position.z + dz * distance;
+      const wall = this.map.boxes.some((box) => box.tags.includes("solid") && box.max[1] > player.position.y + EYE_STAND && x >= box.min[0] && x <= box.max[0] && z >= box.min[2] && z <= box.max[2]);
+      if (!wall) continue;
+      player.position.x = x - dx * PIN_SEARCH_STEP_M; player.position.z = z - dz * PIN_SEARCH_STEP_M; player.rotation.z = Math.PI / 2; return;
+    }
+    player.rotation.z = Math.PI / 5;
+  }
+
+  unpinPlayer(id: string): void { const player = this.players.get(id); if (player) player.rotation.z = 0; }
 
   render(timeMs = performance.now()): void {
     this.previousTime = timeMs;

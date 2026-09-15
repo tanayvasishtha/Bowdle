@@ -11,5 +11,11 @@ test("full draw headshot kills the 20 m practice target", async ({ page }) => {
   expect(result).toMatchObject({ headshot: true, killed: true });
   await expect(page.locator("#hit-marker")).toContainText("HEADSHOT");
   await page.screenshot({ path: "test-results/qa/m3/practice-range.png", fullPage: true });
+  const longShot = await page.evaluate(() => (window as unknown as {
+    __bowdleTest: { fireAt(targetId: string, drawMs: number): { headshot: boolean; killed: boolean } };
+  }).__bowdleTest.fireAt("target-45", 600));
+  expect(longShot).toEqual({ headshot: true, killed: true, targetId: "target-45" });
+  await expect(page.locator(".bowdle-practice-replay")).toBeVisible();
+  await page.screenshot({ path: "test-results/qa/m6/practice-replay.png", fullPage: true });
   expect(errors).toEqual([]);
 });

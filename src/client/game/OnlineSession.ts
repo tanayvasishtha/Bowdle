@@ -1,21 +1,24 @@
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
-import { ARROW_GRAVITY, ARROW_SPEED_MAX, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INTERP_DELAY_MS, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS } from "../../shared/constants.ts";
+import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS } from "../../shared/constants.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { spawnArrow, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
-import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage } from "../../net/messages.ts";
+import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, RobinHoodMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import type { Renderer } from "../render/Renderer.ts";
 import { MatchHud } from "../ui/hud.ts";
+import { SoundEffects } from "../audio/sfx.ts";
+import { happyTime } from "../platform/web.ts";
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
+import { ReplayDirector } from "./ReplayDirector.ts";
 
 export type RenderedPlayer = { id: string; x: number; y: number; z: number };
 type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "grapple" | "ink" };
-type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number };
+type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number };
 
 export class OnlineSession {
   readonly sessionId: string;
@@ -29,15 +32,19 @@ export class OnlineSession {
   private readonly arrowRenders = new Map<number, ArrowRender>();
   private readonly names = new Map<string, string>();
   private readonly hud: MatchHud;
+  private readonly replay: ReplayDirector;
+  private readonly sounds = new SoundEffects();
   private readonly cameraRig = new CameraRig();
   private lastFrameMs = performance.now();
   private nextHudAtMs = 0;
+  private wasAlive = true;
 
   private constructor(renderer: Renderer, sampler: InputSampler, room: Room<unknown, MatchState>) {
     this.renderer = renderer;
     this.sampler = sampler;
     this.room = room;
     this.hud = new MatchHud(renderer.canvas.parentElement!);
+    this.replay = new ReplayDirector(renderer.canvas.parentElement!);
     this.sessionId = room.sessionId;
     this.input = room.input<PlayerInput>({ mode: "reliable", type: PlayerInput });
     this.predict = Predict.get(room, { mode: "lerp", delay: INTERP_DELAY_MS, renderPresent: false });
@@ -63,10 +70,11 @@ export class OnlineSession {
     });
     const callbacks = Callbacks.get(room);
     callbacks.onRemove("players", (_player, id) => this.renderer.removePlayer(id));
-    room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.hud.kill(parsed.data, this.names); });
+    room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.hud.hit(parsed.data.headshot); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); });
     room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); if (parsed.success) this.hud.end(parsed.data, this.names); });
+    room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
   static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false): Promise<OnlineSession> {
@@ -98,6 +106,7 @@ export class OnlineSession {
     }
     this.cameraRig.update(this.renderer.camera, this.me.state, this.me.state, 1, elapsed);
     this.renderer.setDebugMovement(this.me.state);
+    const capture = this.replay.beginCapture(timeMs);
     for (const [id, player] of this.room.state.players) {
       this.names.set(id, player.name);
       this.renderer.setPlayerPosition(
@@ -109,31 +118,56 @@ export class OnlineSession {
         this.predict.value(player, "yaw"),
         id !== this.sessionId,
       );
+      if (player.alive) this.renderer.unpinPlayer(id);
+      if (capture) this.replay.player(id, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"), this.predict.value(player, "yaw"));
     }
-    this.renderArrows(timeMs);
+    this.renderArrows(timeMs, capture);
+    if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
+    else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); }
+    this.wasAlive = this.me.state.alive;
     if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; }
     this.renderer.render(timeMs);
     requestAnimationFrame((time) => this.frame(time));
   }
 
-  private renderArrows(timeMs: number): void {
+  private renderArrows(timeMs: number, capture: boolean): void {
     for (const entry of this.arrows.entries()) {
       let render = this.arrowRenders.get(entry.id);
       if (!render) {
         const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        render = { visual: this.renderer.spawnArrowVisual(sim), sim, removedAtMs: 0 }; this.arrowRenders.set(entry.id, render);
+        render = { visual: this.renderer.spawnArrowVisual(sim), sim, removedAtMs: 0, stuckForMs: STUCK_ARROW_MS }; this.arrowRenders.set(entry.id, render);
       }
       const source = entry.server ?? entry.local;
       if (!source) continue;
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
       render.sim.vx = source.vx; render.sim.vy = source.vy; render.sim.vz = source.vz; this.renderer.updateArrowVisual(render.visual, render.sim);
+      if (capture) this.replay.arrow(entry.id, render.sim.x, render.sim.y, render.sim.z);
     }
     for (const [id, render] of this.arrowRenders) {
       if (this.arrows.alive(id)) continue;
       if (render.removedAtMs === 0) render.removedAtMs = timeMs;
-      if (timeMs - render.removedAtMs >= STUCK_ARROW_MS) { this.renderer.removeVisual(render.visual); this.arrowRenders.delete(id); }
+      if (timeMs - render.removedAtMs >= render.stuckForMs) { this.renderer.removeVisual(render.visual); this.arrowRenders.delete(id); }
     }
   }
+
+  private onKill(message: KillMessage): void {
+    this.hud.kill(message, this.names); const victim = this.room.state.players.get(message.victim); const killer = this.room.state.players.get(message.killer);
+    if (victim) {
+      if (message.headshot) this.renderer.addInkSplat(victim.x, victim.y, victim.z, victim.team, this.hash(message.victim) + Math.round(this.room.clock.serverNow()));
+      if (killer && message.weapon === "arrow") this.renderer.pinPlayer(message.victim, killer.x, killer.z);
+      this.markBodyArrow(victim.x, victim.y, victim.z);
+    }
+    if (message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
+    else if (message.distance >= LONG_SHOT_M) { this.hud.banner("LONG SHOT!"); happyTime("longShot"); }
+    if (message.victim === this.sessionId && message.weapon === "arrow") this.replay.start(message.victim, message.killer, performance.now());
+  }
+
+  private markBodyArrow(x: number, y: number, z: number): void {
+    let nearest: ArrowRender | undefined, distance = Number.POSITIVE_INFINITY;
+    for (const render of this.arrowRenders.values()) { const candidate = Math.hypot(render.sim.x - x, render.sim.y - y, render.sim.z - z); if (candidate < distance) { distance = candidate; nearest = render; } }
+    if (nearest) nearest.stuckForMs = BODY_ARROW_STUCK_MS;
+  }
+  private hash(value: string): number { let hash = 0; for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619); return hash; }
 
   players(): RenderedPlayer[] {
     const result: RenderedPlayer[] = [];

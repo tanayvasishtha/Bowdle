@@ -1,6 +1,6 @@
 import { MASTER_VOLUME } from "../../shared/constants.ts";
 
-type SoundName = "draw" | "release" | "wood" | "body" | "headshot" | "dagger";
+type SoundName = "draw" | "release" | "wood" | "body" | "headshot" | "dagger" | "paper";
 
 export class SoundEffects {
   private context: AudioContext | null = null;
@@ -32,15 +32,15 @@ export class SoundEffects {
     const master = this.master;
     if (!context || !master) return;
     const now = context.currentTime;
-    if (name === "draw" || name === "wood" || name === "body" || name === "dagger") {
+    if (name === "draw" || name === "wood" || name === "body" || name === "dagger" || name === "paper") {
       const source = context.createBufferSource();
       source.buffer = this.noise;
       const filter = context.createBiquadFilter();
       filter.type = name === "draw" ? "bandpass" : "lowpass";
-      filter.frequency.setValueAtTime(name === "draw" ? 700 : name === "dagger" ? 1800 : 420, now);
+      filter.frequency.setValueAtTime(name === "draw" ? 700 : name === "dagger" ? 1800 : name === "paper" ? 2400 : 420, now);
       const gain = context.createGain();
-      gain.gain.setValueAtTime(name === "draw" ? 0.06 : 0.14, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + (name === "draw" ? 0.28 : 0.12));
+      gain.gain.setValueAtTime(name === "draw" ? 0.06 : name === "paper" ? 0.2 : 0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (name === "draw" ? 0.28 : name === "paper" ? 0.22 : 0.12));
       source.connect(filter).connect(gain).connect(master);
       source.start(now);
       source.stop(now + 0.3);

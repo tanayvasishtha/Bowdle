@@ -8,7 +8,10 @@ import {
   HEAD_RADIUS,
   MAX_HP,
   PRACTICE_RAIL_HALF_WIDTH,
+  PRACTICE_REPLAY_MIN_M,
   PRACTICE_RESPAWN_MS,
+  REPLAY_DURATION_MS,
+  REPLAY_SPEED,
   STAND_HEIGHT,
   STUCK_ARROW_MS,
   SUBSTEPS,
@@ -55,6 +58,7 @@ export class PracticeSession {
   private readonly arrows: ArrowEntry[] = [];
   private readonly crosshair: HTMLDivElement;
   private readonly hitText: HTMLDivElement;
+  private readonly replayCard: HTMLDivElement;
   private accumulatorMs = 0;
   private lastFrameMs = performance.now();
   private simTimeMs = 0;
@@ -68,7 +72,10 @@ export class PracticeSession {
     this.hitText = document.createElement("div");
     this.hitText.id = "hit-marker";
     this.hitText.style.cssText = "position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font:34px 'Permanent Marker',cursive;color:#d1382f;text-shadow:1px 1px #f3eedf;pointer-events:none";
-    container.append(this.crosshair, this.hitText);
+    this.replayCard = document.createElement("div");
+    this.replayCard.className = "bowdle-practice-replay";
+    this.replayCard.style.cssText = "display:none;position:absolute;right:24px;bottom:24px;width:320px;height:180px;border:4px solid #233c9b;background-size:cover;background-position:center;color:#d1382f;font:24px 'Permanent Marker';padding:8px;box-sizing:border-box;pointer-events:none";
+    container.append(this.crosshair, this.hitText, this.replayCard);
   }
 
   start(): void {
@@ -92,11 +99,23 @@ export class PracticeSession {
 
   private damageTarget(target: TargetState, damage: number, headshot: boolean): PracticeShotResult {
     const killed = applyDamage(target, damage * (headshot ? HEAD_MULT : 1), this.simTimeMs);
-    if (killed) target.respawnAtMs = this.simTimeMs + PRACTICE_RESPAWN_MS;
+    if (killed) {
+      target.respawnAtMs = this.simTimeMs + PRACTICE_RESPAWN_MS;
+      const distance = Math.hypot(target.x - this.player.x, target.pos[2] - this.player.z);
+      if (distance > PRACTICE_REPLAY_MIN_M) this.showReplayCard(distance);
+    }
     this.hitText.textContent = headshot ? "HEADSHOT ✕" : `-${Math.round(damage)}`;
     this.sounds.play(headshot ? "headshot" : "body");
     window.setTimeout(() => { this.hitText.textContent = ""; }, 500);
     return { headshot, killed, targetId: target.id };
+  }
+
+  private showReplayCard(distance: number): void {
+    this.replayCard.innerHTML = `<strong>ARROW CAM · ${Math.round(distance)} m</strong><span style="position:absolute;left:18px;top:78px;font-size:54px">➳</span><span style="position:absolute;right:24px;top:72px;font-size:54px">◎</span>`;
+    this.replayCard.style.backgroundImage = "linear-gradient(165deg,#f3eedfee,#a9c4e866)";
+    this.replayCard.style.display = "block";
+    this.replayCard.querySelector("span")!.animate([{ transform: "translateX(0) rotate(-4deg)" }, { transform: "translateX(210px) rotate(3deg)" }], { duration: REPLAY_DURATION_MS / REPLAY_SPEED, playbackRate: REPLAY_SPEED });
+    window.setTimeout(() => { this.replayCard.style.display = "none"; }, REPLAY_DURATION_MS / REPLAY_SPEED);
   }
 
   private stepProjectiles(dt: number): void {

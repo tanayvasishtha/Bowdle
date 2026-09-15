@@ -29,7 +29,7 @@ const params = new URLSearchParams(location.search);
 if (params.get("scene") === "online") {
   const loading = document.createElement("h1");
   loading.textContent = "Joining match…";
-  loading.style.cssText = "position:absolute;inset:35% 0 auto;text-align:center;color:#233c9b;font:48px 'Permanent Marker',cursive";
+  loading.style.cssText = "position:absolute;inset:35% 0 auto;text-align:center;color:#4a3527;font:48px 'Permanent Marker',cursive";
   app.append(loading);
   const renderer = new Renderer(app, params.has("debug"));
   const sampler = new InputSampler(renderer.canvas);
@@ -61,7 +61,7 @@ if (params.get("scene") === "online") {
     ...(session instanceof PracticeSession ? { fireAt: (targetId: string, drawMs: number) => session.fireAt(targetId, drawMs) } : {}),
   };
 } else {
-  app.innerHTML = `<main style="position:absolute;inset:24% 0 auto;text-align:center;color:#233c9b;font-family:'Gochi Hand',cursive">
+  app.innerHTML = `<main style="position:absolute;inset:24% 0 auto;text-align:center;color:#4a3527;font-family:'Gochi Hand',cursive">
     <h1 style="margin:0 0 28px;font:76px 'Permanent Marker',cursive">Bowdle</h1>
     <button id="practice" style="font:30px inherit;margin:8px;padding:10px 28px">Practice</button>
     <button id="play-online" style="font:30px inherit;margin:8px;padding:10px 28px">Play online</button>

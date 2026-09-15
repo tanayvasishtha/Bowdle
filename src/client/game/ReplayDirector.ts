@@ -22,8 +22,8 @@ export class ReplayDirector {
 
   constructor(container: HTMLElement) {
     this.overlay = document.createElement("div"); this.overlay.className = "bowdle-replay";
-    this.overlay.innerHTML = `<span>ARROW CAM</span><button style="margin-left:12px;border:2px solid #233c9b;background:#f3eedf;color:#233c9b;font:18px 'Gochi Hand'">SKIP ›</button>`;
-    this.overlay.style.cssText = "display:none;position:absolute;left:24px;bottom:24px;padding:10px 14px;background:#f3eedfdd;border:3px solid #233c9b;color:#233c9b;font:24px 'Permanent Marker';pointer-events:auto;transform:rotate(-1deg)";
+    this.overlay.innerHTML = `<span>ARROW CAM</span><button style="margin-left:12px;border:2px solid #4a3527;background:#efe3c6;color:#4a3527;font:18px 'Gochi Hand'">SKIP ›</button>`;
+    this.overlay.style.cssText = "display:none;position:absolute;left:24px;bottom:24px;padding:10px 14px;background:#efe3c6dd;border:3px solid #4a3527;color:#4a3527;font:24px 'Permanent Marker';pointer-events:auto;transform:rotate(-1deg)";
     this.overlay.querySelector("button")!.addEventListener("click", () => { this.replaying = false; this.spectating = true; }); container.append(this.overlay);
   }
 

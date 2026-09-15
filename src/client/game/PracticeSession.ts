@@ -27,6 +27,7 @@ import { applyDamage } from "../../shared/sim/health.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
 import { meleeHit } from "../../shared/sim/melee.ts";
 import { createPlayerSim, stepPlayer, type PlayerSim } from "../../shared/sim/movement.ts";
+import { JOURNAL_LOOK } from "../render/look.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import type { Renderer } from "../render/Renderer.ts";
 import { CameraRig } from "./CameraRig.ts";
@@ -70,13 +71,13 @@ export class PracticeSession {
     this.sampler = sampler;
     this.crosshair = document.createElement("div");
     this.crosshair.id = "crosshair";
-    this.crosshair.style.cssText = "position:absolute;left:50%;top:50%;width:36px;height:36px;border:3px solid #233c9b;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none";
+    this.crosshair.style.cssText = "position:absolute;left:50%;top:50%;width:36px;height:36px;border:3px solid #4a3527;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none";
     this.hitText = document.createElement("div");
     this.hitText.id = "hit-marker";
-    this.hitText.style.cssText = "position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font:34px 'Permanent Marker',cursive;color:#d1382f;text-shadow:1px 1px #f3eedf;pointer-events:none";
+    this.hitText.style.cssText = "position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font:34px 'Permanent Marker',cursive;color:#d2531f;text-shadow:1px 1px #efe3c6;pointer-events:none";
     this.replayCard = document.createElement("div");
     this.replayCard.className = "bowdle-practice-replay";
-    this.replayCard.style.cssText = "display:none;position:absolute;right:24px;bottom:24px;width:320px;height:180px;border:4px solid #233c9b;background-size:cover;background-position:center;color:#d1382f;font:24px 'Permanent Marker';padding:8px;box-sizing:border-box;pointer-events:none";
+    this.replayCard.style.cssText = "display:none;position:absolute;right:24px;bottom:24px;width:320px;height:180px;border:4px solid #4a3527;background-size:cover;background-position:center;color:#d2531f;font:24px 'Permanent Marker';padding:8px;box-sizing:border-box;pointer-events:none";
     container.append(this.crosshair, this.hitText, this.replayCard);
   }
 
@@ -103,23 +104,25 @@ export class PracticeSession {
     const killed = applyDamage(target, damage * (headshot ? HEAD_MULT : 1), this.simTimeMs);
     if (killed) target.respawnAtMs = this.simTimeMs + PRACTICE_RESPAWN_MS;
     this.hitText.textContent = headshot ? "HEADSHOT ✕" : `-${Math.round(damage)}`;
+    this.hitText.animate([{ opacity: 1, transform: "translate(-50%,-50%) scale(.8)" }, { opacity: 1, transform: "translate(-50%,-50%) scale(1.08)" }, { opacity: 0 }], { duration: JOURNAL_LOOK.hitMarkerMs });
     this.sounds.play(headshot ? "headshot" : "body");
-    window.setTimeout(() => { this.hitText.textContent = ""; }, 500);
     return { headshot, killed, targetId: target.id };
   }
 
   private showReplayCard(distance: number, trail: Float32Array, count: number): void {
     this.replayCard.innerHTML = `<strong style="position:absolute;z-index:2">ARROW CAM · ${Math.round(distance)} m</strong><canvas width="296" height="148" style="position:absolute;left:8px;top:24px"></canvas>`;
-    this.replayCard.style.backgroundImage = "linear-gradient(165deg,#f3eedfee,#a9c4e866)";
+    this.replayCard.style.backgroundImage = "linear-gradient(165deg,#efe3c6ee,#d9c79f88)";
     this.replayCard.style.display = "block";
     const canvas = this.replayCard.querySelector("canvas")!, context = canvas.getContext("2d")!; const started = performance.now();
     const duration = Math.min(REPLAY_DURATION_MS, count * 1000 / REPLAY_CAPTURE_HZ) / REPLAY_SPEED;
     const draw = (now: number): void => {
       const shown = Math.min(count, Math.max(1, Math.ceil((now - started) / duration * count))); context.clearRect(0, 0, canvas.width, canvas.height);
-      context.strokeStyle = "#a9c4e8"; context.lineWidth = 1; for (let y = 22; y < canvas.height; y += 22) { context.beginPath(); context.moveTo(0, y); context.lineTo(canvas.width, y); context.stroke(); }
-      context.strokeStyle = "#233c9b"; context.lineWidth = 3; context.beginPath();
+      context.strokeStyle = "#d9c79f"; context.lineWidth = 1; const grid = JOURNAL_LOOK.gridCssPx / 2;
+      for (let y = grid; y < canvas.height; y += grid) { context.beginPath(); context.moveTo(0, y); context.lineTo(canvas.width, y); context.stroke(); }
+      for (let x = grid; x < canvas.width; x += grid) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, canvas.height); context.stroke(); }
+      context.strokeStyle = "#4a3527"; context.lineWidth = 3; context.beginPath();
       for (let index = 0; index < shown; index += 1) { const x = 14 + index / Math.max(1, count - 1) * (canvas.width - 28); const y = canvas.height * 0.7 - (trail[index * 3 + 1]! - trail[1]!) * 24; if (index === 0) context.moveTo(x, y); else context.lineTo(x, y); } context.stroke();
-      const arrowX = 14 + (shown - 1) / Math.max(1, count - 1) * (canvas.width - 28), arrowY = canvas.height * 0.7 - (trail[(shown - 1) * 3 + 1]! - trail[1]!) * 24; context.fillStyle = "#d1382f"; context.beginPath(); context.arc(arrowX, arrowY, 6, 0, Math.PI * 2); context.fill();
+      const arrowX = 14 + (shown - 1) / Math.max(1, count - 1) * (canvas.width - 28), arrowY = canvas.height * 0.7 - (trail[(shown - 1) * 3 + 1]! - trail[1]!) * 24; context.fillStyle = "#d2531f"; context.beginPath(); context.arc(arrowX, arrowY, 6, 0, Math.PI * 2); context.fill();
       if (shown < count) requestAnimationFrame(draw); else window.setTimeout(() => { this.replayCard.style.display = "none"; }, REPLAY_DURATION_MS);
     };
     requestAnimationFrame(draw);

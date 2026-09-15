@@ -7,4 +7,5 @@ export const JOURNAL_LOOK = {
   fadeNearM: 35, fadeFarM: 120, thinOutlineM: 60,
   waterStrokeCssPx: 10, waterDriftCssPxPerSecond: 12, waterStrokeOpacity: 0.5,
   sunShaftCount: 4, sunShaftLighten: 0.12,
+  hitMarkerMs: 900,
 } as const;

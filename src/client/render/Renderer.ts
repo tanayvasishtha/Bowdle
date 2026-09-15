@@ -198,7 +198,7 @@ export class Renderer {
   private createOverlay(container: HTMLElement): HTMLDivElement {
     const overlay = document.createElement("div");
     overlay.id = "debug-overlay";
-    overlay.style.cssText = "position:absolute;left:12px;top:12px;padding:8px 10px;background:#f3eedfcc;color:#233c9b;font:16px monospace;white-space:pre;pointer-events:none";
+    overlay.style.cssText = "position:absolute;left:12px;top:12px;padding:8px 10px;background:#efe3c6cc;color:#4a3527;font:16px monospace;white-space:pre;pointer-events:none";
     container.append(overlay);
     return overlay;
   }

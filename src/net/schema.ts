@@ -35,6 +35,13 @@ export const InkCloudState = schema({
 }, "InkCloudState");
 export type InkCloudState = SchemaType<typeof InkCloudState>;
 
+export const BoulderHazardState = schema({
+  phase: t.string<"idle" | "telegraph" | "roll" | "despawn">().default("idle"), direction: t.int8().default(1), t: t.number().default(0),
+  phaseEndsAtMs: t.number().default(0), nextAtMs: t.number().default(0), leverReadyAtMs: t.number().default(0), puller: t.string().default(""),
+  x: t.number().default(0), y: t.number().default(0), z: t.number().default(0),
+}, "BoulderHazardState");
+export type BoulderHazardState = SchemaType<typeof BoulderHazardState>;
+
 export const MatchState = schema({
   mapId: t.string().default("notebook"),
   phase: t.string<"warmup" | "live" | "end">().default("warmup"),
@@ -44,6 +51,7 @@ export const MatchState = schema({
   players: t.map(PlayerState),
   arrows: t.map(ArrowState),
   inkClouds: t.map(InkCloudState),
+  hazards: t.map(BoulderHazardState),
 }, "MatchState");
 export type MatchState = SchemaType<typeof MatchState>;
 

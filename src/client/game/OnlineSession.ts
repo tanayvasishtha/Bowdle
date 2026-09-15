@@ -165,7 +165,8 @@ export class OnlineSession {
       if (killer && message.weapon === "arrow") this.renderer.pinPlayer(message.victim, killer.x, killer.z);
       this.markBodyArrow(victim.x, victim.y, victim.z);
     }
-    if (message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
+    if (message.weapon === "boulder" && message.killer === this.sessionId) this.hud.banner("TRAP!");
+    else if (message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
     else if (message.distance >= LONG_SHOT_M) { this.hud.banner("LONG SHOT!"); happyTime("longShot"); }
     if (message.victim === this.sessionId && message.weapon === "arrow") { this.hud.setReplay(true); this.replay.start(message.victim, message.killer, performance.now()); }
   }

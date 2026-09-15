@@ -10,7 +10,10 @@ import {
   INK_CLOUD_MS,
   INK_CLOUD_RADIUS,
   MAX_NAME_LENGTH,
+  MAX_HP,
   MAX_REWIND_MS,
+  BOULDER_RADIUS,
+  PLAYER_WIDTH,
   RESPAWN_MS,
   RECONNECT_WINDOW_S,
   STAND_HEIGHT,
@@ -21,13 +24,14 @@ import {
   TEST_DUEL_LANE_Z,
   TICK_HZ,
   WARMUP_MS,
+  USE_DIST,
 } from "../../shared/constants.ts";
-import type { PlayerInputFrame } from "../../shared/input.ts";
+import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import { kitMap } from "../../shared/maps/fixtures/kit.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
-import { ArrowState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
+import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
 import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
 import { spawnArrow, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
@@ -37,6 +41,7 @@ import { stepPlayer } from "../../shared/sim/movement.ts";
 import { segmentDistance } from "../../shared/math/segments.ts";
 import { BotController } from "../bots/BotController.ts";
 import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
+import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
 
 type JoinOptions = { name?: string; test?: boolean; mapId?: string };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage };
@@ -75,6 +80,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   onCreate(options: JoinOptions): void {
     this.map = options.mapId === kitMap.id ? kitMap : notebookMap;
     this.state.mapId = this.map.id;
+    for (const boulder of this.map.boulders) {
+      const hazard = new BoulderHazardState(); resetBoulderHazard(hazard, 0);
+      const start = boulder.path[0]!; hazard.x = start[0]; hazard.y = start[1]; hazard.z = start[2]; this.state.hazards.set(boulder.id, hazard);
+    }
     this.state.phase = "warmup";
     this.state.phaseEndsAtMs = WARMUP_MS;
     this.rewindState = this.allowRewindState({ maxRewindMs: MAX_REWIND_MS });
@@ -105,15 +114,17 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       for (const frame of frames) {
         if (!player.alive) continue;
         player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
+        this.tryLever(sessionId, player, frame, nowMs);
         this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs }));
       }
     }
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
-      const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values());
+      const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards);
       this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs }));
     }
+    this.updateHazards(nowMs, context.dt);
     this.stepArrows(context);
     for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
     for (const player of this.state.players.values()) {
@@ -158,8 +169,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         arrow.prevX = fromX; arrow.prevY = fromY; arrow.prevZ = fromZ;
         const gravity = arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined;
         const world = stepArrow(arrow, this.map, context.subDt, gravity, this.simulationNowMs);
+        let boulderBlocked = false;
+        for (const hazard of this.state.hazards.values()) if (hazard.phase === "roll" && segmentHitsBoulder(fromX, fromY, fromZ, arrow.x, arrow.y, arrow.z, hazard, BOULDER_RADIUS + ARROW_RADIUS)) { boulderBlocked = true; break; }
         let targetId = "", headshot = false, earliest = Number.POSITIVE_INFINITY;
-        if (arrow.kind === "arrow") {
+        if (arrow.kind === "arrow" && !boulderBlocked) {
           const seen = this.rewindState.lastSeenBy(arrow.owner);
           for (const [candidateId, target] of this.state.players) {
             if (candidateId === arrow.owner || target.team === arrow.team || !target.alive || target.spawnProtectMs > 0) continue;
@@ -174,7 +187,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         if (targetId) {
           this.dealDamage(arrow.owner, targetId, arrow.damage * (headshot ? HEAD_MULT : 1), "arrow", headshot, fromX, fromZ, this.arrowOrigins.get(id));
           this.removeArrows.push(id);
-        } else if (world.worldHit || this.simulationNowMs - arrow.bornMs >= ARROW_LIFETIME_MS) {
+        } else if (world.worldHit || boulderBlocked || this.simulationNowMs - arrow.bornMs >= ARROW_LIFETIME_MS) {
           if (world.worldHit && arrow.kind === "ink") this.createInkCloud(arrow.x, arrow.y, arrow.z);
           this.removeArrows.push(id);
         }
@@ -212,7 +225,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
   }
 
-  private dealDamage(attackerId: string, targetId: string, damage: number, weapon: "arrow" | "dagger", headshot: boolean, fromX: number, fromZ: number, origin?: ArrowOrigin): void {
+  private dealDamage(attackerId: string, targetId: string, damage: number, weapon: "arrow" | "dagger" | "boulder", headshot: boolean, fromX: number, fromZ: number, origin?: ArrowOrigin): void {
     const attacker = this.state.players.get(attackerId), target = this.state.players.get(targetId);
     if (!attacker || !target || attacker.team === target.team || target.spawnProtectMs > 0) return;
     const actual = Math.min(target.hp, damage);
@@ -239,8 +252,37 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
   private resetPlayers(): void {
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.arrowOrigins.clear(); this.damage.clear();
+    for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
     for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values())); player.spawnProtectMs = 0; }
   }
+
+  private tryLever(sessionId: string, player: PlayerState, frame: PlayerInputFrame, nowMs: number): void {
+    if ((frame.buttons & BTN.USE) === 0 || (player.prevButtons & BTN.USE) !== 0) return;
+    for (const boulder of this.map.boulders) {
+      if (Math.hypot(player.x - boulder.lever[0], player.y - boulder.lever[1], player.z - boulder.lever[2]) > USE_DIST) continue;
+      const hazard = this.state.hazards.get(boulder.id); if (hazard) triggerBoulder(hazard, sessionId, nowMs);
+    }
+  }
+
+  updateHazards(nowMs: number, dt: number): void {
+    for (const boulder of this.map.boulders) {
+      const hazard = this.state.hazards.get(boulder.id); if (!hazard) continue;
+      stepBoulderHazard(hazard, boulder, nowMs, dt);
+      if (hazard.phase !== "roll") continue;
+      for (const [targetId, target] of this.state.players) {
+        if (!target.alive || Math.hypot(target.x - hazard.x, target.z - hazard.z) > BOULDER_RADIUS + PLAYER_WIDTH / 2 || hazard.y + BOULDER_RADIUS < target.y || hazard.y - BOULDER_RADIUS > target.y + target.height) continue;
+        if (hazard.puller && this.state.players.has(hazard.puller)) this.dealDamage(hazard.puller, targetId, MAX_HP, "boulder", false, hazard.x, hazard.z);
+        else this.killByWildBoulder(targetId, hazard.x, hazard.z);
+      }
+    }
+  }
+
+  private killByWildBoulder(targetId: string, fromX: number, fromZ: number): void {
+    const target = this.state.players.get(targetId); if (!target || !applyDamage(target, MAX_HP, this.simulationNowMs)) return;
+    target.deaths += 1; target.respawnAtMs = this.simulationNowMs + RESPAWN_MS;
+    this.broadcast("kill", { killer: "Jungle", victim: targetId, weapon: "boulder", headshot: false, distance: Math.hypot(target.x - fromX, target.z - fromZ) });
+  }
+
 
   private addBot(team: number, source?: PlayerState): void {
     const id = `bot-${this.botSerial += 1}`; const spawn = chooseSpawn(this.map, team, this.state.players.values());

@@ -46,7 +46,7 @@ export class MatchHud {
   hit(headshot: boolean): void { this.marker.textContent = headshot ? "HEADSHOT!" : "✕"; this.flash(this.marker); }
   damaged(fromX: number, fromZ: number): void { this.damage.style.transform = `translate(-50%,-50%) rotate(${Math.atan2(fromZ, fromX)}rad)`; this.flash(this.damage); }
   kill(message: KillMessage, names: ReadonlyMap<string, string>): void {
-    const row = document.createElement("div"); row.textContent = `${names.get(message.killer) ?? message.killer}  ${message.weapon === "arrow" ? "➳" : "🗡"}  ${names.get(message.victim) ?? message.victim}${message.headshot ? "  HEADSHOT" : ""}`;
+    const row = document.createElement("div"); row.textContent = `${names.get(message.killer) ?? message.killer}  ${message.weapon === "arrow" ? "➳" : message.weapon === "boulder" ? "●" : "🗡"}  ${names.get(message.victim) ?? message.victim}${message.headshot ? "  HEADSHOT" : ""}`;
     this.feed.prepend(row); while (this.feed.childElementCount > 5) this.feed.lastElementChild?.remove();
   }
   end(message: MatchEndMessage, names: ReadonlyMap<string, string>): void { this.center.textContent = `${message.winner.toUpperCase()} ${message.winner === "draw" ? "" : "WINS"}\nMVP: ${names.get(message.mvp) ?? message.mvp}`; }

@@ -7,6 +7,7 @@ import { findPath, nearestWaypoint } from "./nav.ts";
 import { BotController } from "../../server/bots/BotController.ts";
 import { createPlayerSim } from "../sim/movement.ts";
 import { BTN } from "../input.ts";
+import { kitMap } from "../maps/fixtures/kit.ts";
 
 describe("computer-controlled navigation and aim", () => {
   it("finds a route between every pair of spawns", () => {
@@ -48,5 +49,21 @@ describe("computer-controlled abilities", () => {
     const enemy = createPlayerSim(-15, 0, -8); enemy.team = 1;
     const input = new BotController("bot", 9).update(player, [["bot", player], ["enemy", enemy]], notebookMap, 1000);
     expect(input.buttons & BTN.INK).toBe(BTN.INK);
+  });
+
+  it("cannot see a crouched enemy fully inside tall grass", () => {
+    const player = createPlayerSim(10, 0, 12); player.team = 0;
+    const enemy = createPlayerSim(0, 0, 12); enemy.team = 1; enemy.crouched = true; enemy.height = 1;
+    const controller = new BotController("bot", 11);
+    controller.update(player, [["bot", player], ["enemy", enemy]], kitMap, 1000);
+    expect(controller.mode).toBe("roam");
+  });
+
+  it("moves out of an active boulder path and never uses a lever", () => {
+    const player = createPlayerSim(0, 0, -6); player.team = 0;
+    const controller = new BotController("bot", 13);
+    const input = controller.update(player, [["bot", player]], kitMap, 1000, [], [["center-boulder", { phase: "telegraph", x: -8, z: -6 }]]);
+    expect(Math.hypot(input.moveX, input.moveZ)).toBeGreaterThan(0);
+    expect(input.buttons & BTN.USE).toBe(0);
   });
 });

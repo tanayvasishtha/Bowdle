@@ -120,6 +120,7 @@ export const SPLAT_MIN_VERTICES = 9;
 export const SPLAT_MAX_VERTICES = 14;
 export const PRACTICE_REPLAY_MIN_M = 30;
 export const RAMP_MAX_SLOPE_DEG = 40;
+export const CANOPY_SPIRAL_MAX_SLOPE_DEG = 20;
 export const GROUND_SNAP = 0.3;
 export const WATER_SPEED_MULT = 0.65;
 export const ZIP_SPEED = 14;

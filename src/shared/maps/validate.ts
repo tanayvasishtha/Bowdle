@@ -1,4 +1,4 @@
-import { BOULDER_RADIUS, BOULDER_SPAWN_CLEARANCE, EYE_STAND, PLAYER_WIDTH, RAMP_MAX_SLOPE_DEG, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP, ZIP_CLEARANCE } from "../constants.ts";
+import { BOULDER_RADIUS, BOULDER_SPAWN_CLEARANCE, CANOPY_SPIRAL_MAX_SLOPE_DEG, EYE_STAND, PLAYER_WIDTH, RAMP_MAX_SLOPE_DEG, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP, ZIP_CLEARANCE } from "../constants.ts";
 import { mirrorX } from "./helpers.ts";
 import { rampHeightAt, rampSlopeDegrees } from "./ramps.ts";
 import type { Boulder, Box, MapData, Prop, Ramp, SpawnPoint, Vec3Tuple, Volume, ZipLine } from "./types.ts";
@@ -124,6 +124,7 @@ export function validateMap(map: MapData): string[] {
   for (const ramp of map.ramps) {
     if (ramp.min.some((value, axis) => value >= ramp.max[axis]!)) errors.push(`ramp dimensions: ${ramp.id}`);
     if (rampSlopeDegrees(ramp) > RAMP_MAX_SLOPE_DEG + EPSILON) errors.push(`ramp slope: ${ramp.id}`);
+    if (map.id === "canopy" && ramp.id.includes("ring") && rampSlopeDegrees(ramp) > CANOPY_SPIRAL_MAX_SLOPE_DEG + EPSILON) errors.push(`canopy spiral slope: ${ramp.id}`);
     const axis = ramp.up.endsWith("x") ? 0 : 2;
     const cross = axis === 0 ? (ramp.min[2] + ramp.max[2]) / 2 : (ramp.min[0] + ramp.max[0]) / 2;
     for (const high of [false, true]) {

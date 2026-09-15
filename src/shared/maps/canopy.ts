@@ -29,15 +29,15 @@ for (const z of [16, -16]) addPair({ id: `sun-${z > 0 ? "north" : "south"}-deck`
 addPair({ id: "sun-high-bridge", min: [-12.5, 8.5, -1], max: [-5, 8.8, 1], material: "wood", tags: ["solid", "grapple"] });
 addPair({ id: "sun-center-low-bridge", min: [-11.5, 4.5, -1], max: [-5, 4.8, 1], material: "wood", tags: ["solid", "grapple"] });
 for (const side of [1, -1]) addPair({ id: `sun-${side > 0 ? "north" : "south"}-bridge`, min: [-16.5, 4.5, side > 0 ? 3.5 : -12.5], max: [-13.5, 4.8, side > 0 ? 12.5 : -3.5], material: "wood", tags: ["solid", "grapple"] });
-boxes.push({ id: "low-ramp-landing", min: [-3, 4.5, 5], max: [3, 4.8, 11], material: "wood", tags: ["solid", "grapple"] });
+boxes.push({ id: "low-ramp-landing", min: [-3, 4.5, 5], max: [3, 4.8, 17], material: "wood", tags: ["solid", "grapple"] });
 addPair({ id: "sun-high-ramp-landing", min: [-18.5, 4.5, 3.5], max: [-16.5, 4.8, 9], material: "wood", tags: ["solid", "grapple"] });
 
 const ramps: Ramp[] = [];
 function addRampPair(ramp: Ramp): void { ramps.push(ramp, mirrorX(ramp, ramp.id.replace("sun", "moon"))); }
 addRampPair({ id: "sun-west-low-ramp", min: [-24.5, 0, -1], max: [-18.5, 4.8, 1], up: "+x", material: "wood", tags: ["solid"] });
 addRampPair({ id: "sun-west-high-ramp", min: [-17.5, 4.8, 2.5], max: [-16.7, 8.8, 8.5], up: "-z", material: "wood", tags: ["solid"] });
-addRampPair({ id: "sun-ring-low-ramp", min: [-11, 0, 3], max: [-5, 4.8, 5], up: "+x", material: "wood", tags: ["solid"] });
-ramps.push({ id: "ring-high-ramp", min: [-1, 4.8, 5], max: [1, 8.8, 11], up: "-z", material: "wood", tags: ["solid"] });
+addRampPair({ id: "sun-ring-low-ramp", min: [-5, 0, 5], max: [-3, 4.8, 19], up: "-z", material: "wood", tags: ["solid"] });
+ramps.push({ id: "ring-high-ramp", min: [-1, 4.8, 5], max: [1, 8.8, 17], up: "-z", material: "wood", tags: ["solid"] });
 
 const stream: Volume = { id: "stream", min: [-34, 0, -22], max: [34, 0.65, -18], kind: "water" };
 const sunGrassNorth: Volume = { id: "sun-grass-north", min: [-24, 0, 6], max: [-8, 1.2, 12], kind: "tallGrass" };
@@ -61,7 +61,7 @@ for (let i = 0; i < 4; i += 1) { node(`sun-spawn-${i}`, ...sunSpawns[i]!.pos); n
 for (const [id,x,y,z] of [
   ["sun-exit",-24.5,0,-6],["sun-hub",-24.5,0,0],["sun-west-ramp-low",-24.5,0,0],["sun-west-low",-18.5,4.8,0],["sun-low-nw",-18,4.8,3],["sun-high-approach",-18,4.8,8.5],["sun-low-nbridge",-15,4.8,4],["sun-low-ne",-12,4.8,3],["sun-low-sw",-18,4.8,-3],["sun-low-sbridge",-15,4.8,-4],["sun-west-low-center",-11.5,4.8,0],["sun-west-high-low",-17.1,4.8,8.5],["sun-west-high",-17.1,8.8,2.5],["sun-high-east",-12.8,8.8,2.2],["sun-high-bridge",-12.5,8.8,0],["sun-north-deck",-15,4.8,12.5],["sun-south-deck",-15,4.8,-12.5],
   ["moon-exit",24.5,0,-6],["moon-hub",24.5,0,0],["moon-west-ramp-low",24.5,0,0],["moon-west-low",18.5,4.8,0],["moon-low-nw",18,4.8,3],["moon-high-approach",18,4.8,8.5],["moon-low-nbridge",15,4.8,4],["moon-low-ne",12,4.8,3],["moon-low-sw",18,4.8,-3],["moon-low-sbridge",15,4.8,-4],["moon-west-low-center",11.5,4.8,0],["moon-west-high-low",17.1,4.8,8.5],["moon-west-high",17.1,8.8,2.5],["moon-high-east",12.8,8.8,2.2],["moon-high-bridge",12.5,8.8,0],["moon-north-deck",15,4.8,12.5],["moon-south-deck",15,4.8,-12.5],
-  ["sun-ring-ramp-low",-11,0,4],["sun-ring-ramp-high",-5,4.8,4],["center-low",-5,4.8,0],["ring-low-north",0,4.8,5],["center-low-east",5,4.8,0],["moon-ring-ramp-high",5,4.8,4],["ring-high-approach",2.2,4.8,11],["ring-high-low",0,4.8,11],["ring-high-west",-5,8.8,0],["ring-high-nw",-4,8.8,3],["center-high",0,8.8,5],["ring-high-east",5,8.8,0],["ring-high-ne",4,8.8,3],["ring-high-sw",-4,8.8,-3],["ring-high-se",4,8.8,-3],["moon-ring-ramp-low",11,0,4],
+  ["sun-ring-ground-west",-23,0,19],["sun-ring-ground-approach",-10,0,19],["sun-ring-ramp-low",-4,0,19],["sun-ring-ramp-high",-4,4.8,5],["center-low",-5,4.8,0],["ring-low-north",0,4.8,5],["center-low-east",5,4.8,0],["moon-ring-ramp-high",4,4.8,5],["ring-high-approach",2.2,4.8,17],["ring-high-low",0,4.8,17],["ring-high-west",-5,8.8,0],["ring-high-nw",-4,8.8,3],["center-high",0,8.8,5],["ring-high-east",5,8.8,0],["ring-high-ne",4,8.8,3],["ring-high-sw",-4,8.8,-3],["ring-high-se",4,8.8,-3],["moon-ring-ramp-low",4,0,19],["moon-ring-ground-approach",10,0,19],["moon-ring-ground-west",23,0,19],
   ["sun-zip-north-high",-3,8.8,5],["sun-zip-south-high",-3,8.8,-5],["moon-zip-north-high",3,8.8,5],["moon-zip-south-high",3,8.8,-5],
   ["sun-grass-north",-20,0,9],["sun-grass-south",-20,0,-9],["moon-grass-north",20,0,9],["moon-grass-south",20,0,-9],
 ] as const) node(id, x, y, z);
@@ -75,7 +75,8 @@ for (const chain of [
   ["sun-low-nbridge","sun-low-ne","sun-west-low-center","center-low","sun-ring-ramp-high","ring-low-north","ring-high-approach","ring-high-low","center-high"],
   ["moon-low-nbridge","moon-low-ne","moon-west-low-center","center-low-east","moon-ring-ramp-high","ring-low-north"],
 ] ) for (let i = 1; i < chain.length; i += 1) connect(chain[i-1]!, chain[i]!);
-connect("sun-hub","sun-ring-ramp-low","jump"); connect("sun-ring-ramp-low","sun-ring-ramp-high","walk"); connect("moon-hub","moon-ring-ramp-low","jump"); connect("moon-ring-ramp-low","moon-ring-ramp-high","walk");
+connect("sun-hub","sun-ring-ground-west"); connect("sun-ring-ground-west","sun-ring-ground-approach"); connect("sun-ring-ground-approach","sun-ring-ramp-low"); connect("sun-ring-ramp-low","sun-ring-ramp-high");
+connect("moon-hub","moon-ring-ground-west"); connect("moon-ring-ground-west","moon-ring-ground-approach"); connect("moon-ring-ground-approach","moon-ring-ramp-low"); connect("moon-ring-ramp-low","moon-ring-ramp-high");
 connect("center-high","sun-zip-north-high"); connect("center-high","moon-zip-north-high"); connect("center-high","ring-high-nw"); connect("ring-high-nw","ring-high-west"); connect("ring-high-west","ring-high-sw"); connect("ring-high-sw","sun-zip-south-high"); connect("center-high","ring-high-ne"); connect("ring-high-ne","ring-high-east"); connect("ring-high-east","ring-high-se"); connect("ring-high-se","moon-zip-south-high");
 connect("sun-zip-north-high","sun-north-deck","zip",false); connect("sun-zip-south-high","sun-south-deck","zip",false); connect("moon-zip-north-high","moon-north-deck","zip",false); connect("moon-zip-south-high","moon-south-deck","zip",false);
 connect("center-high","center-low","drop"); connect("sun-west-low-center","center-high","grapple"); connect("moon-west-low-center","center-high","grapple");

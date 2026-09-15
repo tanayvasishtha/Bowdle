@@ -123,7 +123,7 @@ export class OnlineSession {
     }
     this.renderArrows(timeMs, capture);
     if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
-    else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); }
+    else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); this.hud.setReplay(false); }
     this.wasAlive = this.me.state.alive;
     if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; }
     this.renderer.render(timeMs);
@@ -159,7 +159,7 @@ export class OnlineSession {
     }
     if (message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
     else if (message.distance >= LONG_SHOT_M) { this.hud.banner("LONG SHOT!"); happyTime("longShot"); }
-    if (message.victim === this.sessionId && message.weapon === "arrow") this.replay.start(message.victim, message.killer, performance.now());
+    if (message.victim === this.sessionId && message.weapon === "arrow") { this.hud.setReplay(true); this.replay.start(message.victim, message.killer, performance.now()); }
   }
 
   private markBodyArrow(x: number, y: number, z: number): void {

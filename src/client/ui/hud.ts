@@ -47,6 +47,7 @@ export class MatchHud {
   }
   end(message: MatchEndMessage, names: ReadonlyMap<string, string>): void { this.center.textContent = `${message.winner.toUpperCase()} ${message.winner === "draw" ? "" : "WINS"}\nMVP: ${names.get(message.mvp) ?? message.mvp}`; }
   banner(text: string): void { this.moment.textContent = text; this.moment.animate([{ opacity: 0, transform: "translateX(-50%) scale(.7) rotate(-5deg)" }, { opacity: 1, transform: "translateX(-50%) scale(1.08) rotate(2deg)" }, { opacity: 0 }], { duration: 1800 }); }
+  setReplay(active: boolean): void { this.center.style.visibility = active ? "hidden" : "visible"; }
   feedText(): string { return this.feed.textContent ?? ""; }
   private flash(element: HTMLElement): void { element.animate([{ opacity: 1 }, { opacity: 1, offset: 0.35 }, { opacity: 0 }], { duration: 500 }); }
 }

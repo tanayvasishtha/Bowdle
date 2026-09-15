@@ -99,6 +99,10 @@ function walkClear(map: MapData, from: Vec3Tuple, to: Vec3Tuple): boolean {
       const overlaps = x + radius > box.min[0] && x - radius < box.max[0] && z + radius > box.min[2] && z - radius < box.max[2];
       if (overlaps && box.max[1] <= feet + STEP_HEIGHT + EPSILON) ground = Math.max(ground, box.max[1]);
     }
+    for (const ramp of map.ramps) {
+      const surface = rampHeightAt(ramp, x, z);
+      if (surface !== null && surface <= feet + STEP_HEIGHT + EPSILON) ground = Math.max(ground, surface);
+    }
     if (!Number.isFinite(ground) || Math.abs(ground - feet) > STEP_HEIGHT + EPSILON) return false;
     feet = ground;
     for (const box of solids) {
@@ -136,7 +140,12 @@ export function validateMap(map: MapData): string[] {
   }
   for (const zip of map.zipLines) {
     if (zip.from[1] <= zip.to[1] + EPSILON) errors.push(`zip direction: ${zip.id}`);
-    if (solids.some((box) => segmentHitsBox(zip.from, zip.to, expandedBox(box, ZIP_CLEARANCE)))) errors.push(`zip clearance: ${zip.id}`);
+    if (solids.some((box) => {
+      const expanded = expandedBox(box, ZIP_CLEARANCE);
+      const fromSupport = zip.from[0] >= expanded.min[0] && zip.from[0] <= expanded.max[0] && zip.from[2] >= expanded.min[2] && zip.from[2] <= expanded.max[2] && Math.abs(zip.from[1] - box.max[1]) <= ZIP_CLEARANCE + EPSILON;
+      const toSupport = zip.to[0] >= expanded.min[0] && zip.to[0] <= expanded.max[0] && zip.to[2] >= expanded.min[2] && zip.to[2] <= expanded.max[2] && Math.abs(zip.to[1] - box.max[1]) <= ZIP_CLEARANCE + EPSILON;
+      return !fromSupport && !toSupport && segmentHitsBox(zip.from, zip.to, expanded);
+    })) errors.push(`zip clearance: ${zip.id}`);
   }
   for (const boulder of map.boulders) {
     if (boulder.path.length < 2) errors.push(`boulder path: ${boulder.id}`);
@@ -178,6 +187,7 @@ export function validateMap(map: MapData): string[] {
   }
   if (!graphConnected(map)) errors.push("waypoint graph: disconnected");
   if (map.id === "sun-temple" && !walkReaches(map, "sun-spawn-0", "altar")) errors.push("altar walk: unreachable");
+  if (map.id === "canopy") for (const id of ["sun-west-low", "sun-west-high", "center-low", "center-high", "sun-north-deck", "sun-south-deck"]) if (!walkReaches(map, "sun-spawn-0", id)) errors.push(`deck walk: ${id}`);
   const byId = new Map(map.waypoints.map((point) => [point.id, point]));
   for (const point of map.waypoints) for (const link of point.links) {
     const target = byId.get(link.to);

@@ -53,6 +53,9 @@ describe("authoritative online abilities", () => {
     }
     expect(serverPlayer.zipId).toBe(direct.zipId);
     expect(serverPlayer.zipT).toBe(direct.zipT);
+    const clientPlayer = client.state.players.get(client.sessionId)!;
+    expect(clientPlayer.zipId).toBe(direct.zipId);
+    expect(clientPlayer.zipT).toBe(direct.zipT);
     expect(Math.abs(serverPlayer.x - direct.x)).toBeLessThanOrEqual(1e-6);
     expect(Math.abs(serverPlayer.y - direct.y)).toBeLessThanOrEqual(1e-6);
     expect(Math.abs(serverPlayer.z - direct.z)).toBeLessThanOrEqual(1e-6);

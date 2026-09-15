@@ -1,5 +1,50 @@
 # Build log
 
+## M4b — Online combat and match loop
+
+Status: done.
+
+Built:
+
+- Server-authoritative bow releases, swept arrow flight, dagger hits, head/body damage, team-damage rejection, regeneration, deaths, assists, kills, and scoring.
+- Snapshot-timeline lag compensation for arrow and dagger target poses, bounded to 250 ms and driven by the client input stamps.
+- Respawn countdowns, safest-spawn selection, fire/stab protection cancellation, score/time endings, MVP result messages, and same-room match restarts.
+- Zod validation for name, kill, hit-confirm, damage, match-end, and future arrow-clash messages.
+- Immediate local arrow prediction with replay suppression, seamless authoritative correlation, foreign arrows, and retained wall-impact visuals.
+- In-match team score and timer, kill feed, hit/headshot marker, directional damage cue, Tab scoreboard, death countdown, and result screen.
+
+Tests added:
+
+- Match scoring, score-limit, timed draw, safest-spawn respawn, and protection tests.
+- Server arrow creation, 30 m full-draw headshot kill/score, friendly-damage rejection, and score-limit integration tests.
+- Two-browser movement plus ballistic aim/full-draw kill test; both clients must show the headshot feed within three seconds.
+- Combat screenshots at `test-results/qa/m4b/`.
+
+QA:
+
+- `npm run check`: passed with 43 tests.
+- `npm run e2e`: 4 passed.
+- `npm run size`: client JavaScript 233 KB gzipped, 900 KB budget.
+- Visual inspection: the combat scene, team score, match timer, and shared headshot feed render cleanly over the notebook arena.
+- Break check: manual only. Replacing rewound poses with live poses is observable under induced latency, not in the zero-latency browser harness; the required comparison remains in Verify below.
+
+Installed API notes:
+
+- `clock.elapsedTime` is the server's milliseconds-since-room-start timeline reconstructed by client `room.clock.serverNow()`; it stamps arrows and all absolute deadlines.
+- Rewind uses `allowRewindState`, `attachAll(..., { mode: "snapshot" })`, and allocation-free `lastSeenBy(...).value(...)` reads from the installed declarations.
+- Arrow simulation-only `ageMs` and `stuck` fields use the installed schema builder's `.noSync()` modifier and are never sent over the wire.
+
+Deviation:
+
+- `?test` joins use a clear symmetric firing lane so the required deterministic two-page combat check is not defeated by the production map's intentional spawn sightline blockers. Normal joins always use authored team spawns.
+- The dedicated browser-verification command was unavailable on this host. Playwright's Chrome-backed render assertions, error capture, and saved screenshots covered the live browser check without changing dependencies.
+
+Verify by hand:
+
+- Confirm a full-draw headshot kills, two full-draw body shots kill, and arrows leave the bow immediately without a confirmation jump.
+- Confirm teammate hits do no damage, Tab shows all player stats, death respawns after three seconds, and a locally lowered score limit produces an end screen followed by a fresh match.
+- Run the documented 150 ms latency test against a strafing target and confirm rewound shots land where aimed; temporarily compare live target poses, then restore rewind.
+
 ## M4a — Online movement
 
 Status: done.

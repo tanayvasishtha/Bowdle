@@ -2,7 +2,7 @@ import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
 import { BTN } from "../../src/shared/input.ts";
-import { SCORE_LIMIT } from "../../src/shared/constants.ts";
+import { SCORE_LIMIT, SPAWN_PROTECT_MS } from "../../src/shared/constants.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import type { PlayerInput } from "../../src/net/schema.ts";
 
@@ -30,8 +30,10 @@ describe("authoritative online combat", () => {
   }
 
   it("holding fire then releasing creates one server arrow", async () => {
-    const { room, input } = await setup(); await fullDraw(room, input);
-    expect(room.state.arrows.size).toBe(1);
+    const { room, client, input } = await setup();
+    room.state.players.get(client.sessionId)!.spawnProtectMs = SPAWN_PROTECT_MS;
+    await fullDraw(room, input);
+    expect(room.state.arrows.size).toBe(1); expect(room.state.players.get(client.sessionId)!.spawnProtectMs).toBe(0);
   });
 
   it("a full-draw headshot at 30 m kills and scores", async () => {

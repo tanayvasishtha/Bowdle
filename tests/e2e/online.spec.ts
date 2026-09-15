@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { collectErrors } from "./helpers.ts";
 
-type TestApi = { players(): Array<{ id: string; x: number; y: number; z: number }>; sessionId: string };
+type TestApi = { players(): Array<{ id: string; x: number; y: number; z: number }>; sessionId: string; aimAt(id: string): void; drawMs(): number; killFeed(): string };
 
 test("two online players see shared movement", async ({ browser }) => {
   const contextA = await browser.newContext();
@@ -24,8 +24,15 @@ test("two online players see shared movement", async ({ browser }) => {
     return Math.hypot(after.x - before.x, after.z - before.z);
   }, { timeout: 8_000 }).toBeGreaterThan(5);
   await pageA.keyboard.up("w");
-  await pageA.screenshot({ path: "test-results/qa/m4a/online-player-a.png", fullPage: true });
-  await pageB.screenshot({ path: "test-results/qa/m4a/online-player-b.png", fullPage: true });
+  const idB = await pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.sessionId);
+  await pageA.evaluate((id) => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.aimAt(id), idB);
+  await pageA.mouse.down();
+  await pageA.waitForFunction(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.drawMs() >= 550);
+  await pageA.mouse.up();
+  await expect.poll(async () => pageA.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.killFeed()), { timeout: 3_000 }).toContain("HEADSHOT");
+  await expect.poll(async () => pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.killFeed()), { timeout: 3_000 }).toContain("HEADSHOT");
+  await pageA.screenshot({ path: "test-results/qa/m4b/online-combat-a.png", fullPage: true });
+  await pageB.screenshot({ path: "test-results/qa/m4b/online-combat-b.png", fullPage: true });
   expect([...errorsA, ...errorsB]).toEqual([]);
   await Promise.all([contextA.close(), contextB.close()]);
 });

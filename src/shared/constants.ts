@@ -87,3 +87,6 @@ export const PRACTICE_RESPAWN_MS = 2000;
 export const STUCK_ARROW_MS = 8000;
 export const MASTER_VOLUME = 0.6;
 export const PRACTICE_RAIL_HALF_WIDTH = 3;
+export const TEST_DUEL_HALF_DISTANCE = 15;
+export const TEST_DUEL_LANE_Z = -8;
+export const HUD_REFRESH_MS = 100;

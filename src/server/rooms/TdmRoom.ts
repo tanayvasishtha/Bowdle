@@ -12,6 +12,8 @@ import {
   STAND_HEIGHT,
   SUBSTEPS,
   TEAM_SIZE,
+  TEST_DUEL_HALF_DISTANCE,
+  TEST_DUEL_LANE_Z,
   TICK_HZ,
   WARMUP_MS,
 } from "../../shared/constants.ts";
@@ -26,7 +28,7 @@ import { chooseSpawn, respawnPlayer, scoreKill, updateMatchPhase } from "../../s
 import { meleeHit } from "../../shared/sim/melee.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 
-type JoinOptions = { name?: string };
+type JoinOptions = { name?: string; test?: boolean };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
@@ -186,6 +188,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     player.name = options?.name?.trim().slice(0, MAX_NAME_LENGTH) || "Player";
     player.team = team;
     player.x = spawn.pos[0]; player.y = spawn.pos[1]; player.z = spawn.pos[2]; player.yaw = spawn.yaw;
+    if (options?.test) {
+      player.x = team === 0 ? -TEST_DUEL_HALF_DISTANCE : TEST_DUEL_HALF_DISTANCE;
+      player.y = 0; player.z = TEST_DUEL_LANE_Z; player.yaw = team === 0 ? -Math.PI / 2 : Math.PI / 2;
+    }
     this.state.players.set(client.sessionId, player);
   }
 

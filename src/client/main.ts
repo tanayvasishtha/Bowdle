@@ -12,6 +12,9 @@ declare global {
       fireAt?(targetId: string, drawMs: number): PracticeShotResult;
       players?(): RenderedPlayer[];
       sessionId?: string;
+      aimAt?(sessionId: string): void;
+      drawMs?(): number;
+      killFeed?(): string;
     };
   }
 }
@@ -27,13 +30,16 @@ if (params.get("scene") === "online") {
   app.append(loading);
   const renderer = new Renderer(app, params.has("debug"));
   const sampler = new InputSampler(renderer.canvas);
-  void OnlineSession.connect(renderer, sampler).then((session) => {
+  void OnlineSession.connect(renderer, sampler, "Player", params.has("test")).then((session) => {
     loading.remove();
     session.start();
     if (params.has("test")) window.__bowdleTest = {
       snapshot: () => renderer.snapshot(),
       players: () => session.players(),
       sessionId: session.sessionId,
+      aimAt: (sessionId: string) => session.aimAt(sessionId),
+      drawMs: () => session.drawMs(),
+      killFeed: () => session.killFeed(),
     };
   }).catch((error: unknown) => {
     loading.textContent = error instanceof Error ? `Connection failed: ${error.message}` : "Connection failed";

@@ -16,6 +16,8 @@ import {
   BOT_LONG_LINK_M,
   BOULDER_RADIUS,
   PLAYER_WIDTH,
+  BOT_STUCK_MS,
+  BOT_STUCK_MOVE_M,
 } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import type { MapData, Vec3Tuple, Waypoint } from "../../shared/maps/types.ts";
@@ -63,6 +65,9 @@ export class BotController {
   private aimPitchError = 0;
   private readonly errorRad: number;
   private routeSerial = 0;
+  private lastX = Number.NaN;
+  private lastZ = Number.NaN;
+  private movedAtMs = 0;
 
   constructor(id: string, seed: number, difficulty: BotDifficulty = "normal") {
     this.id = id;
@@ -72,6 +77,7 @@ export class BotController {
   }
 
   update(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData, nowMs: number, clouds: Iterable<VisionSphere> = noClouds, hazards: Iterable<readonly [string, BoulderThreat]> = noHazards): PlayerInputFrame {
+    if (!Number.isFinite(this.lastX) || Math.hypot(player.x - this.lastX, player.z - this.lastZ) > BOT_STUCK_MOVE_M) { this.lastX = player.x; this.lastZ = player.z; this.movedAtMs = nowMs; }
     const target = this.closestVisibleEnemy(player, players, map, clouds);
     if (player.hp < BOT_RETREAT_HP) this.mode = "retreat";
     else if (target) this.mode = "engage";
@@ -79,9 +85,20 @@ export class BotController {
     if (this.mode === "engage" && target) this.engage(player, target[1], target[0], nowMs);
     else this.navigate(player, target?.[1], map);
     if (this.mode === "retreat" && player.inkCooldownMs <= 0) this.input.buttons |= BTN.INK;
+    this.guideRamp(player, map, target?.[1]);
     this.avoidBoulders(player, map, hazards);
     this.input.buttons &= ~BTN.USE;
+    if (nowMs - this.movedAtMs >= BOT_STUCK_MS) { this.input.yaw = player.yaw + Math.PI / 2; this.input.pitch = 0; this.input.moveX = 0; this.input.moveZ = 1; this.input.buttons = BTN.JUMP; this.movedAtMs = nowMs; }
     return this.input;
+  }
+
+  private guideRamp(player: PlayerSim, map: MapData, target: PlayerSim | undefined): void {
+    for (const ramp of map.ramps) {
+      if (player.x < ramp.min[0] - PLAYER_WIDTH || player.x > ramp.max[0] + PLAYER_WIDTH || player.z < ramp.min[2] - PLAYER_WIDTH || player.z > ramp.max[2] + PLAYER_WIDTH) continue;
+      const destinationX = target ? (target.x < player.x ? ramp.min[0] : ramp.max[0]) : player.team === 0 ? ramp.max[0] : ramp.min[0];
+      const destinationZ = (ramp.min[2] + ramp.max[2]) / 2, dx = destinationX - player.x, dz = destinationZ - player.z;
+      this.input.yaw = Math.atan2(-dx, -dz); this.input.pitch = 0; this.input.moveX = 0; this.input.moveZ = 1; return;
+    }
   }
 
   private closestVisibleEnemy(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData, clouds: Iterable<VisionSphere>): readonly [string, PlayerSim] | null {

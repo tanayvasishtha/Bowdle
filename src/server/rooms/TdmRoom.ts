@@ -30,6 +30,7 @@ import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import { kitMap } from "../../shared/maps/fixtures/kit.ts";
 import type { MapData } from "../../shared/maps/types.ts";
+import { sunTempleMap } from "../../shared/maps/sunTemple.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
 import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
@@ -43,7 +44,7 @@ import { BotController } from "../bots/BotController.ts";
 import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
 
-type JoinOptions = { name?: string; test?: boolean; mapId?: string };
+type JoinOptions = { name?: string; test?: boolean; mapId?: string; testMapId?: string };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
@@ -78,7 +79,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly bots = new Map<string, BotController>();
 
   onCreate(options: JoinOptions): void {
-    this.map = options.mapId === kitMap.id ? kitMap : notebookMap;
+    this.map = options.mapId === kitMap.id ? kitMap : options.testMapId === sunTempleMap.id ? sunTempleMap : notebookMap;
     this.state.mapId = this.map.id;
     for (const boulder of this.map.boulders) {
       const hazard = new BoulderHazardState(); resetBoulderHazard(hazard, 0);
@@ -258,10 +259,16 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   private tryLever(sessionId: string, player: PlayerState, frame: PlayerInputFrame, nowMs: number): void {
     if ((frame.buttons & BTN.USE) === 0 || (player.prevButtons & BTN.USE) !== 0) return;
+    this.useLever(sessionId, nowMs);
+  }
+
+  useLever(sessionId: string, nowMs: number): boolean {
+    const player = this.state.players.get(sessionId); if (!player) return false;
     for (const boulder of this.map.boulders) {
       if (Math.hypot(player.x - boulder.lever[0], player.y - boulder.lever[1], player.z - boulder.lever[2]) > USE_DIST) continue;
-      const hazard = this.state.hazards.get(boulder.id); if (hazard) triggerBoulder(hazard, sessionId, nowMs);
+      const hazard = this.state.hazards.get(boulder.id); if (hazard && triggerBoulder(hazard, sessionId, nowMs)) return true;
     }
+    return false;
   }
 
   updateHazards(nowMs: number, dt: number): void {

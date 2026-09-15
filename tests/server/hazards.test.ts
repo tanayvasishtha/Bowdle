@@ -2,7 +2,6 @@ import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
-import { BTN } from "../../src/shared/input.ts";
 
 describe("authoritative jungle hazards", () => {
   let colyseus: ColyseusTestServer<typeof server>;
@@ -22,7 +21,7 @@ describe("authoritative jungle hazards", () => {
     target.x = -7.5; target.y = 0; target.z = -6; target.spawnProtectMs = 0;
     const safe = room.addStationaryPlayer("safe", target.team, -2, 0, -1); safe.spawnProtectMs = 0;
     const hazard = room.state.hazards.get("center-boulder")!;
-    const input = pullerClient.input({ mode: "reliable" }); input.data.buttons = BTN.USE; input.send(); await room.waitForNextTimestep();
+    expect(room.useLever(pullerClient.sessionId, 1)).toBe(true);
     expect(hazard.phase).toBe("telegraph"); expect(hazard.puller).toBe(pullerClient.sessionId);
     hazard.phase = "roll"; hazard.direction = 1; hazard.t = 0; hazard.puller = pullerClient.sessionId;
     room.updateHazards(1000, 0.05);

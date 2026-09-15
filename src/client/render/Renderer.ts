@@ -181,6 +181,7 @@ export class Renderer {
   private speed = 0;
   private grounded = false;
   private sliding = false;
+  private cameraOverride: { x: number; y: number; z: number; lookX: number; lookY: number; lookZ: number } | null = null;
 
   constructor(container: HTMLElement, debug: boolean, map: MapData = notebookMap, practice: readonly PracticeTarget[] = []) {
     this.map = map;
@@ -254,6 +255,7 @@ export class Renderer {
     this.grounded = player.grounded;
     this.sliding = player.sliding;
   }
+  setTestCamera(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void { this.cameraOverride = { x, y, z, lookX, lookY, lookZ }; }
 
   setDrawFraction(fraction: number): void {
     this.viewBow.position.z = fraction * 0.2;
@@ -374,6 +376,7 @@ export class Renderer {
 
   render(timeMs = performance.now()): void {
     this.previousTime = timeMs;
+    if (this.cameraOverride) { const view = this.cameraOverride; this.camera.position.set(view.x, view.y, view.z); this.camera.lookAt(view.lookX, view.lookY, view.lookZ); }
     this.props.update(this.camera, timeMs);
     this.ambience.updateListener(this.camera.position.x, this.camera.position.z);
     for (let index = 0; index < this.planes.length; index += 1) {

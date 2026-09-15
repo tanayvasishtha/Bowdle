@@ -6,6 +6,7 @@ import { practiceTargets, rangeMap } from "../shared/maps/range.ts";
 import { OnlineSession, type RenderedPlayer } from "./game/OnlineSession.ts";
 import { kitMap } from "../shared/maps/fixtures/kit.ts";
 import { propsGalleryMap } from "../shared/maps/fixtures/props.ts";
+import { sunTempleMap } from "../shared/maps/sunTemple.ts";
 
 declare global {
   interface Window {
@@ -21,6 +22,7 @@ declare global {
       grappleActive?(): boolean;
       aimAtGrapple?(): void;
       stats?(): { drawCalls: number; triangles: number };
+      cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
     };
   }
 }
@@ -55,7 +57,7 @@ if (params.get("scene") === "online") {
   });
 } else if (params.get("scene") === "map" || params.get("scene") === "range" || params.get("scene") === "kit" || params.get("scene") === "props") {
   const isRange = params.get("scene") === "range";
-  const map = params.get("scene") === "kit" ? kitMap : params.get("scene") === "props" ? propsGalleryMap : isRange ? rangeMap : undefined;
+  const map = params.get("scene") === "kit" ? kitMap : params.get("scene") === "props" ? propsGalleryMap : params.get("map") === "sun-temple" ? sunTempleMap : isRange ? rangeMap : undefined;
   const renderer = new Renderer(app, params.has("debug"), map, isRange ? practiceTargets : undefined);
   const sampler = new InputSampler(renderer.canvas, isRange ? 0 : map?.spawns.sun[0]?.yaw ?? -Math.PI / 2);
   const session = isRange ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);
@@ -63,6 +65,7 @@ if (params.get("scene") === "online") {
   if (params.has("test")) window.__bowdleTest = {
     snapshot: () => renderer.snapshot(),
     stats: () => renderer.stats(),
+    cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
     ...(session instanceof PracticeSession ? { fireAt: (targetId: string, drawMs: number) => session.fireAt(targetId, drawMs) } : {}),
   };
 } else {

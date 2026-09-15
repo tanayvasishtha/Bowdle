@@ -39,6 +39,7 @@ export class InputSampler {
     if (this.keys.has("KeyR")) buttons |= BTN.CANCEL;
     if (this.keys.has("KeyE")) buttons |= BTN.GRAPPLE;
     if (this.keys.has("KeyQ")) buttons |= BTN.INK;
+    if (this.keys.has("KeyF")) buttons |= BTN.USE;
     out.buttons = buttons;
   }
 

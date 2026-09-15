@@ -24,6 +24,8 @@ import {
 } from "../../shared/constants.ts";
 import type { PlayerInputFrame } from "../../shared/input.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
+import { kitMap } from "../../shared/maps/fixtures/kit.ts";
+import type { MapData } from "../../shared/maps/types.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
 import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
@@ -36,7 +38,7 @@ import { segmentDistance } from "../../shared/math/segments.ts";
 import { BotController } from "../bots/BotController.ts";
 import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 
-type JoinOptions = { name?: string; test?: boolean };
+type JoinOptions = { name?: string; test?: boolean; mapId?: string };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
@@ -46,6 +48,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   maxClients = TEAM_SIZE * 2;
   maxMessagesPerSecond = TICK_HZ;
   state = new MatchState();
+  private map: MapData = notebookMap;
   inputs = this.defineInput(PlayerInput, {
     bufferMaxSize: 32,
     sanitize: { moveX: [-1, 1], moveZ: [-1, 1], pitch: [-PITCH_LIMIT, PITCH_LIMIT] },
@@ -69,7 +72,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private testMode = false;
   private readonly bots = new Map<string, BotController>();
 
-  onCreate(): void {
+  onCreate(options: JoinOptions): void {
+    this.map = options.mapId === kitMap.id ? kitMap : notebookMap;
+    this.state.mapId = this.map.id;
     this.state.phase = "warmup";
     this.state.phaseEndsAtMs = WARMUP_MS;
     this.rewindState = this.allowRewindState({ maxRewindMs: MAX_REWIND_MS });
@@ -100,20 +105,20 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       for (const frame of frames) {
         if (!player.alive) continue;
         player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
-        this.applyEvents(sessionId, player, stepPlayer(player, frame, notebookMap, { nowMs }));
+        this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs }));
       }
     }
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
-      const frame = controller.update(player, this.state.players, notebookMap, nowMs, this.state.inkClouds.values());
-      this.applyEvents(id, player, stepPlayer(player, frame, notebookMap, { nowMs }));
+      const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values());
+      this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs }));
     }
     this.stepArrows(context);
     for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
     for (const player of this.state.players.values()) {
       if (player.alive) stepRegen(player, nowMs, context.dt);
-      else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawn(notebookMap, player.team, this.state.players.values()));
+      else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values()));
     }
   }
 
@@ -152,7 +157,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         const fromX = arrow.x, fromY = arrow.y, fromZ = arrow.z;
         arrow.prevX = fromX; arrow.prevY = fromY; arrow.prevZ = fromZ;
         const gravity = arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined;
-        const world = stepArrow(arrow, notebookMap, context.subDt, gravity);
+        const world = stepArrow(arrow, this.map, context.subDt, gravity, this.simulationNowMs);
         let targetId = "", headshot = false, earliest = Number.POSITIVE_INFINITY;
         if (arrow.kind === "arrow") {
           const seen = this.rewindState.lastSeenBy(arrow.owner);
@@ -234,11 +239,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
   private resetPlayers(): void {
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.arrowOrigins.clear(); this.damage.clear();
-    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(notebookMap, player.team, this.state.players.values())); player.spawnProtectMs = 0; }
+    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values())); player.spawnProtectMs = 0; }
   }
 
   private addBot(team: number, source?: PlayerState): void {
-    const id = `bot-${this.botSerial += 1}`; const spawn = chooseSpawn(notebookMap, team, this.state.players.values());
+    const id = `bot-${this.botSerial += 1}`; const spawn = chooseSpawn(this.map, team, this.state.players.values());
     const player = source ?? new PlayerState(); player.name = `Doodle ${this.botSerial}`; player.team = team; player.isBot = true;
     if (!source) respawnPlayer(player, spawn);
     this.state.players.set(id, player); this.bots.set(id, new BotController(id, this.botSerial));
@@ -272,7 +277,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const team = sun <= moon ? 0 : 1;
     const replaced = [...this.state.players].find(([, player]) => player.isBot && player.team === team);
     if (replaced) { this.state.players.delete(replaced[0]); this.bots.delete(replaced[0]); }
-    const spawn = team === 0 ? notebookMap.spawns.sun[sun % notebookMap.spawns.sun.length]! : notebookMap.spawns.moon[moon % notebookMap.spawns.moon.length]!;
+    const spawn = team === 0 ? this.map.spawns.sun[sun % this.map.spawns.sun.length]! : this.map.spawns.moon[moon % this.map.spawns.moon.length]!;
     const player = new PlayerState();
     player.name = options?.name?.trim().slice(0, MAX_NAME_LENGTH) || "Player";
     player.team = team;

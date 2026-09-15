@@ -35,6 +35,7 @@ import { canOccupy, movePlayer } from "./collision.ts";
 import { stepCombat, type CombatEvent } from "./bow.ts";
 import { stepAbilityInput, stepGrapplePull, type AbilityEvent } from "./abilities.ts";
 import { isInWater } from "./volumes.ts";
+import { stepZipInput, stepZipRide } from "./zip.ts";
 
 export type PlayerSim = {
   name: string;
@@ -48,6 +49,7 @@ export type PlayerSim = {
   hp: number; alive: boolean; drawMs: number; releaseCooldownMs: number; meleeCooldownMs: number;
   prevButtons: number; lastDamageAtMs: number; spawnProtectMs: number; respawnAtMs: number;
   grappleCooldownMs: number; grappleActive: boolean; grappleX: number; grappleY: number; grappleZ: number; grappleMs: number; inkCooldownMs: number;
+  zipId: string; zipT: number;
   kills: number; deaths: number; assists: number;
   bowSkin: string; arrowTrail: string; outfit: string; killEffect: string;
 };
@@ -64,6 +66,7 @@ export function createPlayerSim(x = 0, y = 0, z = 0): PlayerSim {
     grounded: true, crouched: false, sliding: false, slideMs: 0, slideCooldownMs: 0, coyoteMs: COYOTE_MS, jumpBufferMs: 0,
     hp: MAX_HP, alive: true, drawMs: 0, releaseCooldownMs: 0, meleeCooldownMs: 0, prevButtons: 0, lastDamageAtMs: 0, spawnProtectMs: 0, respawnAtMs: 0,
     grappleCooldownMs: 0, grappleActive: false, grappleX: 0, grappleY: 0, grappleZ: 0, grappleMs: 0, inkCooldownMs: 0,
+    zipId: "", zipT: 0,
     kills: 0, deaths: 0, assists: 0, bowSkin: "bow.default", arrowTrail: "trail.default", outfit: "outfit.default", killEffect: "effect.default",
   };
 }
@@ -122,9 +125,11 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
   const inputMagnitude = updateWish(input);
   state.yaw = input.yaw;
   state.pitch = input.pitch;
+  stepZipInput(state, input, map);
   const abilityEvents = stepAbilityInput(state, input, map, 1000 / TICK_HZ);
 
   for (let substep = 0; substep < SUBSTEPS; substep += 1) {
+    if (stepZipRide(state, map, dt)) continue;
     const water = isInWater(map, state.x, state.y, state.z, ctx.nowMs);
     if (water) state.sliding = false;
     state.slideCooldownMs = Math.max(0, state.slideCooldownMs - dtMs);

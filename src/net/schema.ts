@@ -13,6 +13,7 @@ export const PlayerState = schema({
   hp: t.number().default(MAX_HP), alive: t.boolean().default(true), drawMs: t.number().default(0), releaseCooldownMs: t.number().default(0), meleeCooldownMs: t.number().default(0),
   prevButtons: t.uint16().default(0), lastDamageAtMs: t.number().default(0), spawnProtectMs: t.number().default(0), respawnAtMs: t.number().default(0),
   grappleCooldownMs: t.number().default(0), grappleActive: t.boolean().default(false), grappleX: t.number().default(0), grappleY: t.number().default(0), grappleZ: t.number().default(0), grappleMs: t.number().default(0), inkCooldownMs: t.number().default(0),
+  zipId: t.string().default(""), zipT: t.number().default(0),
   kills: t.uint16().default(0), deaths: t.uint16().default(0), assists: t.uint16().default(0),
   bowSkin: t.string().default("bow.default"), arrowTrail: t.string().default("trail.default"), outfit: t.string().default("outfit.default"), killEffect: t.string().default("effect.default"),
 }, "PlayerState");

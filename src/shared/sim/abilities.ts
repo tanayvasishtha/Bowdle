@@ -108,6 +108,7 @@ export function stepAbilityInput(state: PlayerSim, input: PlayerInputFrame, map:
   state.grappleCooldownMs = Math.max(0, state.grappleCooldownMs - tickMs);
   state.inkCooldownMs = Math.max(0, state.inkCooldownMs - tickMs);
   const grapplePressed = pressed(input.buttons, state.prevButtons, BTN.GRAPPLE);
+  if (grapplePressed && state.zipId) { state.zipId = ""; state.zipT = 0; }
   if (grapplePressed && state.grappleActive) releaseGrapple(state, false);
   else if (grapplePressed && state.grappleCooldownMs <= 0) {
     state.grappleCooldownMs = GRAPPLE_COOLDOWN_MS;

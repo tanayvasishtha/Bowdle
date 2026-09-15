@@ -4,6 +4,7 @@ import { server } from "../../src/server/app.config.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import { BTN } from "../../src/shared/input.ts";
 import { notebookMap } from "../../src/shared/maps/notebook.ts";
+import { kitMap } from "../../src/shared/maps/fixtures/kit.ts";
 import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
 
 describe("authoritative online abilities", () => {
@@ -33,6 +34,28 @@ describe("authoritative online abilities", () => {
     expect(Math.abs(serverPlayer.y - direct.y)).toBeLessThanOrEqual(1e-6);
     expect(Math.abs(serverPlayer.z - direct.z)).toBeLessThanOrEqual(1e-6);
     expect(serverPlayer.grappleMs).toBe(direct.grappleMs);
+  }, 15_000);
+
+  it("matches a predicted zip ride for 60 frames", async () => {
+    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Rider", test: true, mapId: "kit" });
+    await client.waitForInitialState();
+    const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
+    const serverPlayer = room.state.players.get(client.sessionId)!;
+    const high = kitMap.zipLines[0]!.from;
+    serverPlayer.x = high[0]; serverPlayer.y = high[1]; serverPlayer.z = high[2]; serverPlayer.vx = 0; serverPlayer.vy = 0; serverPlayer.vz = 0; serverPlayer.grounded = false;
+    const direct = createPlayerSim(...high); direct.grounded = false;
+    const wire = client.input({ mode: "reliable" });
+    for (let frame = 0; frame < 60; frame += 1) {
+      const buttons = frame === 0 ? BTN.USE : 0;
+      wire.data.moveX = 0; wire.data.moveZ = 0; wire.data.yaw = 0; wire.data.pitch = 0; wire.data.buttons = buttons;
+      wire.send(); await room.waitForNextTimestep();
+      stepPlayer(direct, { moveX: 0, moveZ: 0, yaw: 0, pitch: 0, buttons }, kitMap, { nowMs: frame * 1000 / 30 });
+    }
+    expect(serverPlayer.zipId).toBe(direct.zipId);
+    expect(serverPlayer.zipT).toBe(direct.zipT);
+    expect(Math.abs(serverPlayer.x - direct.x)).toBeLessThanOrEqual(1e-6);
+    expect(Math.abs(serverPlayer.y - direct.y)).toBeLessThanOrEqual(1e-6);
+    expect(Math.abs(serverPlayer.z - direct.z)).toBeLessThanOrEqual(1e-6);
   }, 15_000);
 
   it("spawns an expiring cloud when an ink lob hits the world", async () => {

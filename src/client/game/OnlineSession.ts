@@ -1,6 +1,6 @@
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
-import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS } from "../../shared/constants.ts";
+import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS } from "../../shared/constants.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
@@ -15,6 +15,7 @@ import { happyTime } from "../platform/web.ts";
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { ReplayDirector } from "./ReplayDirector.ts";
+import { spawnAbilityProjectile } from "../../shared/sim/abilities.ts";
 
 export type RenderedPlayer = { id: string; x: number; y: number; z: number };
 type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "grapple" | "ink" };
@@ -56,7 +57,7 @@ export class OnlineSession {
     this.arrows = this.predict.spawns<"arrows", LocalArrow>("arrows", {
       owned: (arrow) => arrow.owner === room.sessionId,
       spawnTime: (arrow) => arrow.bornMs,
-      step: (arrow, dt) => { stepArrow(arrow, notebookMap, dt); },
+      step: (arrow, dt) => { stepArrow(arrow, notebookMap, dt, arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined); },
       fields: ["x", "y", "z"],
     });
     this.me = this.predict.reconciler(local, {
@@ -65,11 +66,16 @@ export class OnlineSession {
       step: (context, state, command) => {
         const events = stepPlayer(state, command, notebookMap, { nowMs: context.reckonTime });
         if (context.isReplay) return;
-        for (const event of events) if (event.type === "fire") this.arrows.spawn({ ...spawnArrow(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: "arrow" });
+        for (const event of events) {
+          if (event.type === "fire") this.arrows.spawn({ ...spawnArrow(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: "arrow" });
+          else if (event.type === "grapple" || event.type === "ink") this.arrows.spawn({ ...spawnAbilityProjectile(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: event.type });
+        }
       },
     });
     const callbacks = Callbacks.get(room);
     callbacks.onRemove("players", (_player, id) => this.renderer.removePlayer(id));
+    callbacks.onAdd("inkClouds", (cloud, id) => this.renderer.setInkCloud(id, cloud.x, cloud.y, cloud.z, cloud.radius));
+    callbacks.onRemove("inkClouds", (_cloud, id) => this.renderer.removeInkCloud(id));
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.hud.hit(parsed.data.headshot); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); });
@@ -119,12 +125,14 @@ export class OnlineSession {
         id !== this.sessionId,
       );
       if (player.alive) this.renderer.unpinPlayer(id);
+      this.renderer.setGrappleRope(id, player.grappleActive, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"), player.grappleX, player.grappleY, player.grappleZ);
       if (capture) this.replay.player(id, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"), this.predict.value(player, "yaw"));
     }
     this.renderArrows(timeMs, capture);
     if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
     else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); this.hud.setReplay(false); }
     this.wasAlive = this.me.state.alive;
+    this.renderer.setGrappleHighlights(this.me.state.grappleCooldownMs <= 0 && !this.me.state.grappleActive);
     if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; }
     this.renderer.render(timeMs);
     requestAnimationFrame((time) => this.frame(time));
@@ -133,12 +141,12 @@ export class OnlineSession {
   private renderArrows(timeMs: number, capture: boolean): void {
     for (const entry of this.arrows.entries()) {
       let render = this.arrowRenders.get(entry.id);
-      if (!render) {
-        const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        render = { visual: this.renderer.spawnArrowVisual(sim), sim, removedAtMs: 0, stuckForMs: STUCK_ARROW_MS }; this.arrowRenders.set(entry.id, render);
-      }
       const source = entry.server ?? entry.local;
       if (!source) continue;
+      if (!render) {
+        const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
+        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
+      }
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
       render.sim.vx = source.vx; render.sim.vy = source.vy; render.sim.vz = source.vz; this.renderer.updateArrowVisual(render.visual, render.sim);
       if (capture) this.replay.arrow(entry.id, render.sim.x, render.sim.y, render.sim.z);
@@ -192,4 +200,7 @@ export class OnlineSession {
   }
   drawMs(): number { return this.me.state.drawMs; }
   killFeed(): string { return this.hud.feedText(); }
+  cloudCount(): number { return this.room.state.inkClouds.size; }
+  grappleActive(): boolean { return this.me.state.grappleActive; }
+  aimAtGrapple(): void { const dx = -14 - this.me.state.x, dz = -17 - this.me.state.z, horizontal = Math.hypot(dx, dz); this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(3 - (this.me.state.y + EYE_STAND), horizontal)); }
 }

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { collectErrors } from "./helpers.ts";
 
 type TestApi = { players(): Array<{ id: string; x: number; y: number; z: number }>; sessionId: string; aimAt(id: string): void; drawMs(): number; killFeed(): string };
+type AbilityTestApi = { aimAtGrapple(): void; grappleActive(): boolean; cloudCount(): number };
 
 test("two online players see shared movement", async ({ browser }) => {
   const contextA = await browser.newContext();
@@ -47,5 +48,22 @@ test("a solo online player gets a full match", async ({ page }) => {
   await expect(page.locator(".bowdle-scoreboard")).toContainText("Doodle");
   await page.screenshot({ path: "test-results/qa/m5/full-match.png", fullPage: true });
   await page.keyboard.up("Tab");
+  expect(errors).toEqual([]);
+});
+
+test("grapple and ink cloud are visible online", async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto("/?scene=online&test");
+  await page.waitForFunction(() => "__bowdleTest" in window);
+  await expect.poll(async () => page.locator(".bowdle-timer").textContent(), { timeout: 8_000 }).not.toContain("DRAW IN");
+  await page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.aimAtGrapple());
+  await page.keyboard.press("e");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.grappleActive())).toBe(true);
+  await page.screenshot({ path: "test-results/qa/m7/grapple-rope.png", fullPage: true });
+  await page.keyboard.press("q");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.cloudCount()), { timeout: 4_000 }).toBeGreaterThan(0);
+  await page.screenshot({ path: "test-results/qa/m7/ink-cloud.png", fullPage: true });
+  await expect(page.locator("[data-testid=ability-cooldowns]")).toContainText("GRAPPLE");
+  await expect(page.locator("[data-testid=ability-cooldowns]")).toContainText("INK CLOUD");
   expect(errors).toEqual([]);
 });

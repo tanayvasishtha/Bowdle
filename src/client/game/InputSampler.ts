@@ -37,6 +37,8 @@ export class InputSampler {
     if ((this.mouseButtons & 1) !== 0) buttons |= BTN.FIRE;
     if (this.keys.has("KeyV")) buttons |= BTN.MELEE;
     if (this.keys.has("KeyR")) buttons |= BTN.CANCEL;
+    if (this.keys.has("KeyE")) buttons |= BTN.GRAPPLE;
+    if (this.keys.has("KeyQ")) buttons |= BTN.INK;
     out.buttons = buttons;
   }
 

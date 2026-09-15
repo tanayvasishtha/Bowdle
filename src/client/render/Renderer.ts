@@ -5,6 +5,8 @@ import {
   ConeGeometry,
   CylinderGeometry,
   Group,
+  Line,
+  LineBasicMaterial,
   Matrix4,
   Mesh,
   PerspectiveCamera,
@@ -32,6 +34,7 @@ import { INK_ID } from "./palette.ts";
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
 const arrowDirection = new Vector3();
+const ropePoints = 9;
 
 function mapMeshes(map: MapData): Mesh[] {
   const groups = new Map<InkName, BufferGeometry[]>();
@@ -117,9 +120,9 @@ function createPlayer(): Group {
   return group;
 }
 
-function createArrowVisual(): Group {
+function createArrowVisual(kind: "arrow" | "grapple" | "ink" = "arrow"): Group {
   const group = new Group();
-  const material = new InkMaterial(INK_ID.blue);
+  const material = new InkMaterial(kind === "arrow" ? INK_ID.blue : INK_ID.orange);
   const shaft = new Mesh(new CylinderGeometry(0.012, 0.012, 0.8, 6), material);
   const head = new Mesh(new ConeGeometry(0.055, 0.14, 6), material);
   head.position.y = 0.47;
@@ -144,6 +147,9 @@ export class Renderer {
   private readonly planes: Mesh[] = [];
   private readonly targets = new Map<string, Group>();
   private readonly players = new Map<string, Group>();
+  private readonly ropes = new Map<string, Line>();
+  private readonly clouds = new Map<string, Group>();
+  private readonly grappleHighlights: Mesh[] = [];
   private readonly viewBow: Group;
   private readonly overlay: HTMLDivElement | null;
   private readonly map: MapData;
@@ -162,6 +168,13 @@ export class Renderer {
     this.canvas.id = "game-canvas";
     container.append(this.canvas);
     for (const mesh of mapMeshes(map)) this.worldScene.add(mesh);
+    for (const box of map.boxes) {
+      if (!box.tags.includes("grapple")) continue;
+      const material = new InkMaterial(INK_ID.orange); material.wireframe = true;
+      const visual = new Mesh(new BoxGeometry(box.max[0] - box.min[0] + 0.08, box.max[1] - box.min[1] + 0.08, box.max[2] - box.min[2] + 0.08), material);
+      visual.position.set((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
+      visual.visible = false; this.grappleHighlights.push(visual); this.worldScene.add(visual);
+    }
     if (map.id === "notebook") {
       addSun(this.worldScene);
       const planeMaterial = new InkMaterial(INK_ID.blue);
@@ -231,8 +244,8 @@ export class Renderer {
     target.visible = visible;
   }
 
-  spawnArrowVisual(arrow: ArrowSim): Group {
-    const visual = createArrowVisual();
+  spawnArrowVisual(arrow: ArrowSim, kind: "arrow" | "grapple" | "ink" = "arrow"): Group {
+    const visual = createArrowVisual(kind);
     this.worldScene.add(visual);
     this.updateArrowVisual(visual, arrow);
     return visual;
@@ -270,6 +283,39 @@ export class Renderer {
     this.worldScene.remove(player);
     this.players.delete(id);
   }
+
+  setGrappleHighlights(ready: boolean): void { for (const visual of this.grappleHighlights) visual.visible = ready; }
+
+  setGrappleRope(id: string, active: boolean, x: number, y: number, z: number, anchorX: number, anchorY: number, anchorZ: number): void {
+    let rope = this.ropes.get(id);
+    if (!active) { if (rope) rope.visible = false; return; }
+    if (!rope) {
+      const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(new Float32Array(ropePoints * 3), 3));
+      rope = new Line(geometry, new LineBasicMaterial({ color: 0xf08a24 })); this.ropes.set(id, rope); this.worldScene.add(rope);
+    }
+    rope.visible = true;
+    const positions = rope.geometry.getAttribute("position") as BufferAttribute;
+    for (let index = 0; index < ropePoints; index += 1) {
+      const fraction = index / (ropePoints - 1), wobble = Math.sin(index * 2.7) * 0.07 * Math.sin(fraction * Math.PI);
+      positions.setXYZ(index, x + (anchorX - x) * fraction + wobble, y + EYE_STAND + (anchorY - y - EYE_STAND) * fraction, z + (anchorZ - z) * fraction - wobble);
+    }
+    positions.needsUpdate = true;
+  }
+
+  setInkCloud(id: string, x: number, y: number, z: number, radius: number): void {
+    let cloud = this.clouds.get(id);
+    if (!cloud) {
+      cloud = new Group();
+      for (let layer = 0; layer < 3; layer += 1) {
+        const material = new InkMaterial(layer === 1 ? INK_ID.orange : INK_ID.blue); material.wireframe = true;
+        const sphere = new Mesh(new SphereGeometry(1, 9 + layer, 7), material); sphere.scale.setScalar(1 - layer * 0.12); sphere.rotation.set(layer * 0.4, layer * 0.7, layer * 0.2); cloud.add(sphere);
+      }
+      this.clouds.set(id, cloud); this.worldScene.add(cloud);
+    }
+    cloud.position.set(x, y, z); cloud.scale.setScalar(radius); cloud.visible = true;
+  }
+
+  removeInkCloud(id: string): void { const cloud = this.clouds.get(id); if (!cloud) return; this.worldScene.remove(cloud); this.clouds.delete(id); }
 
   addInkSplat(x: number, y: number, z: number, team: number, seed: number): void {
     const rng = mulberry32(seed); const count = SPLAT_MIN_VERTICES + Math.floor(rng() * (SPLAT_MAX_VERTICES - SPLAT_MIN_VERTICES + 1));

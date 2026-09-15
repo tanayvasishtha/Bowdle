@@ -15,6 +15,9 @@ declare global {
       aimAt?(sessionId: string): void;
       drawMs?(): number;
       killFeed?(): string;
+      cloudCount?(): number;
+      grappleActive?(): boolean;
+      aimAtGrapple?(): void;
     };
   }
 }
@@ -40,6 +43,9 @@ if (params.get("scene") === "online") {
       aimAt: (sessionId: string) => session.aimAt(sessionId),
       drawMs: () => session.drawMs(),
       killFeed: () => session.killFeed(),
+      cloudCount: () => session.cloudCount(),
+      grappleActive: () => session.grappleActive(),
+      aimAtGrapple: () => session.aimAtGrapple(),
     };
   }).catch((error: unknown) => {
     loading.textContent = error instanceof Error ? `Connection failed: ${error.message}` : "Connection failed";

@@ -1,5 +1,43 @@
 # Build log
 
+## W5 — Canopy Village
+
+Status: done.
+
+Built:
+
+- Added the mirrored three-level Canopy Village arena with the great tree, low and high ring decks, climbable central runs capped at 20 degrees, west and satellite tree decks, connecting bridges, four directional zip lines, a shallow stream, north waterfall, tall-grass retreat pockets, fallen logs, field notes, and sun-shaft lighting.
+- Authored a connected waypoint network across the ground, low decks, high decks, all spawns, grass pockets, zip routes, drops, jumps, and grapple shortcuts. Every required deck is reachable on foot.
+- Added automatic nearby zip attachment and zip-link traversal to computer-controlled navigation, plus team-side grass selection while retreating.
+- Added `/?scene=map&map=canopy` with repeatable test-camera views.
+
+Tests added:
+
+- Canopy map validation for mirrored geometry, supported ramp ends, 20-degree central climbs, grounded volumes, rope clearance, hidden spawns, complete graph connectivity, valid walk sweeps, and foot access to every required deck.
+- Full eight-player authoritative match simulation through the end phase, with at least three zip rides and a watchdog rejecting any living unprotected player stationary for more than three seconds.
+- A focused nearby-zip navigation test.
+- Four browser views—spawn tree, high ring, midway along a zip line, and inside floor grass—with zero console errors and a 150-draw-call ceiling. Screenshots are in `test-results/qa/w5/`.
+
+QA:
+
+- `npm run check`: passed with 89 tests.
+- `npm run e2e`: 11 passed.
+- `npm run size`: client JavaScript 251 KB gzipped, 900 KB budget.
+- Diff review: no dependency changes, unsafe simulation randomness, weak typing, forbidden imports, per-tick allocations, or reduced tests were introduced.
+
+Deviation:
+
+- The central spiral is represented by mirrored straight timber runs because the shared collision kit supports axis-aligned ramp wedges rather than curved surfaces. Both runs stay within the specified 20-degree limit and preserve the full ground-to-high-ring walking route.
+- The west tree uses compact ramp runs rather than discrete stair boxes, preserving smooth authoritative movement and the specified deck elevations within the dense tree footprint.
+
+Verify by hand:
+
+- Fight from the ground, each low deck, and the high ring; confirm every level has useful sightlines and at least three approaches to the power position.
+- Walk from either spawn to the high ring without grappling and confirm each ramp/deck transition feels smooth.
+- Draw and fire while riding each zip line, then jump off midway and confirm momentum feels readable.
+- Crouch inside both team-side grass pockets, ambush an approaching opponent, and confirm retreating opponents deliberately enter cover.
+- Check every spawn view for a clear landmark and confirm no opposing lane sees directly into a spawn.
+
 ## W4 — Sun Temple
 
 Status: done.

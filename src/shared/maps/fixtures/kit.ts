@@ -25,7 +25,7 @@ export const kitMap: MapData = {
   zipLines: [sunZip, mirrorX(sunZip, "moon-zip")],
   boulders: [boulder],
   props: [sunProp, mirrorX(sunProp), { kind: "stoneHead", pos: [0, 0, -12], yaw: 0, scale: 1, seed: 23 }],
-  spawns: { sun: [{ pos: [-15, 0, 8], yaw: Math.PI / 2 }], moon: [{ pos: [15, 0, 8], yaw: -Math.PI / 2 }] },
+  spawns: { sun: [{ pos: [-15, 0, 8], yaw: -Math.PI / 2 }], moon: [{ pos: [15, 0, 8], yaw: Math.PI / 2 }] },
   waypoints: [
     { id: "sun-spawn", pos: [-15, 0, 8], links: [{ to: "center", kind: "jump" }, { to: "sun-zip-high", kind: "zip" }] },
     { id: "sun-zip-high", pos: [-12, 0, -10], links: [{ to: "sun-spawn", kind: "jump" }, { to: "sun-zip-low", kind: "zip" }] },

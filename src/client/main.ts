@@ -4,6 +4,7 @@ import { OfflineSession } from "./game/OfflineSession.ts";
 import { PracticeSession, type PracticeShotResult } from "./game/PracticeSession.ts";
 import { practiceTargets, rangeMap } from "../shared/maps/range.ts";
 import { OnlineSession, type RenderedPlayer } from "./game/OnlineSession.ts";
+import { kitMap } from "../shared/maps/fixtures/kit.ts";
 
 declare global {
   interface Window {
@@ -50,11 +51,12 @@ if (params.get("scene") === "online") {
   }).catch((error: unknown) => {
     loading.textContent = error instanceof Error ? `Connection failed: ${error.message}` : "Connection failed";
   });
-} else if (params.get("scene") === "map" || params.get("scene") === "range") {
+} else if (params.get("scene") === "map" || params.get("scene") === "range" || params.get("scene") === "kit") {
   const isRange = params.get("scene") === "range";
-  const renderer = new Renderer(app, params.has("debug"), isRange ? rangeMap : undefined, isRange ? practiceTargets : undefined);
-  const sampler = new InputSampler(renderer.canvas, isRange ? 0 : -Math.PI / 2);
-  const session = isRange ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler);
+  const map = params.get("scene") === "kit" ? kitMap : isRange ? rangeMap : undefined;
+  const renderer = new Renderer(app, params.has("debug"), map, isRange ? practiceTargets : undefined);
+  const sampler = new InputSampler(renderer.canvas, isRange ? 0 : map?.spawns.sun[0]?.yaw ?? -Math.PI / 2);
+  const session = isRange ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);
   session.start();
   if (params.has("test")) window.__bowdleTest = {
     snapshot: () => renderer.snapshot(),

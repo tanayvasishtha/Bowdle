@@ -1,6 +1,7 @@
 import { TICK_HZ } from "../../shared/constants.ts";
 import type { PlayerInputFrame } from "../../shared/input.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
+import type { MapData } from "../../shared/maps/types.ts";
 import { createPlayerSim, stepPlayer, type PlayerSim } from "../../shared/sim/movement.ts";
 import type { Renderer } from "../render/Renderer.ts";
 import { CameraRig } from "./CameraRig.ts";
@@ -18,14 +19,16 @@ export class OfflineSession {
   private readonly sampler: InputSampler;
   private readonly previous: PlayerSim;
   private readonly cameraRig = new CameraRig();
+  private readonly map: MapData;
   private accumulatorMs = 0;
   private lastFrameMs = performance.now();
   private simTimeMs = 0;
 
-  constructor(renderer: Renderer, sampler: InputSampler) {
+  constructor(renderer: Renderer, sampler: InputSampler, map: MapData = notebookMap) {
     this.renderer = renderer;
     this.sampler = sampler;
-    const spawn = notebookMap.spawns.sun[0]!;
+    this.map = map;
+    const spawn = map.spawns.sun[0]!;
     this.player = createPlayerSim(spawn.pos[0], spawn.pos[1], spawn.pos[2]);
     this.player.yaw = spawn.yaw;
     this.previous = createPlayerSim(spawn.pos[0], spawn.pos[1], spawn.pos[2]);
@@ -44,7 +47,7 @@ export class OfflineSession {
     while (this.accumulatorMs >= tickMs) {
       copyState(this.previous, this.player);
       this.sampler.sample(input);
-      stepPlayer(this.player, input, notebookMap, { nowMs: this.simTimeMs });
+      stepPlayer(this.player, input, this.map, { nowMs: this.simTimeMs });
       this.simTimeMs += tickMs;
       this.accumulatorMs -= tickMs;
     }

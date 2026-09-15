@@ -24,12 +24,13 @@ import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { MaterialName, MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import type { PracticeTarget } from "../../shared/maps/range.ts";
-import { BODY_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
+import { BODY_RADIUS, BOULDER_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
 import { mulberry32 } from "../../shared/math/rng.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
 import { InkMaterial } from "./InkMaterial.ts";
 import { MATERIAL_ID, PALETTE } from "./palette.ts";
+import { rampHeightAt } from "../../shared/maps/ramps.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
@@ -48,6 +49,19 @@ function mapMeshes(map: MapData): Mesh[] {
     const list = groups.get(box.material) ?? [];
     list.push(geometry);
     groups.set(box.material, list);
+  }
+  for (const ramp of map.ramps) {
+    const x0 = ramp.min[0], x1 = ramp.max[0], y0 = ramp.min[1], z0 = ramp.min[2], z1 = ramp.max[2];
+    const h00 = rampHeightAt(ramp, x0, z0)!, h10 = rampHeightAt(ramp, x1, z0)!, h01 = rampHeightAt(ramp, x0, z1)!, h11 = rampHeightAt(ramp, x1, z1)!;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(new Float32Array([x0,y0,z0, x1,y0,z0, x1,y0,z1, x0,y0,z1, x0,h00,z0, x1,h10,z0, x1,h11,z1, x0,h01,z1]), 3));
+    geometry.setIndex([0,2,1,0,3,2, 4,5,6,4,6,7, 0,1,5,0,5,4, 1,2,6,1,6,5, 2,3,7,2,7,6, 3,0,4,3,4,7]); geometry.computeVertexNormals();
+    const list = groups.get(ramp.material) ?? []; list.push(geometry); groups.set(ramp.material, list);
+  }
+  for (const volume of map.volumes) {
+    const geometry = new BoxGeometry(volume.max[0] - volume.min[0], volume.max[1] - volume.min[1], volume.max[2] - volume.min[2]);
+    geometry.translate((volume.min[0] + volume.max[0]) / 2, (volume.min[1] + volume.max[1]) / 2, (volume.min[2] + volume.max[2]) / 2);
+    const material: MaterialName = volume.kind === "water" ? "water" : "fern"; const list = groups.get(material) ?? []; list.push(geometry); groups.set(material, list);
   }
   const meshes: Mesh[] = [];
   for (const [material, geometries] of groups) {
@@ -170,6 +184,14 @@ export class Renderer {
     container.append(this.canvas);
     this.composite.setSunShafts(map.look?.sunShafts ?? false); this.composite.setStainSeed(map.look?.stainSeed ?? 0);
     for (const mesh of mapMeshes(map)) this.worldScene.add(mesh);
+    for (const zip of map.zipLines) {
+      const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(new Float32Array([...zip.from, ...zip.to]), 3));
+      this.worldScene.add(new Line(geometry, new LineBasicMaterial({ color: PALETTE.rope })));
+    }
+    for (const boulder of map.boulders) {
+      const rock = new Mesh(new SphereGeometry(BOULDER_RADIUS, 12, 8), new InkMaterial(MATERIAL_ID.hazard)); rock.position.set(...boulder.path[0]!); this.worldScene.add(rock);
+      const lever = new Mesh(new CylinderGeometry(0.08, 0.08, 1.2, 6), new InkMaterial(MATERIAL_ID.gold)); lever.position.set(...boulder.lever); lever.rotation.z = -0.45; this.worldScene.add(lever);
+    }
     for (const box of map.boxes) {
       if (!box.tags.includes("grapple")) continue;
       const material = new InkMaterial(MATERIAL_ID.gold); material.wireframe = true;

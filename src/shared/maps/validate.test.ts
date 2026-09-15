@@ -47,4 +47,18 @@ describe("map validation", () => {
     const empty: MapData = { id: "test", name: "bad", bounds: { min: [-10, -1, -10], max: [10, 10, 10] }, boxes: [{ id: "floor", min: [-10, -1, -10], max: [10, 0, 10], ink: "blue", tags: ["solid"] }], spawns: { red: [{ pos: [-5, 0, 0], yaw: 0 }], green: [{ pos: [5, 0, 0], yaw: 0 }] }, waypoints: [], decor: [] };
     expect(validateMap(empty).some((error) => error.startsWith("spawn line of sight"))).toBe(true);
   });
+
+  it("rejects a disconnected waypoint graph", () => {
+    const waypoints = [...notebookMap.waypoints, { id: "island", pos: [0, 0, 19], links: [] } as const];
+    expect(validateMap(changed({ waypoints }))).toContain("waypoint graph: disconnected");
+  });
+
+  it("rejects a blocked walk link", () => {
+    const waypoints = [{ id: "a", pos: [-29, 0, 0], links: [{ to: "b", kind: "walk" }] }, { id: "b", pos: [-21, 0, 0], links: [{ to: "a", kind: "walk" }] }] as const;
+    expect(validateMap(changed({ waypoints })).some((error) => error.startsWith("waypoint walk"))).toBe(true);
+  });
+
+  it("rejects a spawn without a nearby visible waypoint", () => {
+    expect(validateMap(changed({ waypoints: notebookMap.waypoints.filter((point) => !point.id.startsWith("red-spawn")) })).some((error) => error.startsWith("spawn waypoint"))).toBe(true);
+  });
 });

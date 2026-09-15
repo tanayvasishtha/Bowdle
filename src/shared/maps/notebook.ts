@@ -1,5 +1,5 @@
 import { mirrorX, stairs } from "./helpers.ts";
-import type { Box, MapData, SpawnPoint } from "./types.ts";
+import type { Box, MapData, SpawnPoint, Vec3Tuple, Waypoint, WaypointLink } from "./types.ts";
 
 const solid = ["solid"] as const;
 const redHalf: Box[] = [
@@ -32,13 +32,54 @@ const greenHalf = redHalf.map((box) => mirrorX(box, box.id.replace("red-", "gree
 const redSpawns: SpawnPoint[] = [-4.5, -1.5, 1.5, 4.5].map((z) => ({ pos: [-27, 0, z], yaw: -Math.PI / 2 }));
 const greenSpawns: SpawnPoint[] = redSpawns.map((spawn) => ({ pos: [-spawn.pos[0], spawn.pos[1], spawn.pos[2]], yaw: Math.PI / 2 }));
 
+type MutableWaypoint = { id: string; pos: Vec3Tuple; links: WaypointLink[] };
+type Edge = readonly [string, string, WaypointLink["kind"]];
+
+const redWaypointPositions: ReadonlyArray<readonly [string, Vec3Tuple]> = [
+  ["red-south-edge", [-27, 0, -9]], ["red-south-mid", [-14, 0, -9]], ["red-south-inner", [-7, 0, -9]],
+  ["red-spawn-s4", [-27, 0, -4.5]], ["red-spawn-s2", [-27, 0, -1.5]], ["red-spawn-n2", [-27, 0, 1.5]], ["red-spawn-n4", [-27, 0, 4.5]],
+  ["red-north-edge", [-27, 0, 15]], ["red-north-mid", [-16, 0, 15]], ["red-north-inner", [-8, 0, 15]],
+  ["red-bridge-bottom", [-19.5, 0, 12]], ["red-bridge-top", [-11.5, 3, 12]],
+  ["red-perch-bottom", [-13.9, 0, -9.5]], ["red-perch-top", [-14, 4, -17]],
+  ["red-mug-side", [-21, 0, 9]], ["red-sharpener-side", [-18, 0, -3]], ["red-eraser-side", [-7.5, 0, 7]], ["red-pencil-side", [-8, 0, -10.5]],
+];
+
+const redEdges: readonly Edge[] = [
+  ["red-south-edge", "red-south-mid", "walk"], ["red-south-mid", "red-south-inner", "walk"], ["red-south-inner", "center-south", "walk"],
+  ["red-south-edge", "red-spawn-s4", "walk"], ["red-spawn-s4", "red-spawn-s2", "walk"], ["red-spawn-s2", "red-spawn-n2", "walk"], ["red-spawn-n2", "red-spawn-n4", "walk"], ["red-spawn-n4", "red-north-edge", "walk"],
+  ["red-north-edge", "red-north-mid", "walk"], ["red-north-mid", "red-north-inner", "walk"], ["red-north-inner", "center-north", "walk"],
+  ["red-north-edge", "red-mug-side", "walk"], ["red-mug-side", "red-bridge-bottom", "jump"], ["red-bridge-bottom", "red-bridge-top", "walk"], ["red-bridge-top", "center-north", "drop"],
+  ["red-south-mid", "red-perch-bottom", "walk"], ["red-perch-bottom", "red-perch-top", "walk"],
+  ["red-spawn-s2", "red-sharpener-side", "jump"], ["red-sharpener-side", "red-south-mid", "jump"],
+  ["red-north-inner", "red-eraser-side", "walk"], ["red-eraser-side", "center-north", "jump"], ["red-south-inner", "red-pencil-side", "walk"],
+];
+
+function notebookWaypoints(): Waypoint[] {
+  const points: MutableWaypoint[] = [
+    { id: "center-south", pos: [0, 0, -9], links: [] }, { id: "center-north", pos: [0, 0, 15], links: [] },
+  ];
+  for (const [id, pos] of redWaypointPositions) {
+    points.push({ id, pos, links: [] });
+    points.push({ id: id.replace("red-", "green-"), pos: [-pos[0], pos[1], pos[2]], links: [] });
+  }
+  const byId = new Map(points.map((point) => [point.id, point]));
+  const connect = (from: string, to: string, kind: WaypointLink["kind"]): void => {
+    byId.get(from)!.links.push({ to, kind }); byId.get(to)!.links.push({ to: from, kind });
+  };
+  for (const edge of redEdges) {
+    connect(...edge);
+    connect(edge[0].replace("red-", "green-"), edge[1].replace("red-", "green-"), edge[2]);
+  }
+  return points;
+}
+
 export const notebookMap: MapData = {
   id: "notebook",
   name: "Notebook Page",
   bounds: { min: [-32, -1, -22], max: [32, 13, 22] },
   boxes: [...shell, ...redHalf, ...greenHalf],
   spawns: { red: redSpawns, green: greenSpawns },
-  waypoints: [],
+  waypoints: notebookWaypoints(),
   decor: [
     { kind: "sun", pos: [0, 28, -70], radius: 6 },
     { kind: "plane", center: [0, 0, 0], orbitRadius: 18, height: 16, speed: 0.08 },

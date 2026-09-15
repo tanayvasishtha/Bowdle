@@ -28,7 +28,7 @@ export const rangeMap: MapData = {
     ...stairs({ idPrefix: "stepup", start: [6, 0, -8], dir: "-z", steps: 5, rise: STEP_HEIGHT, run: 1, width: PLAYER_WIDTH * 4, ink: "blue" }),
   ],
   spawns: { red: [{ pos: [0, 0, 0], yaw: 0 }], green: [] },
-  waypoints: [],
+  waypoints: [{ id: "range-spawn", pos: [0, 0, 0], links: [] }],
   decor: [],
 };
 

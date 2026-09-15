@@ -6,7 +6,7 @@ import { headCenterY } from "./hitboxes.ts";
 import { stepArrow, sweepArrowVsTarget, type ArrowSim } from "./arrows.ts";
 
 function emptyMap(boxes: MapData["boxes"] = []): MapData {
-  return { id: "test", name: "test", bounds: { min: [-100, -100, -100], max: [100, 100, 100] }, boxes, spawns: { sun: [], moon: [] }, waypoints: [], decor: [] };
+  return { id: "test", name: "test", bounds: { min: [-100, -100, -100], max: [100, 100, 100] }, boxes, ramps: [], volumes: [], zipLines: [], boulders: [], props: [], spawns: { sun: [], moon: [] }, waypoints: [], decor: [], notes: [], look: { sunShafts: false, stainSeed: 0 } };
 }
 
 function arrow(): ArrowSim {

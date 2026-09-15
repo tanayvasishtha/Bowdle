@@ -27,6 +27,7 @@ export const rangeMap: MapData = {
     { id: "slide-bar-2", min: [-10, CROUCH_HEIGHT + 0.1, -20], max: [-5, CROUCH_HEIGHT + 0.3, -19.5], material: "wood", tags: ["solid"] },
     ...stairs({ idPrefix: "stepup", start: [6, 0, -8], dir: "-z", steps: 5, rise: STEP_HEIGHT, run: 1, width: PLAYER_WIDTH * 4, material: "stone" }),
   ],
+  ramps: [], volumes: [], zipLines: [], boulders: [], props: [],
   spawns: { sun: [{ pos: [0, 0, 0], yaw: 0 }], moon: [] },
   waypoints: [{ id: "range-spawn", pos: [0, 0, 0], links: [] }],
   decor: [],

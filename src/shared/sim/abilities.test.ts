@@ -11,7 +11,7 @@ function mapAt(distance: number, grapple = true): MapData {
   return {
     id: "ability-test", name: "Ability test", bounds: { min: [-50, -5, -50], max: [50, 50, 50] },
     boxes: [{ id: "target", min: [-1, 0, -distance - 1], max: [1, 4, -distance], material: "gold", tags: grapple ? ["solid", "grapple"] : ["solid"] }],
-    spawns: { sun: [], moon: [] }, waypoints: [], decor: [],
+    ramps: [], volumes: [], zipLines: [], boulders: [], props: [], spawns: { sun: [], moon: [] }, waypoints: [], decor: [], notes: [], look: { sunShafts: false, stainSeed: 0 },
   };
 }
 

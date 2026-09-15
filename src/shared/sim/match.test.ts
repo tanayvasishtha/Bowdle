@@ -5,7 +5,7 @@ import { createPlayerSim } from "./movement.ts";
 import { chooseSpawn, respawnPlayer, scoreKill, updateMatchPhase, type MatchCore } from "./match.ts";
 
 function live(): MatchCore { return { phase: "live", phaseEndsAtMs: TIME_LIMIT_S * 1000, scoreSun: 0, scoreMoon: 0 }; }
-function emptyMap(): MapData { return { id: "test", name: "Test", bounds: { min: [-20, 0, -20], max: [20, 10, 20] }, boxes: [], spawns: { sun: [], moon: [] }, waypoints: [], decor: [] }; }
+function emptyMap(): MapData { return { id: "test", name: "Test", bounds: { min: [-20, 0, -20], max: [20, 10, 20] }, boxes: [], ramps: [], volumes: [], zipLines: [], boulders: [], props: [], spawns: { sun: [], moon: [] }, waypoints: [], decor: [], notes: [], look: { sunShafts: false, stainSeed: 0 } }; }
 
 describe("team deathmatch rules", () => {
   it("scores kills and ends at the score limit", () => {

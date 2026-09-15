@@ -1,6 +1,7 @@
-import { EYE_STAND, PLAYER_WIDTH, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP } from "../constants.ts";
+import { BOULDER_RADIUS, BOULDER_SPAWN_CLEARANCE, EYE_STAND, PLAYER_WIDTH, RAMP_MAX_SLOPE_DEG, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP, ZIP_CLEARANCE } from "../constants.ts";
 import { mirrorX } from "./helpers.ts";
-import type { Box, MapData, SpawnPoint, Vec3Tuple } from "./types.ts";
+import { rampHeightAt, rampSlopeDegrees } from "./ramps.ts";
+import type { Boulder, Box, MapData, Prop, Ramp, SpawnPoint, Vec3Tuple, Volume, ZipLine } from "./types.ts";
 
 const EPSILON = 1e-6;
 
@@ -9,7 +10,28 @@ function sameTuple(a: Vec3Tuple, b: Vec3Tuple): boolean {
 }
 
 function sameBox(a: Box, b: Box): boolean {
-  return sameTuple(a.min, b.min) && sameTuple(a.max, b.max) && a.tags.join() === b.tags.join();
+  return sameTuple(a.min, b.min) && sameTuple(a.max, b.max) && a.material === b.material && a.tags.join() === b.tags.join();
+}
+
+function sameRamp(a: Ramp, b: Ramp): boolean { return sameBox(a, b) && a.up === b.up; }
+function sameVolume(a: Volume, b: Volume): boolean { return sameTuple(a.min, b.min) && sameTuple(a.max, b.max) && a.kind === b.kind && a.flood === b.flood; }
+function sameZip(a: ZipLine, b: ZipLine): boolean { return sameTuple(a.from, b.from) && sameTuple(a.to, b.to); }
+function sameProp(a: Prop, b: Prop): boolean { return a.kind === b.kind && sameTuple(a.pos, b.pos) && Math.abs(a.yaw - b.yaw) <= EPSILON && a.scale === b.scale && a.seed === b.seed; }
+function sameBoulder(a: Boulder, b: Boulder): boolean {
+  const samePath = (left: readonly Vec3Tuple[], right: readonly Vec3Tuple[]) => left.length === right.length && left.every((point, index) => sameTuple(point, right[index]!));
+  return sameTuple(a.lever, b.lever) && (samePath(a.path, b.path) || samePath(a.path, [...b.path].reverse()))
+    && a.alcoves.length === b.alcoves.length && a.alcoves.every((alcove) => b.alcoves.some((candidate) => sameTuple(alcove.min, candidate.min) && sameTuple(alcove.max, candidate.max)));
+}
+
+function expandedBox(box: { min: Vec3Tuple; max: Vec3Tuple }, amount: number): Box {
+  return { id: "expanded", min: [box.min[0] - amount, box.min[1] - amount, box.min[2] - amount], max: [box.max[0] + amount, box.max[1] + amount, box.max[2] + amount], material: "stone", tags: ["solid"] };
+}
+
+function pointSegmentDistance(point: Vec3Tuple, from: Vec3Tuple, to: Vec3Tuple): number {
+  const dx = to[0] - from[0]; const dy = to[1] - from[1]; const dz = to[2] - from[2];
+  const lengthSquared = dx * dx + dy * dy + dz * dz;
+  const alpha = lengthSquared <= EPSILON ? 0 : Math.max(0, Math.min(1, ((point[0] - from[0]) * dx + (point[1] - from[1]) * dy + (point[2] - from[2]) * dz) / lengthSquared));
+  return Math.hypot(point[0] - from[0] - dx * alpha, point[1] - from[1] - dy * alpha, point[2] - from[2] - dz * alpha);
 }
 
 function overlapsSpawn(box: Box, spawn: SpawnPoint): boolean {
@@ -89,11 +111,46 @@ export function validateMap(map: MapData): string[] {
     if (box.min.some((value, axis) => value < map.bounds.min[axis]! - EPSILON)
       || box.max.some((value, axis) => value > map.bounds.max[axis]! + EPSILON)) errors.push(`box bounds: ${box.id}`);
   }
-  if (map.id === "notebook") {
+  for (const ramp of map.ramps) {
+    if (ramp.min.some((value, axis) => value >= ramp.max[axis]!)) errors.push(`ramp dimensions: ${ramp.id}`);
+    if (rampSlopeDegrees(ramp) > RAMP_MAX_SLOPE_DEG + EPSILON) errors.push(`ramp slope: ${ramp.id}`);
+    const axis = ramp.up.endsWith("x") ? 0 : 2;
+    const cross = axis === 0 ? (ramp.min[2] + ramp.max[2]) / 2 : (ramp.min[0] + ramp.max[0]) / 2;
+    for (const high of [false, true]) {
+      const coordinate = high === ramp.up.startsWith("+") ? ramp.max[axis] : ramp.min[axis];
+      const x = axis === 0 ? coordinate : cross; const z = axis === 2 ? coordinate : cross;
+      const height = rampHeightAt(ramp, x, z)!;
+      const supported = solids.some((box) => x >= box.min[0] - EPSILON && x <= box.max[0] + EPSILON && z >= box.min[2] - EPSILON && z <= box.max[2] + EPSILON && Math.abs(box.max[1] - height) <= STEP_HEIGHT + EPSILON);
+      if (!supported) errors.push(`ramp end: ${ramp.id}`);
+    }
+  }
+  for (const volume of map.volumes) {
+    const grounded = solids.some((box) => volume.min[0] < box.max[0] && volume.max[0] > box.min[0] && volume.min[2] < box.max[2] && volume.max[2] > box.min[2] && Math.abs(volume.min[1] - box.max[1]) <= STEP_HEIGHT + EPSILON);
+    if (!grounded) errors.push(`volume ground: ${volume.id}`);
+  }
+  for (const zip of map.zipLines) {
+    if (zip.from[1] <= zip.to[1] + EPSILON) errors.push(`zip direction: ${zip.id}`);
+    if (solids.some((box) => segmentHitsBox(zip.from, zip.to, expandedBox(box, ZIP_CLEARANCE)))) errors.push(`zip clearance: ${zip.id}`);
+  }
+  for (const boulder of map.boulders) {
+    if (boulder.path.length < 2) errors.push(`boulder path: ${boulder.id}`);
+    for (let index = 1; index < boulder.path.length; index += 1) {
+      const from = boulder.path[index - 1]!; const to = boulder.path[index]!;
+      if (solids.some((box) => segmentHitsBox(from, to, expandedBox(box, BOULDER_RADIUS)))) errors.push(`boulder collider: ${boulder.id}`);
+      for (const alcove of boulder.alcoves) if (segmentHitsBox(from, to, expandedBox(alcove, BOULDER_RADIUS + PLAYER_WIDTH / 2))) errors.push(`boulder alcove: ${boulder.id}`);
+      for (const spawn of [...map.spawns.sun, ...map.spawns.moon]) if (pointSegmentDistance(spawn.pos, from, to) < BOULDER_SPAWN_CLEARANCE - EPSILON) errors.push(`boulder spawn: ${boulder.id}`);
+    }
+  }
+  if (map.spawns.sun.length > 0 && map.spawns.moon.length > 0) {
     for (const box of solids) {
       const mirrored = mirrorX(box, "mirror");
       if (!solids.some((candidate) => sameBox(mirrored, candidate))) errors.push(`mirror symmetry: ${box.id}`);
     }
+    for (const ramp of map.ramps) if (!map.ramps.some((candidate) => sameRamp(mirrorX(ramp, "mirror"), candidate))) errors.push(`mirror symmetry: ${ramp.id}`);
+    for (const volume of map.volumes) if (!map.volumes.some((candidate) => sameVolume(mirrorX(volume, "mirror"), candidate))) errors.push(`mirror symmetry: ${volume.id}`);
+    for (const zip of map.zipLines) if (!map.zipLines.some((candidate) => sameZip(mirrorX(zip, "mirror"), candidate))) errors.push(`mirror symmetry: ${zip.id}`);
+    for (const boulder of map.boulders) if (!map.boulders.some((candidate) => sameBoulder(mirrorX(boulder, "mirror"), candidate))) errors.push(`mirror symmetry: ${boulder.id}`);
+    for (const prop of map.props) if (!map.props.some((candidate) => sameProp(mirrorX(prop), candidate))) errors.push(`mirror symmetry: prop ${prop.kind}`);
   }
   for (const spawn of [...map.spawns.sun, ...map.spawns.moon]) {
     if (solids.some((box) => overlapsSpawn(box, spawn))) errors.push(`spawn overlap: ${spawn.pos.join(",")}`);

@@ -1,13 +1,22 @@
-import type { Box, MaterialName, Vec3Tuple } from "./types.ts";
+import type { Boulder, Box, MaterialName, Prop, Ramp, RampDirection, Vec3Tuple, Volume, ZipLine } from "./types.ts";
 
-export function mirrorX(box: Box, newId: string): Box {
-  return {
-    ...box,
-    id: newId,
-    min: [-box.max[0], box.min[1], box.min[2]],
-    max: [-box.min[0], box.max[1], box.max[2]],
-    tags: [...box.tags],
-  };
+type Mirrorable = Box | Ramp | Volume | ZipLine | Boulder | Prop;
+export function mirrorX(value: Ramp, newId: string): Ramp;
+export function mirrorX(value: Box, newId: string): Box;
+export function mirrorX(value: Volume, newId: string): Volume;
+export function mirrorX(value: ZipLine, newId: string): ZipLine;
+export function mirrorX(value: Boulder, newId: string): Boulder;
+export function mirrorX(value: Prop, newId?: string): Prop;
+export function mirrorX(value: Mirrorable, newId = "mirror"): Mirrorable {
+  if ("path" in value) return { ...value, id: newId, path: value.path.map((point) => [-point[0], point[1], point[2]]), lever: [-value.lever[0], value.lever[1], value.lever[2]], alcoves: value.alcoves.map((alcove) => ({ min: [-alcove.max[0], alcove.min[1], alcove.min[2]], max: [-alcove.min[0], alcove.max[1], alcove.max[2]] })) };
+  if ("from" in value) return { ...value, id: newId, from: [-value.from[0], value.from[1], value.from[2]], to: [-value.to[0], value.to[1], value.to[2]] };
+  if ("pos" in value) return { ...value, pos: [-value.pos[0], value.pos[1], value.pos[2]], yaw: -value.yaw };
+  if ("kind" in value) return { ...value, id: newId, min: [-value.max[0], value.min[1], value.min[2]], max: [-value.min[0], value.max[1], value.max[2]] };
+  if ("up" in value) {
+    const up: RampDirection = value.up === "+x" ? "-x" : value.up === "-x" ? "+x" : value.up;
+    return { ...value, id: newId, min: [-value.max[0], value.min[1], value.min[2]], max: [-value.min[0], value.max[1], value.max[2]], up, tags: [...value.tags] };
+  }
+  return { ...value, id: newId, min: [-value.max[0], value.min[1], value.min[2]], max: [-value.min[0], value.max[1], value.max[2]], tags: [...value.tags] };
 }
 
 export type StairsOptions = {

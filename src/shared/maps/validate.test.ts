@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { notebookMap } from "./notebook.ts";
 import { rangeMap } from "./range.ts";
+import { kitMap } from "./fixtures/kit.ts";
 import type { MapData } from "./types.ts";
 import { validateMap } from "./validate.ts";
 
@@ -11,6 +12,16 @@ function changed(change: Partial<MapData>): MapData {
 describe("map validation", () => {
   it("accepts Notebook Page", () => expect(validateMap(notebookMap)).toEqual([]));
   it("accepts Practice Range", () => expect(validateMap(rangeMap)).toEqual([]));
+  it("accepts the jungle map kit", () => expect(validateMap(kitMap)).toEqual([]));
+
+  it("rejects every invalid map-kit primitive", () => {
+    const steep = { ...kitMap.ramps[0]!, max: [-7, 5, 2] as const };
+    expect(validateMap({ ...kitMap, ramps: [steep] })).toContain(`ramp slope: ${steep.id}`);
+    expect(validateMap({ ...kitMap, volumes: [{ ...kitMap.volumes[0]!, min: [-13, 5, -13], max: [-9, 6, -9] }] }).some((error) => error.startsWith("volume ground"))).toBe(true);
+    expect(validateMap({ ...kitMap, zipLines: [{ id: "uphill", from: [-12, 3, -10], to: [-5, 7, -10] }] })).toContain("zip direction: uphill");
+    expect(validateMap({ ...kitMap, boulders: [{ ...kitMap.boulders[0]!, path: [[-8, 0, -6], [8, 0, -6]] }] })).toContain("boulder collider: center-boulder");
+    expect(validateMap({ ...kitMap, props: [kitMap.props[0]!] }).some((error) => error.startsWith("mirror symmetry"))).toBe(true);
+  });
 
   it("rejects inverted boxes", () => {
     const boxes = [...notebookMap.boxes, { id: "bad", min: [1, 0, 0], max: [0, 1, 1], material: "stone", tags: ["solid"] } as const];
@@ -44,7 +55,7 @@ describe("map validation", () => {
   });
 
   it("rejects mutually visible spawns", () => {
-    const empty: MapData = { id: "test", name: "bad", bounds: { min: [-10, -1, -10], max: [10, 10, 10] }, boxes: [{ id: "floor", min: [-10, -1, -10], max: [10, 0, 10], material: "stone", tags: ["solid"] }], spawns: { sun: [{ pos: [-5, 0, 0], yaw: 0 }], moon: [{ pos: [5, 0, 0], yaw: 0 }] }, waypoints: [], decor: [] };
+    const empty: MapData = { id: "test", name: "bad", bounds: { min: [-10, -1, -10], max: [10, 10, 10] }, boxes: [{ id: "floor", min: [-10, -1, -10], max: [10, 0, 10], material: "stone", tags: ["solid"] }], ramps: [], volumes: [], zipLines: [], boulders: [], props: [], spawns: { sun: [{ pos: [-5, 0, 0], yaw: 0 }], moon: [{ pos: [5, 0, 0], yaw: 0 }] }, waypoints: [], decor: [], notes: [], look: { sunShafts: false, stainSeed: 0 } };
     expect(validateMap(empty).some((error) => error.startsWith("spawn line of sight"))).toBe(true);
   });
 

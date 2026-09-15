@@ -7,6 +7,7 @@ export const BTN = {
   CANCEL: 32,
   GRAPPLE: 64,
   INK: 128,
+  USE: 256,
 } as const;
 
 export type PlayerInputFrame = {

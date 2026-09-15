@@ -12,7 +12,7 @@ function arena(obstacleHeight = 0, obstacleX = 2, wallX = 100): MapData {
     { id: "wall", min: [wallX, 0, -20], max: [wallX + 0.1, 10, 20], material: "stone", tags: ["solid"] },
     ...(obstacleHeight > 0 ? [{ id: "step", min: [obstacleX, 0, -2] as const, max: [obstacleX + 3, obstacleHeight, 2] as const, material: "stone" as const, tags: ["solid"] as const }] : []),
   ];
-  return { id: "test", name: "test", bounds: { min: [-120, -1, -20], max: [120, 10, 20] }, boxes, spawns: { sun: [], moon: [] }, waypoints: [], decor: [] };
+  return { id: "test", name: "test", bounds: { min: [-120, -1, -20], max: [120, 10, 20] }, boxes, ramps: [], volumes: [], zipLines: [], boulders: [], props: [], spawns: { sun: [], moon: [] }, waypoints: [], decor: [], notes: [], look: { sunShafts: false, stainSeed: 0 } };
 }
 
 function run(state: PlayerSim, input: PlayerInputFrame, ticks: number, map = arena()): void {

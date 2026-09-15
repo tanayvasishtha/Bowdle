@@ -78,6 +78,7 @@ export const notebookMap: MapData = {
   name: "Notebook Page",
   bounds: { min: [-32, -1, -22], max: [32, 13, 22] },
   boxes: [...shell, ...sunHalf, ...moonHalf],
+  ramps: [], volumes: [], zipLines: [], boulders: [], props: [],
   spawns: { sun: sunSpawns, moon: moonSpawns },
   waypoints: notebookWaypoints(),
   decor: [

@@ -31,6 +31,7 @@ import { CompositePass } from "./CompositePass.ts";
 import { InkMaterial } from "./InkMaterial.ts";
 import { MATERIAL_ID, PALETTE } from "./palette.ts";
 import { rampHeightAt } from "../../shared/maps/ramps.ts";
+import { PropsRenderer } from "./props/PropsRenderer.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
@@ -170,6 +171,7 @@ export class Renderer {
   private readonly viewBow: Group;
   private readonly overlay: HTMLDivElement | null;
   private readonly map: MapData;
+  private readonly props: PropsRenderer;
   private previousTime = performance.now();
   private frames = 0;
   private fpsAt = this.previousTime;
@@ -188,6 +190,7 @@ export class Renderer {
     container.append(this.canvas);
     this.composite.setSunShafts(map.look?.sunShafts ?? false); this.composite.setStainSeed(map.look?.stainSeed ?? 0);
     for (const mesh of mapMeshes(map)) this.worldScene.add(mesh);
+    this.props = new PropsRenderer(map.props); this.worldScene.add(this.props);
     for (const zip of map.zipLines) {
       const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(new Float32Array([...zip.from, ...zip.to]), 3));
       this.worldScene.add(new Line(geometry, new LineBasicMaterial({ color: PALETTE.rope })));
@@ -203,7 +206,7 @@ export class Renderer {
       visual.position.set((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
       visual.visible = false; this.grappleHighlights.push(visual); this.worldScene.add(visual);
     }
-    for (const note of (map.notes ?? []).slice(0, 6)) {
+    for (const note of map.notes) {
       const element = document.createElement("div"); element.textContent = note.text;
       element.style.cssText = "position:absolute;left:0;top:0;color:#4a3527;font:22px 'Gochi Hand',cursive;pointer-events:none;text-shadow:0 1px #efe3c6;transform:translate(-50%,-50%)";
       container.append(element); this.notes.push({ element, world: new Vector3(...note.pos), x: note.pos[0], y: note.pos[1], z: note.pos[2] });
@@ -364,6 +367,7 @@ export class Renderer {
 
   render(timeMs = performance.now()): void {
     this.previousTime = timeMs;
+    this.props.update(this.camera, timeMs);
     for (let index = 0; index < this.planes.length; index += 1) {
       const plane = this.planes[index]!;
       const radius = index === 0 ? 18 : 24;
@@ -415,5 +419,9 @@ export class Renderer {
     const total = width * height;
     for (const [name] of entries) counts[name] /= total;
     return counts;
+  }
+
+  stats(): { drawCalls: number; triangles: number } {
+    this.render(performance.now()); return { drawCalls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles };
   }
 }

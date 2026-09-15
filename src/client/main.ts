@@ -5,6 +5,7 @@ import { PracticeSession, type PracticeShotResult } from "./game/PracticeSession
 import { practiceTargets, rangeMap } from "../shared/maps/range.ts";
 import { OnlineSession, type RenderedPlayer } from "./game/OnlineSession.ts";
 import { kitMap } from "../shared/maps/fixtures/kit.ts";
+import { propsGalleryMap } from "../shared/maps/fixtures/props.ts";
 
 declare global {
   interface Window {
@@ -19,6 +20,7 @@ declare global {
       cloudCount?(): number;
       grappleActive?(): boolean;
       aimAtGrapple?(): void;
+      stats?(): { drawCalls: number; triangles: number };
     };
   }
 }
@@ -51,15 +53,16 @@ if (params.get("scene") === "online") {
   }).catch((error: unknown) => {
     loading.textContent = error instanceof Error ? `Connection failed: ${error.message}` : "Connection failed";
   });
-} else if (params.get("scene") === "map" || params.get("scene") === "range" || params.get("scene") === "kit") {
+} else if (params.get("scene") === "map" || params.get("scene") === "range" || params.get("scene") === "kit" || params.get("scene") === "props") {
   const isRange = params.get("scene") === "range";
-  const map = params.get("scene") === "kit" ? kitMap : isRange ? rangeMap : undefined;
+  const map = params.get("scene") === "kit" ? kitMap : params.get("scene") === "props" ? propsGalleryMap : isRange ? rangeMap : undefined;
   const renderer = new Renderer(app, params.has("debug"), map, isRange ? practiceTargets : undefined);
   const sampler = new InputSampler(renderer.canvas, isRange ? 0 : map?.spawns.sun[0]?.yaw ?? -Math.PI / 2);
   const session = isRange ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);
   session.start();
   if (params.has("test")) window.__bowdleTest = {
     snapshot: () => renderer.snapshot(),
+    stats: () => renderer.stats(),
     ...(session instanceof PracticeSession ? { fireAt: (targetId: string, drawMs: number) => session.fireAt(targetId, drawMs) } : {}),
   };
 } else {

@@ -1,6 +1,6 @@
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
-import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS } from "../../shared/constants.ts";
+import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, ZIP_SPEED } from "../../shared/constants.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
@@ -39,6 +39,7 @@ export class OnlineSession {
   private lastFrameMs = performance.now();
   private nextHudAtMs = 0;
   private wasAlive = true;
+  private previousHazardPhase: "idle" | "telegraph" | "roll" | "despawn" = "idle";
 
   private constructor(renderer: Renderer, sampler: InputSampler, room: Room<unknown, MatchState>) {
     this.renderer = renderer;
@@ -133,6 +134,10 @@ export class OnlineSession {
     else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); this.hud.setReplay(false); }
     this.wasAlive = this.me.state.alive;
     this.renderer.setGrappleHighlights(this.me.state.grappleCooldownMs <= 0 && !this.me.state.grappleActive);
+    let hazardPhase: "idle" | "telegraph" | "roll" | "despawn" = "idle";
+    for (const hazard of this.room.state.hazards.values()) if (hazard.phase === "roll" || hazard.phase === "telegraph") { hazardPhase = hazard.phase; break; }
+    if (hazardPhase === "telegraph" && this.previousHazardPhase !== "telegraph") this.renderer.leverAudio();
+    this.previousHazardPhase = hazardPhase; this.renderer.setBoulderAudio(hazardPhase); this.renderer.setZipAudio(this.me.state.zipId ? ZIP_SPEED : 0);
     if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; }
     this.renderer.render(timeMs);
     requestAnimationFrame((time) => this.frame(time));

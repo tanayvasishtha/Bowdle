@@ -1,4 +1,4 @@
-import { TICK_HZ } from "../../shared/constants.ts";
+import { TICK_HZ, ZIP_SPEED } from "../../shared/constants.ts";
 import type { PlayerInputFrame } from "../../shared/input.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { MapData } from "../../shared/maps/types.ts";
@@ -54,6 +54,7 @@ export class OfflineSession {
     const alpha = this.accumulatorMs / tickMs;
     this.cameraRig.update(this.renderer.camera, this.previous, this.player, alpha, elapsed);
     this.renderer.setDebugMovement(this.player);
+    this.renderer.setZipAudio(this.player.zipId ? ZIP_SPEED : 0);
     this.renderer.render(timeMs);
     requestAnimationFrame((time) => this.frame(time));
   }

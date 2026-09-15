@@ -32,6 +32,7 @@ import { InkMaterial } from "./InkMaterial.ts";
 import { MATERIAL_ID, PALETTE } from "./palette.ts";
 import { rampHeightAt } from "../../shared/maps/ramps.ts";
 import { PropsRenderer } from "./props/PropsRenderer.ts";
+import { Ambience } from "../audio/ambience.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
@@ -172,6 +173,7 @@ export class Renderer {
   private readonly overlay: HTMLDivElement | null;
   private readonly map: MapData;
   private readonly props: PropsRenderer;
+  private readonly ambience: Ambience;
   private previousTime = performance.now();
   private frames = 0;
   private fpsAt = this.previousTime;
@@ -191,6 +193,7 @@ export class Renderer {
     this.composite.setSunShafts(map.look?.sunShafts ?? false); this.composite.setStainSeed(map.look?.stainSeed ?? 0);
     for (const mesh of mapMeshes(map)) this.worldScene.add(mesh);
     this.props = new PropsRenderer(map.props); this.worldScene.add(this.props);
+    this.ambience = new Ambience(map);
     for (const zip of map.zipLines) {
       const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(new Float32Array([...zip.from, ...zip.to]), 3));
       this.worldScene.add(new Line(geometry, new LineBasicMaterial({ color: PALETTE.rope })));
@@ -208,6 +211,7 @@ export class Renderer {
     }
     for (const note of map.notes) {
       const element = document.createElement("div"); element.textContent = note.text;
+      element.className = "map-note";
       element.style.cssText = "position:absolute;left:0;top:0;color:#4a3527;font:22px 'Gochi Hand',cursive;pointer-events:none;text-shadow:0 1px #efe3c6;transform:translate(-50%,-50%)";
       container.append(element); this.notes.push({ element, world: new Vector3(...note.pos), x: note.pos[0], y: note.pos[1], z: note.pos[2] });
     }
@@ -305,6 +309,9 @@ export class Renderer {
   }
 
   setGrappleHighlights(ready: boolean): void { for (const visual of this.grappleHighlights) visual.visible = ready; }
+  setBoulderAudio(phase: "idle" | "telegraph" | "roll" | "despawn"): void { this.ambience.setBoulder(phase); }
+  setZipAudio(speed: number): void { this.ambience.setZipSpeed(speed); }
+  leverAudio(): void { this.ambience.leverClunk(); }
 
   setGrappleRope(id: string, active: boolean, x: number, y: number, z: number, anchorX: number, anchorY: number, anchorZ: number): void {
     let rope = this.ropes.get(id);
@@ -368,6 +375,7 @@ export class Renderer {
   render(timeMs = performance.now()): void {
     this.previousTime = timeMs;
     this.props.update(this.camera, timeMs);
+    this.ambience.updateListener(this.camera.position.x, this.camera.position.z);
     for (let index = 0; index < this.planes.length; index += 1) {
       const plane = this.planes[index]!;
       const radius = index === 0 ? 18 : 24;

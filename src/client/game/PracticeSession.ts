@@ -11,6 +11,7 @@ import {
   PRACTICE_REPLAY_MIN_M,
   PRACTICE_RESPAWN_MS,
   REPLAY_DURATION_MS,
+  REPLAY_CAPTURE_HZ,
   REPLAY_SPEED,
   STAND_HEIGHT,
   STUCK_ARROW_MS,
@@ -32,12 +33,13 @@ import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 
 type TargetState = PracticeTarget & { x: number; hp: number; alive: boolean; lastDamageAtMs: number; respawnAtMs: number };
-type ArrowEntry = { sim: ArrowSim; visual: Group; stuckAtMs: number };
+type ArrowEntry = { sim: ArrowSim; visual: Group; stuckAtMs: number; trail: Float32Array; trailCount: number; captureStep: number };
 export type PracticeShotResult = { headshot: boolean; killed: boolean; targetId: string };
 
 const input: PlayerInputFrame = { moveX: 0, moveZ: 0, yaw: 0, pitch: 0, buttons: 0 };
 const segmentStart: Vec3 = { x: 0, y: 0, z: 0 };
 const segmentEnd: Vec3 = { x: 0, y: 0, z: 0 };
+const PRACTICE_TRAIL_POINTS = REPLAY_DURATION_MS * REPLAY_CAPTURE_HZ / 1000;
 
 function copyState(target: PlayerSim, source: PlayerSim): void {
   Object.assign(target, source);
@@ -99,29 +101,36 @@ export class PracticeSession {
 
   private damageTarget(target: TargetState, damage: number, headshot: boolean): PracticeShotResult {
     const killed = applyDamage(target, damage * (headshot ? HEAD_MULT : 1), this.simTimeMs);
-    if (killed) {
-      target.respawnAtMs = this.simTimeMs + PRACTICE_RESPAWN_MS;
-      const distance = Math.hypot(target.x - this.player.x, target.pos[2] - this.player.z);
-      if (distance > PRACTICE_REPLAY_MIN_M) this.showReplayCard(distance);
-    }
+    if (killed) target.respawnAtMs = this.simTimeMs + PRACTICE_RESPAWN_MS;
     this.hitText.textContent = headshot ? "HEADSHOT ✕" : `-${Math.round(damage)}`;
     this.sounds.play(headshot ? "headshot" : "body");
     window.setTimeout(() => { this.hitText.textContent = ""; }, 500);
     return { headshot, killed, targetId: target.id };
   }
 
-  private showReplayCard(distance: number): void {
-    this.replayCard.innerHTML = `<strong>ARROW CAM · ${Math.round(distance)} m</strong><span style="position:absolute;left:18px;top:78px;font-size:54px">➳</span><span style="position:absolute;right:24px;top:72px;font-size:54px">◎</span>`;
+  private showReplayCard(distance: number, trail: Float32Array, count: number): void {
+    this.replayCard.innerHTML = `<strong style="position:absolute;z-index:2">ARROW CAM · ${Math.round(distance)} m</strong><canvas width="296" height="148" style="position:absolute;left:8px;top:24px"></canvas>`;
     this.replayCard.style.backgroundImage = "linear-gradient(165deg,#f3eedfee,#a9c4e866)";
     this.replayCard.style.display = "block";
-    this.replayCard.querySelector("span")!.animate([{ transform: "translateX(0) rotate(-4deg)" }, { transform: "translateX(210px) rotate(3deg)" }], { duration: REPLAY_DURATION_MS / REPLAY_SPEED, playbackRate: REPLAY_SPEED });
-    window.setTimeout(() => { this.replayCard.style.display = "none"; }, REPLAY_DURATION_MS / REPLAY_SPEED);
+    const canvas = this.replayCard.querySelector("canvas")!, context = canvas.getContext("2d")!; const started = performance.now();
+    const duration = Math.min(REPLAY_DURATION_MS, count * 1000 / REPLAY_CAPTURE_HZ) / REPLAY_SPEED;
+    const draw = (now: number): void => {
+      const shown = Math.min(count, Math.max(1, Math.ceil((now - started) / duration * count))); context.clearRect(0, 0, canvas.width, canvas.height);
+      context.strokeStyle = "#a9c4e8"; context.lineWidth = 1; for (let y = 22; y < canvas.height; y += 22) { context.beginPath(); context.moveTo(0, y); context.lineTo(canvas.width, y); context.stroke(); }
+      context.strokeStyle = "#233c9b"; context.lineWidth = 3; context.beginPath();
+      for (let index = 0; index < shown; index += 1) { const x = 14 + index / Math.max(1, count - 1) * (canvas.width - 28); const y = canvas.height * 0.7 - (trail[index * 3 + 1]! - trail[1]!) * 24; if (index === 0) context.moveTo(x, y); else context.lineTo(x, y); } context.stroke();
+      const arrowX = 14 + (shown - 1) / Math.max(1, count - 1) * (canvas.width - 28), arrowY = canvas.height * 0.7 - (trail[(shown - 1) * 3 + 1]! - trail[1]!) * 24; context.fillStyle = "#d1382f"; context.beginPath(); context.arc(arrowX, arrowY, 6, 0, Math.PI * 2); context.fill();
+      if (shown < count) requestAnimationFrame(draw); else window.setTimeout(() => { this.replayCard.style.display = "none"; }, REPLAY_DURATION_MS);
+    };
+    requestAnimationFrame(draw);
   }
 
   private stepProjectiles(dt: number): void {
     for (let index = this.arrows.length - 1; index >= 0; index -= 1) {
       const entry = this.arrows[index]!;
       if (!entry.sim.stuck) {
+        if (entry.captureStep % SUBSTEPS === 0 && entry.trailCount < PRACTICE_TRAIL_POINTS) { const offset = entry.trailCount++ * 3; entry.trail[offset] = entry.sim.x; entry.trail[offset + 1] = entry.sim.y; entry.trail[offset + 2] = entry.sim.z; }
+        entry.captureStep += 1;
         segmentStart.x = entry.sim.x; segmentStart.y = entry.sim.y; segmentStart.z = entry.sim.z;
         const arrowStep = stepArrow(entry.sim, rangeMap, dt);
         if (arrowStep.worldHit) entry.stuckAtMs = this.simTimeMs;
@@ -132,7 +141,9 @@ export class PracticeSession {
           if (!hit) continue;
           entry.sim.stuck = true;
           entry.stuckAtMs = this.simTimeMs;
-          this.damageTarget(target, entry.sim.damage, hit.kind === "head");
+          const result = this.damageTarget(target, entry.sim.damage, hit.kind === "head");
+          const distance = Math.hypot(target.x - this.player.x, target.pos[2] - this.player.z);
+          if (result.killed && distance > PRACTICE_REPLAY_MIN_M) this.showReplayCard(distance, entry.trail, entry.trailCount);
           break;
         }
         this.renderer.updateArrowVisual(entry.visual, entry.sim);
@@ -147,7 +158,7 @@ export class PracticeSession {
 
   private fire(event: FireEvent): void {
     const arrow = spawnArrow(event, this.player.crouched);
-    this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow), stuckAtMs: 0 });
+    this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow), stuckAtMs: 0, trail: new Float32Array(PRACTICE_TRAIL_POINTS * 3), trailCount: 0, captureStep: 0 });
     this.sounds.play("release");
   }
 
@@ -210,13 +221,15 @@ export class PracticeSession {
     const yaw = Math.atan2(-dx, -dz);
     const event: FireEvent = { type: "fire", x: this.player.x, y: this.player.y, z: this.player.z, yaw, pitch, fraction, speed, damage: bodyDamage(fraction) };
     const shot = spawnArrow(event);
+    const trail = new Float32Array(PRACTICE_TRAIL_POINTS * 3); let trailCount = 0;
     const dt = 1 / (TICK_HZ * SUBSTEPS);
     for (let step = 0; step < TICK_HZ * SUBSTEPS * 3; step += 1) {
       segmentStart.x = shot.x; segmentStart.y = shot.y; segmentStart.z = shot.z;
+      if (step % SUBSTEPS === 0 && trailCount < PRACTICE_TRAIL_POINTS) { const offset = trailCount++ * 3; trail[offset] = shot.x; trail[offset + 1] = shot.y; trail[offset + 2] = shot.z; }
       stepArrow(shot, rangeMap, dt);
       segmentEnd.x = shot.x; segmentEnd.y = shot.y; segmentEnd.z = shot.z;
       const hit = sweepArrowVsTarget(segmentStart, segmentEnd, { x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false });
-      if (hit) return this.damageTarget(target, shot.damage, hit.kind === "head");
+      if (hit) { const result = this.damageTarget(target, shot.damage, hit.kind === "head"); if (result.killed && horizontal > PRACTICE_REPLAY_MIN_M) this.showReplayCard(horizontal, trail, trailCount); return result; }
       if (shot.stuck) break;
     }
     return { headshot: false, killed: false, targetId };

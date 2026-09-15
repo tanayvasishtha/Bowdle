@@ -1,6 +1,7 @@
 import {
   EYE_CROUCH,
   EYE_STAND,
+  ARROW_SPAWN_FORWARD,
   GRAPPLE_COOLDOWN_MS,
   GRAPPLE_JUMP_BOOST,
   GRAPPLE_MAX_MS,
@@ -15,6 +16,7 @@ import {
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData, Vec3Tuple } from "../maps/types.ts";
 import type { PlayerSim } from "./movement.ts";
+import type { ArrowSim } from "./arrows.ts";
 
 export type GrappleEvent = {
   type: "grapple";
@@ -32,6 +34,18 @@ export type InkEvent = {
 export type AbilityEvent = GrappleEvent | InkEvent;
 
 export type VisionSphere = { x: number; y: number; z: number; radius: number };
+
+export function spawnAbilityProjectile(event: GrappleEvent | InkEvent, crouched: boolean): ArrowSim {
+  const cosPitch = Math.cos(event.pitch);
+  const dx = -Math.sin(event.yaw) * cosPitch, dy = Math.sin(event.pitch), dz = -Math.cos(event.yaw) * cosPitch;
+  return {
+    x: event.x + dx * ARROW_SPAWN_FORWARD,
+    y: event.y + (crouched ? EYE_CROUCH : EYE_STAND) + dy * ARROW_SPAWN_FORWARD,
+    z: event.z + dz * ARROW_SPAWN_FORWARD,
+    vx: dx * event.speed, vy: dy * event.speed, vz: dz * event.speed,
+    damage: 0, ageMs: 0, stuck: false,
+  };
+}
 
 function held(buttons: number, button: number): boolean { return (buttons & button) !== 0; }
 function pressed(buttons: number, previous: number, button: number): boolean { return held(buttons, button) && !held(previous, button); }
@@ -62,12 +76,13 @@ export function tryAttachGrapple(state: PlayerSim, input: PlayerInputFrame, map:
   const dz = -Math.cos(input.yaw) * cosPitch;
   const eyeY = state.y + (state.crouched ? EYE_CROUCH : EYE_STAND);
   let distance = Number.POSITIVE_INFINITY;
+  let grappleHit = false;
   for (const box of map.boxes) {
-    if (!box.tags.includes("grapple")) continue;
+    if (!box.tags.includes("solid")) continue;
     const hit = rayBoxDistance(state.x, eyeY, state.z, dx, dy, dz, box.min, box.max);
-    if (hit !== null && hit < distance) distance = hit;
+    if (hit !== null && hit < distance) { distance = hit; grappleHit = box.tags.includes("grapple"); }
   }
-  if (!Number.isFinite(distance)) return null;
+  if (!Number.isFinite(distance) || !grappleHit) return null;
   state.grappleActive = true;
   state.grappleX = state.x + dx * distance;
   state.grappleY = eyeY + dy * distance;

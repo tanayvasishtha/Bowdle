@@ -6,6 +6,9 @@ import {
   ASSIST_MIN_DAMAGE,
   ASSIST_WINDOW_MS,
   HEAD_MULT,
+  INK_CLOUD_GRAVITY,
+  INK_CLOUD_MS,
+  INK_CLOUD_RADIUS,
   MAX_NAME_LENGTH,
   MAX_REWIND_MS,
   RESPAWN_MS,
@@ -22,7 +25,7 @@ import {
 import type { PlayerInputFrame } from "../../shared/input.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
-import { ArrowState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
+import { ArrowState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
 import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
 import { spawnArrow, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
@@ -31,6 +34,7 @@ import { meleeHit } from "../../shared/sim/melee.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { segmentDistance } from "../../shared/math/segments.ts";
 import { BotController } from "../bots/BotController.ts";
+import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 
 type JoinOptions = { name?: string; test?: boolean };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage };
@@ -59,6 +63,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   readonly xpEvents: Array<{ type: "robinHood"; player: string }> = [];
   private rewindState!: Rewind;
   private arrowSerial = 0;
+  private cloudSerial = 0;
   private botSerial = 0;
   private simulationNowMs = 0;
   private testMode = false;
@@ -105,6 +110,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       this.applyEvents(id, player, stepPlayer(player, frame, notebookMap, { nowMs }));
     }
     this.stepArrows(context);
+    for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
     for (const player of this.state.players.values()) {
       if (player.alive) stepRegen(player, nowMs, context.dt);
       else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawn(notebookMap, player.team, this.state.players.values()));
@@ -115,8 +121,17 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (const event of events) {
       player.spawnProtectMs = 0;
       if (event.type === "fire") this.createArrow(sessionId, player.team, event);
-      else this.resolveMelee(sessionId, event.x, event.y, event.z, event.yaw);
+      else if (event.type === "melee") this.resolveMelee(sessionId, event.x, event.y, event.z, event.yaw);
+      else this.createAbilityArrow(sessionId, player.team, player.crouched, event);
     }
+  }
+
+  private createAbilityArrow(owner: string, team: number, crouched: boolean, event: GrappleEvent | InkEvent): void {
+    const sim = spawnAbilityProjectile(event, crouched);
+    const arrow = new ArrowState(); Object.assign(arrow, sim);
+    arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
+    arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs; arrow.kind = event.type;
+    this.state.arrows.set(`${owner}-${this.arrowSerial += 1}`, arrow);
   }
 
   private createArrow(owner: string, team: number, event: Parameters<typeof spawnArrow>[0]): void {
@@ -136,22 +151,28 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       for (const [id, arrow] of this.state.arrows) {
         const fromX = arrow.x, fromY = arrow.y, fromZ = arrow.z;
         arrow.prevX = fromX; arrow.prevY = fromY; arrow.prevZ = fromZ;
-        const world = stepArrow(arrow, notebookMap, context.subDt);
+        const gravity = arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined;
+        const world = stepArrow(arrow, notebookMap, context.subDt, gravity);
         let targetId = "", headshot = false, earliest = Number.POSITIVE_INFINITY;
-        const seen = this.rewindState.lastSeenBy(arrow.owner);
-        for (const [candidateId, target] of this.state.players) {
-          if (candidateId === arrow.owner || target.team === arrow.team || !target.alive || target.spawnProtectMs > 0) continue;
-          this.arrowFrom.x = fromX; this.arrowFrom.y = fromY; this.arrowFrom.z = fromZ;
-          this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
-          this.hitTarget.x = seen.value(target, "x"); this.hitTarget.y = seen.value(target, "y"); this.hitTarget.z = seen.value(target, "z");
-          this.hitTarget.height = seen.value(target, "height"); this.hitTarget.crouched = this.hitTarget.height < STAND_HEIGHT;
-          const hit = sweepArrowVsTarget(this.arrowFrom, this.arrowTo, this.hitTarget);
-          if (hit && hit.t < earliest) { earliest = hit.t; targetId = candidateId; headshot = hit.kind === "head"; }
+        if (arrow.kind === "arrow") {
+          const seen = this.rewindState.lastSeenBy(arrow.owner);
+          for (const [candidateId, target] of this.state.players) {
+            if (candidateId === arrow.owner || target.team === arrow.team || !target.alive || target.spawnProtectMs > 0) continue;
+            this.arrowFrom.x = fromX; this.arrowFrom.y = fromY; this.arrowFrom.z = fromZ;
+            this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
+            this.hitTarget.x = seen.value(target, "x"); this.hitTarget.y = seen.value(target, "y"); this.hitTarget.z = seen.value(target, "z");
+            this.hitTarget.height = seen.value(target, "height"); this.hitTarget.crouched = this.hitTarget.height < STAND_HEIGHT;
+            const hit = sweepArrowVsTarget(this.arrowFrom, this.arrowTo, this.hitTarget);
+            if (hit && hit.t < earliest) { earliest = hit.t; targetId = candidateId; headshot = hit.kind === "head"; }
+          }
         }
         if (targetId) {
           this.dealDamage(arrow.owner, targetId, arrow.damage * (headshot ? HEAD_MULT : 1), "arrow", headshot, fromX, fromZ, this.arrowOrigins.get(id));
           this.removeArrows.push(id);
-        } else if (world.worldHit || this.simulationNowMs - arrow.bornMs >= ARROW_LIFETIME_MS) this.removeArrows.push(id);
+        } else if (world.worldHit || this.simulationNowMs - arrow.bornMs >= ARROW_LIFETIME_MS) {
+          if (world.worldHit && arrow.kind === "ink") this.createInkCloud(arrow.x, arrow.y, arrow.z);
+          this.removeArrows.push(id);
+        }
       }
       for (const id of this.removeArrows) this.deleteArrow(id);
       this.removeArrows.length = 0;
@@ -161,7 +182,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   private resolveArrowClashes(): void {
     for (const [idA, arrowA] of this.state.arrows) for (const [idB, arrowB] of this.state.arrows) {
-      if (idA >= idB || arrowA.team === arrowB.team || this.removeArrows.includes(idA) || this.removeArrows.includes(idB)) continue;
+      if (idA >= idB || arrowA.kind !== "arrow" || arrowB.kind !== "arrow" || arrowA.team === arrowB.team || this.removeArrows.includes(idA) || this.removeArrows.includes(idB)) continue;
       this.clashA0.x = arrowA.prevX; this.clashA0.y = arrowA.prevY; this.clashA0.z = arrowA.prevZ; this.clashA1.x = arrowA.x; this.clashA1.y = arrowA.y; this.clashA1.z = arrowA.z;
       this.clashB0.x = arrowB.prevX; this.clashB0.y = arrowB.prevY; this.clashB0.z = arrowB.prevZ; this.clashB1.x = arrowB.x; this.clashB1.y = arrowB.y; this.clashB1.z = arrowB.z;
       if (segmentDistance(this.clashA0, this.clashA1, this.clashB0, this.clashB1) >= ARROW_RADIUS * 2) continue;
@@ -169,6 +190,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       this.broadcast("robinHood", { shooterA: arrowA.owner, shooterB: arrowB.owner, x: (arrowA.x + arrowB.x) / 2, y: (arrowA.y + arrowB.y) / 2, z: (arrowA.z + arrowB.z) / 2 });
     }
     for (const id of this.removeArrows) this.deleteArrow(id); this.removeArrows.length = 0;
+  }
+
+  private createInkCloud(x: number, y: number, z: number): void {
+    const cloud = new InkCloudState(); cloud.x = x; cloud.y = y; cloud.z = z; cloud.radius = INK_CLOUD_RADIUS; cloud.expiresAtMs = this.simulationNowMs + INK_CLOUD_MS;
+    this.state.inkClouds.set(`cloud-${this.cloudSerial += 1}`, cloud);
   }
 
   private resolveMelee(attackerId: string, x: number, y: number, z: number, yaw: number): void {
@@ -207,7 +233,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.broadcast("matchEnd", { winner, mvp });
   }
   private resetPlayers(): void {
-    this.state.arrows.clear(); this.arrowOrigins.clear(); this.damage.clear();
+    this.state.arrows.clear(); this.state.inkClouds.clear(); this.arrowOrigins.clear(); this.damage.clear();
     for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(notebookMap, player.team, this.state.players.values())); player.spawnProtectMs = 0; }
   }
 

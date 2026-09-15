@@ -51,11 +51,11 @@ function sweepExpandedBox(start: Readonly<Vec3>, end: Readonly<Vec3>, min: reado
   return near >= 0 && near <= 1 ? near : null;
 }
 
-export function stepArrow(arrow: ArrowSim, map: MapData, dt: number): ArrowStep {
+export function stepArrow(arrow: ArrowSim, map: MapData, dt: number, gravity = ARROW_GRAVITY): ArrowStep {
   if (arrow.stuck) return { worldHit: true, t: 0 };
   from.x = arrow.x; from.y = arrow.y; from.z = arrow.z;
   to.x = arrow.x + arrow.vx * dt;
-  to.y = arrow.y + arrow.vy * dt - ARROW_GRAVITY * dt * dt / 2;
+  to.y = arrow.y + arrow.vy * dt - gravity * dt * dt / 2;
   to.z = arrow.z + arrow.vz * dt;
   let earliest = 1;
   let hit = false;
@@ -67,7 +67,7 @@ export function stepArrow(arrow: ArrowSim, map: MapData, dt: number): ArrowStep 
   arrow.x = from.x + (to.x - from.x) * earliest;
   arrow.y = from.y + (to.y - from.y) * earliest;
   arrow.z = from.z + (to.z - from.z) * earliest;
-  arrow.vy -= ARROW_GRAVITY * dt * earliest;
+  arrow.vy -= gravity * dt * earliest;
   arrow.ageMs += dt * 1000 * earliest;
   arrow.stuck = hit;
   return { worldHit: hit, t: earliest };

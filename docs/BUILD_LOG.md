@@ -1,5 +1,49 @@
 # Build log
 
+## W2 — Map kit v2
+
+Status: done.
+
+Built:
+
+- Expanded map data with axis-aligned ramps, water and tall-grass volumes, zip lines, boulder paths and alcoves, procedural-prop descriptors, field notes, and per-page look settings. Mirroring and validation cover every new primitive.
+- Added slope, neighbor-height, grounded-volume, rope-clearance, boulder-sweep, safe-alcove, spawn-distance, and full mirror-symmetry validation, plus a deterministic fixture that exercises the complete kit.
+- Added smooth ramp ground snapping for players, sloped projectile impacts, water speed limiting, slide cancellation, water-surface projectile impacts, and match-time-derived flood windows.
+- Added crouched tall-grass concealment to computer-controlled sight selection.
+- Added F interaction and synchronized zip id/progress state: high-end attachment, deterministic travel, bow use during travel, jump boost, and grapple cancellation all replay through the shared simulation.
+- Added synchronized boulder hazards with idle, telegraph, roll, and despawn phases; alternating automatic runs; shared lever cooldown; projectile blocking; instant path kills; puller credit; safe alcoves; feed icon; and a Trap banner.
+- Computer-controlled navigation avoids active boulder sweeps and never activates levers.
+- Added the playable `/?scene=kit` route with ramp wedges, water and grass volumes, ropes, hazard stone, and lever rendering.
+
+Tests added or updated:
+
+- Broken-fixture proof for each new validation rule, including each mirrored primitive type.
+- Player ramp ascent/descent, water speed and slide behavior, flood-window isolation, sloped and water projectile impacts, pure flood height, and tall-grass containment tests.
+- Zip attachment, low-end rejection, firing, jump release, grapple cancellation, and a 60-frame authoritative/client/shared progress comparison.
+- Boulder lifecycle, alternating direction, cooldown, path interpolation, projectile blocking, authoritative path kill, alcove safety, lever activation, and puller-credit tests.
+- Computer-controlled tall-grass blindness, active-path escape, and lever refusal tests.
+- Browser proof that the kit route loads all eight authored traversal/hazard primitives, with `test-results/qa/w2/map-kit.png`.
+
+QA:
+
+- `npm run check`: passed with 84 tests.
+- `npm run e2e`: 8 passed.
+- `npm run size`: client JavaScript 243 KB gzipped, 900 KB budget.
+- Break check: removing `zipT` from `PlayerState` left client progress undefined and failed the named 60-frame zip prediction test; restoring the synchronized field returned it to green.
+- Diff review: no forbidden dependency changes, imports, unsafe simulation randomness, weak typing, reduced tests, or per-tick collection allocation was introduced. Gameplay tuning remains centralized in `src/shared/constants.ts`.
+
+Deviation:
+
+- None. The installed Colyseus schema exposes the documented 16-bit input and map-schema APIs used by the kit.
+
+Verify by hand:
+
+- At `/?scene=kit`, walk both directions on each ramp and confirm there is no bounce or loss of ground contact at either end.
+- Press F at a rope's high end, draw and fire while moving, jump off, and confirm grapple immediately cancels a second ride.
+- Wade into water during and outside a flood window and confirm the slowdown appears only while submerged and sliding never starts there.
+- Pull the gold lever in an online kit room and judge whether the three-second warning, rolling speed, alcove safety, impact, and Trap banner are readable and satisfying.
+- Repeat a zip ride under network latency and confirm the camera never corrects away from the rope.
+
 ## W1 — Expedition Journal look
 
 Status: done.

@@ -34,6 +34,7 @@ export type InkEvent = {
 export type AbilityEvent = GrappleEvent | InkEvent;
 
 export type VisionSphere = { x: number; y: number; z: number; radius: number };
+type VisionPoint = { x: number; y: number; z: number };
 
 export function spawnAbilityProjectile(event: GrappleEvent | InkEvent, crouched: boolean): ArrowSim {
   const cosPitch = Math.cos(event.pitch);
@@ -133,7 +134,7 @@ export function stepGrapplePull(state: PlayerSim, dt: number, dtMs: number): voi
   state.vx += dx * added; state.vy += dy * added; state.vz += dz * added;
 }
 
-export function sphereBlocksSight(from: VisionSphere, to: VisionSphere, cloud: VisionSphere): boolean {
+export function sphereBlocksSight(from: VisionPoint, to: VisionPoint, cloud: VisionSphere): boolean {
   const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
   const lengthSq = dx * dx + dy * dy + dz * dz;
   if (lengthSq <= 0) return false;

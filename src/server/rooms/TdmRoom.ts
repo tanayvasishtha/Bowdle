@@ -106,7 +106,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
-      const frame = controller.update(player, this.state.players, notebookMap, nowMs);
+      const frame = controller.update(player, this.state.players, notebookMap, nowMs, this.state.inkClouds.values());
       this.applyEvents(id, player, stepPlayer(player, frame, notebookMap, { nowMs }));
     }
     this.stepArrows(context);

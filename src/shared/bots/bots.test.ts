@@ -4,6 +4,9 @@ import { notebookMap } from "../maps/notebook.ts";
 import { mulberry32 } from "../math/rng.ts";
 import { solveProjectileLead } from "./aim.ts";
 import { findPath, nearestWaypoint } from "./nav.ts";
+import { BotController } from "../../server/bots/BotController.ts";
+import { createPlayerSim } from "../sim/movement.ts";
+import { BTN } from "../input.ts";
 
 describe("computer-controlled navigation and aim", () => {
   it("finds a route between every pair of spawns", () => {
@@ -26,5 +29,24 @@ describe("computer-controlled navigation and aim", () => {
       if (Math.hypot(arrow.x - actual.x, arrow.y - actual.y, arrow.z - actual.z) < 0.25) hits += 1;
     }
     expect(hits).toBeGreaterThanOrEqual(90);
+  });
+});
+
+describe("computer-controlled abilities", () => {
+  it("loses an enemy hidden by an ink cloud", () => {
+    const player = createPlayerSim(-25, 0, -8); player.team = 0;
+    const enemy = createPlayerSim(-15, 0, -8); enemy.team = 1;
+    const controller = new BotController("bot", 7);
+    controller.update(player, [["bot", player], ["enemy", enemy]], notebookMap, 1000);
+    expect(controller.mode).toBe("engage");
+    controller.update(player, [["bot", player], ["enemy", enemy]], notebookMap, 1000, [{ x: -20, y: 1.6, z: -8, radius: 4.5 }]);
+    expect(controller.mode).toBe("roam");
+  });
+
+  it("throws ink while retreating", () => {
+    const player = createPlayerSim(-25, 0, -8); player.team = 0; player.hp = 1;
+    const enemy = createPlayerSim(-15, 0, -8); enemy.team = 1;
+    const input = new BotController("bot", 9).update(player, [["bot", player], ["enemy", enemy]], notebookMap, 1000);
+    expect(input.buttons & BTN.INK).toBe(BTN.INK);
   });
 });

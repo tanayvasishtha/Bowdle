@@ -12,6 +12,8 @@ import {
   EYE_CROUCH,
   EYE_STAND,
   HEAD_RADIUS,
+  GRAPPLE_RANGE,
+  BOT_LONG_LINK_M,
 } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import type { MapData, Vec3Tuple, Waypoint } from "../../shared/maps/types.ts";
@@ -20,9 +22,11 @@ import { solveProjectileLead, type AimSolution, type MovingTarget } from "../../
 import { findPath, followPath, nearestWaypoint } from "../../shared/bots/nav.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
+import { sphereBlocksSight, type VisionSphere } from "../../shared/sim/abilities.ts";
 
 export type BotDifficulty = "easy" | "normal" | "hard";
 export type BotMode = "roam" | "engage" | "retreat";
+const noClouds: readonly VisionSphere[] = [];
 
 function segmentHitsBox(from: Readonly<MovingTarget>, to: Readonly<MovingTarget>, min: Vec3Tuple, max: Vec3Tuple): boolean {
   let near = 0, far = 1;
@@ -62,23 +66,25 @@ export class BotController {
     this.errorRad = degrees * Math.PI / 180;
   }
 
-  update(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData, nowMs: number): PlayerInputFrame {
-    const target = this.closestVisibleEnemy(player, players, map);
+  update(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData, nowMs: number, clouds: Iterable<VisionSphere> = noClouds): PlayerInputFrame {
+    const target = this.closestVisibleEnemy(player, players, map, clouds);
     if (player.hp < BOT_RETREAT_HP) this.mode = "retreat";
     else if (target) this.mode = "engage";
     else this.mode = "roam";
     if (this.mode === "engage" && target) this.engage(player, target[1], target[0], nowMs);
     else this.navigate(player, target?.[1], map);
+    if (this.mode === "retreat" && player.inkCooldownMs <= 0) this.input.buttons |= BTN.INK;
     return this.input;
   }
 
-  private closestVisibleEnemy(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData): readonly [string, PlayerSim] | null {
+  private closestVisibleEnemy(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData, clouds: Iterable<VisionSphere>): readonly [string, PlayerSim] | null {
     let best: readonly [string, PlayerSim] | null = null, distance = Number.POSITIVE_INFINITY;
     this.origin.x = player.x; this.origin.y = player.y + (player.crouched ? EYE_CROUCH : EYE_STAND); this.origin.z = player.z;
     for (const entry of players) {
       const [id, candidate] = entry; if (id === this.id || !candidate.alive || candidate.team === player.team) continue;
       this.targetPose.x = candidate.x; this.targetPose.y = headCenterY(candidate) + HEAD_RADIUS; this.targetPose.z = candidate.z;
       let blocked = false; for (const box of map.boxes) if (box.tags.includes("solid") && segmentHitsBox(this.origin, this.targetPose, box.min, box.max)) { blocked = true; break; }
+      if (!blocked) for (const cloud of clouds) if (sphereBlocksSight(this.origin, this.targetPose, cloud)) { blocked = true; break; }
       const candidateDistance = Math.hypot(candidate.x - player.x, candidate.z - player.z);
       if (!blocked && candidateDistance < distance) { best = entry; distance = candidateDistance; }
     }
@@ -120,5 +126,23 @@ export class BotController {
       this.path = findPath(map, start.id, goal.id); this.pathIndex = 0;
     }
     this.pathIndex = followPath(player, this.path, this.pathIndex, this.rng, this.input);
+    if (player.grappleCooldownMs <= 0) this.useGrappleShortcut(player, map);
+  }
+
+  private useGrappleShortcut(player: PlayerSim, map: MapData): void {
+    const goal = this.path[this.path.length - 1]; if (!goal) return;
+    const direct = Math.hypot(goal.pos[0] - player.x, goal.pos[1] - player.y, goal.pos[2] - player.z);
+    let bestX = 0, bestY = 0, bestZ = 0, bestSaving = BOT_LONG_LINK_M;
+    for (const box of map.boxes) {
+      if (!box.tags.includes("grapple")) continue;
+      const x = (box.min[0] + box.max[0]) / 2, y = (box.min[1] + box.max[1]) / 2, z = (box.min[2] + box.max[2]) / 2;
+      const hookDistance = Math.hypot(x - player.x, y - (player.y + EYE_STAND), z - player.z);
+      if (hookDistance > GRAPPLE_RANGE) continue;
+      const saving = direct - Math.hypot(goal.pos[0] - x, goal.pos[1] - y, goal.pos[2] - z);
+      if (saving > bestSaving) { bestSaving = saving; bestX = x; bestY = y; bestZ = z; }
+    }
+    if (bestSaving <= BOT_LONG_LINK_M) return;
+    const dx = bestX - player.x, dz = bestZ - player.z, horizontal = Math.hypot(dx, dz);
+    this.input.yaw = Math.atan2(-dx, -dz); this.input.pitch = Math.atan2(bestY - (player.y + EYE_STAND), horizontal); this.input.buttons |= BTN.GRAPPLE;
   }
 }

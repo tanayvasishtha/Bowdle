@@ -39,7 +39,10 @@ export function findPath(map: MapData, startId: string, goalId: string): Waypoin
   return [];
 }
 
-function linkTo(point: Waypoint, targetId: string): WaypointLink | undefined { return point.links.find((link) => link.to === targetId); }
+function linkTo(point: Waypoint, targetId: string): WaypointLink | undefined {
+  for (const link of point.links) if (link.to === targetId) return link;
+  return undefined;
+}
 
 export function followPath(player: PlayerSim, path: readonly Waypoint[], index: number, rng: SeededRng, out: BotMove): number {
   if (path.length === 0) { out.moveX = 0; out.moveZ = 0; out.buttons = 0; return index; }

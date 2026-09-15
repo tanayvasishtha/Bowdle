@@ -48,7 +48,7 @@ const redEdges: readonly Edge[] = [
   ["red-south-edge", "red-south-mid", "walk"], ["red-south-mid", "red-south-inner", "walk"], ["red-south-inner", "center-south", "walk"],
   ["red-south-edge", "red-spawn-s4", "walk"], ["red-spawn-s4", "red-spawn-s2", "walk"], ["red-spawn-s2", "red-spawn-n2", "walk"], ["red-spawn-n2", "red-spawn-n4", "walk"], ["red-spawn-n4", "red-north-edge", "walk"],
   ["red-north-edge", "red-north-mid", "walk"], ["red-north-mid", "red-north-inner", "walk"], ["red-north-inner", "center-north", "walk"],
-  ["red-north-edge", "red-mug-side", "walk"], ["red-mug-side", "red-bridge-bottom", "jump"], ["red-bridge-bottom", "red-bridge-top", "walk"], ["red-bridge-top", "center-north", "drop"],
+  ["red-north-edge", "red-mug-side", "walk"], ["red-north-mid", "red-bridge-bottom", "jump"], ["red-bridge-bottom", "red-bridge-top", "walk"],
   ["red-south-mid", "red-perch-bottom", "walk"], ["red-perch-bottom", "red-perch-top", "walk"],
   ["red-spawn-s2", "red-sharpener-side", "jump"], ["red-sharpener-side", "red-south-mid", "jump"],
   ["red-north-inner", "red-eraser-side", "walk"], ["red-eraser-side", "center-north", "jump"], ["red-south-inner", "red-pencil-side", "walk"],

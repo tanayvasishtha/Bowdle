@@ -7,6 +7,7 @@ import {
   BOT_DRAW_MIN_MS,
   BOT_REACTION_MS,
   BOT_RETREAT_HP,
+  BOT_SCENIC_ROUTE_EVERY,
   BOT_STRAFE_MS,
   EYE_CROUCH,
   EYE_STAND,
@@ -52,6 +53,7 @@ export class BotController {
   private aimYawError = 0;
   private aimPitchError = 0;
   private readonly errorRad: number;
+  private routeSerial = 0;
 
   constructor(id: string, seed: number, difficulty: BotDifficulty = "normal") {
     this.id = id;
@@ -108,8 +110,12 @@ export class BotController {
         const spawn = player.team === 0 ? map.spawns.red[0]! : map.spawns.green[0]!; goal = nearestWaypoint(map, ...spawn.pos);
       } else if (target) goal = nearestWaypoint(map, target.x, target.y, target.z);
       else {
-        const enemySpawns = player.team === 0 ? map.spawns.green : map.spawns.red;
-        goal = nearestWaypoint(map, ...enemySpawns[Math.floor(this.rng() * enemySpawns.length)]!.pos);
+        this.routeSerial += 1;
+        if (this.routeSerial % BOT_SCENIC_ROUTE_EVERY === 0) goal = map.waypoints[Math.floor(this.rng() * map.waypoints.length)]!;
+        else {
+          const enemySpawns = player.team === 0 ? map.spawns.green : map.spawns.red;
+          goal = nearestWaypoint(map, ...enemySpawns[Math.floor(this.rng() * enemySpawns.length)]!.pos);
+        }
       }
       this.path = findPath(map, start.id, goal.id); this.pathIndex = 0;
     }

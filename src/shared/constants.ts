@@ -105,3 +105,4 @@ export const BOT_AIM_ERROR_HARD_DEG = 0.8;
 export const BOT_STRAFE_MS = 900;
 export const BOT_WAYPOINT_REACHED_M = 0.8;
 export const TEAM_COUNT = 2;
+export const BOT_SCENIC_ROUTE_EVERY = 3;

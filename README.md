@@ -37,6 +37,8 @@ npm run e2e                        # browser tests
 | [MAP.md](docs/MAP.md) | Map format, Notebook Page layout, validation |
 | [TECH.md](docs/TECH.md) | Stack, layout, scripts, tests, budgets |
 | [NETCODE.md](docs/NETCODE.md) | Server authority, prediction, lag compensation |
+| [WORLD.md](docs/WORLD.md) | Expedition Journal art direction and world systems |
+| [JUNGLE-MAPS.md](docs/JUNGLE-MAPS.md) | Launch maps and Practice Camp |
 | [RENDERING.md](docs/RENDERING.md) | The doodle shader pipeline |
 | [ECONOMY.md](docs/ECONOMY.md) | Accounts, cosmetics, payments, portal rules |
 | [RUNBOOK-1.md](docs/RUNBOOK-1.md) | Setup to Practice Range (M0 to M3) |

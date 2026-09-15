@@ -11,8 +11,11 @@ Bowdle is a browser multiplayer bow shooter set inside a hand-drawn notebook. Tw
 | `docs/NETCODE.md` | Server authority, prediction, rewind, state and input schemas |
 | `docs/RENDERING.md` | How the doodle look is drawn |
 | `docs/MAP.md` | Map data format and the first map |
+| `docs/WORLD.md` | Expedition Journal art direction and map kit v2 |
+| `docs/JUNGLE-MAPS.md` | Jungle launch-map geometry and mechanics |
 | `docs/ECONOMY.md` | Accounts, skins, payments, portal rules |
 | `docs/RUNBOOK-1.md` to `RUNBOOK-3.md` | Milestones, one at a time |
+| `docs/RUNBOOK-WORLD.md` | World milestones W1 to W6 |
 
 ## Commands
 
@@ -38,7 +41,7 @@ npm test            # Vitest only
 - Versions are pinned in `package.json`. Do not add, upgrade or remove dependencies unless the task says so. If you think one is needed, stop and explain why.
 - `.npmrc` sets `legacy-peer-deps=true` on purpose. Never remove it. If you see `Cannot find package '@colyseus/...'`, stop and report it.
 - Verify library APIs against the type definitions in `node_modules` before using them (paths listed in `docs/TECH.md`). Colyseus 0.18 is very different from older versions. Never write Colyseus code from memory.
-- Every gameplay number lives in `src/shared/constants.ts`. No magic numbers anywhere else.
+- Every gameplay number lives in `src/shared/constants.ts`. Render-only look numbers live in `src/client/render/look.ts`. No magic gameplay numbers anywhere else.
 - `src/shared` is pure TypeScript. No imports from `three`, `@colyseus/*`, DOM globals or `node:*`. A test enforces this.
 - The server is authoritative. Clients send inputs only: movement axes, look angles, button bits. Clients never send positions, hits, damage, draw time or item ownership.
 - Client and server run the same simulation functions from `src/shared/sim`.

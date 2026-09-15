@@ -7,14 +7,14 @@ Maps are TypeScript modules in `src/shared/maps/`. They are pure data plus two s
 ```ts
 // src/shared/maps/types.ts
 export type Vec3Tuple = readonly [number, number, number];
-export type InkName = "blue" | "red" | "green" | "orange" | "none";
+export type MaterialName = "stone" | "carvedStone" | "wood" | "canopy" | "fern" | "earth" | "water" | "rope" | "gold" | "hazard" | "canvas" | "foliageDark";
 export type BoxTag = "solid" | "grapple" | "invisible" | "stairs";
 
 export type Box = {
   id: string;
   min: Vec3Tuple;
   max: Vec3Tuple;
-  ink: InkName;              // outline color, see RENDERING.md
+  material: MaterialName;    // watercolor wash and outline, see RENDERING.md
   tags: readonly BoxTag[];   // "solid" collides with players and arrows
 };
 
@@ -37,7 +37,7 @@ export type MapData = {
   name: string;
   bounds: { min: Vec3Tuple; max: Vec3Tuple };
   boxes: readonly Box[];
-  spawns: { red: readonly SpawnPoint[]; green: readonly SpawnPoint[] };
+  spawns: { sun: readonly SpawnPoint[]; moon: readonly SpawnPoint[] };
   waypoints: readonly Waypoint[];
   decor: readonly Decor[];          // client only, never collides
 };
@@ -57,28 +57,28 @@ stairs(opts: {
   rise: number;           // must be <= STEP_HEIGHT
   run: number;            // depth of each step
   width: number;
-  ink: InkName;
+  material: MaterialName;
 }): Box[]
 ```
 
-Build the red half of the map, then generate the green half with `mirrorX`. Boxes that cross `x = 0` must be symmetric on their own.
+Build the Sun half of the map, then generate the Moon half with `mirrorX`. Boxes that cross `x = 0` must be symmetric on their own.
 
 ## Map 1: Notebook Page (`notebook.ts`)
 
-Play area 60 m by 40 m. Teams face each other along X. Red spawns on the west (-X), Green on the east (+X).
+Play area 60 m by 40 m. Teams face each other along X. Sun spawns on the west (-X), Moon on the east (+X).
 
 ### Shell
 
-| Id | min | max | ink | tags |
+| Id | min | max | material | tags |
 |---|---|---|---|---|
-| floor | (-32, -1, -22) | (32, 0, 22) | blue | solid |
-| wall-west | (-32, 0, -22) | (-30, 6, 22) | blue | solid |
-| wall-east | (30, 0, -22) | (32, 6, 22) | blue | solid |
-| wall-north | (-32, 0, 20) | (32, 6, 22) | blue | solid |
-| wall-south | (-32, 0, -22) | (32, 6, -20) | blue | solid |
-| ceiling | (-32, 12, -22) | (32, 13, 22) | none | solid, invisible |
+| floor | (-32, -1, -22) | (32, 0, 22) | earth | solid |
+| wall-west | (-32, 0, -22) | (-30, 6, 22) | foliageDark | solid |
+| wall-east | (30, 0, -22) | (32, 6, 22) | foliageDark | solid |
+| wall-north | (-32, 0, 20) | (32, 6, 22) | foliageDark | solid |
+| wall-south | (-32, 0, -22) | (32, 6, -20) | foliageDark | solid |
+| ceiling | (-32, 12, -22) | (32, 13, 22) | stone | solid, invisible |
 
-### Red half (mirror each for Green)
+### Sun half (mirror each for Moon)
 
 | Id | min | max | tags | Purpose |
 |---|---|---|---|---|
@@ -104,8 +104,8 @@ Play area 60 m by 40 m. Teams face each other along X. Red spawns on the west (-
 
 ### Spawns
 
-Red: `(-27, 0, -4.5)`, `(-27, 0, -1.5)`, `(-27, 0, 1.5)`, `(-27, 0, 4.5)`, all `yaw = -PI/2` (facing +X).
-Green: same points with x negated, `yaw = PI/2`.
+Sun: `(-27, 0, -4.5)`, `(-27, 0, -1.5)`, `(-27, 0, 1.5)`, `(-27, 0, 4.5)`, all `yaw = -PI/2` (facing +X).
+Moon: same points with x negated, `yaw = PI/2`.
 
 ### Decor
 
@@ -115,7 +115,7 @@ Green: same points with x negated, `yaw = PI/2`.
 
 ### Waypoints
 
-About 40 nodes, authored on the red half and mirrored. Required coverage: each spawn, both ends and the middle of each lane (north under the bridge, bridge top, center, south lane), stair bottoms and tops, the perch top, beside every cover piece. Link kinds: `walk` for flat or stair paths, `jump` for gaps up to 1.2 m high, `drop` for ledges down to 3 m.
+About 40 nodes, authored on the Sun half and mirrored. Required coverage: each spawn, both ends and the middle of each lane (north under the bridge, bridge top, center, south lane), stair bottoms and tops, the perch top, beside every cover piece. Link kinds: `walk` for flat or stair paths, `jump` for gaps up to 1.2 m high, `drop` for ledges down to 3 m.
 
 ### Tuning notes
 

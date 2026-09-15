@@ -23,7 +23,7 @@ Define with `schema()` and `t.*` from `@colyseus/schema`. No decorators.
 **Rule:** every field that `stepPlayer` reads or writes lives in `PlayerState`. The client reconciler replays inputs starting from server state, so any missing field breaks replay.
 
 `PlayerState`
-- identity: `name`, `team` (0 red, 1 green), `isBot`
+- identity: `name`, `team` (0 Sun, 1 Moon), `isBot`
 - body: `x`, `y`, `z`, `vx`, `vy`, `vz`, `yaw`, `pitch`, `height` (numeric so rewind can track crouching)
 - movement flags and timers: `grounded`, `crouched`, `sliding`, `slideMs`, `slideCooldownMs`, `coyoteMs`, `jumpBufferMs`
 - combat: `hp`, `alive`, `drawMs`, `releaseCooldownMs`, `meleeCooldownMs`, `prevButtons`, `lastDamageAtMs`, `spawnProtectMs`, `respawnAtMs`
@@ -33,7 +33,7 @@ Define with `schema()` and `t.*` from `@colyseus/schema`. No decorators.
 
 `ArrowState`: `x`, `y`, `z`, `vx`, `vy`, `vz`, `owner` (session id), `team`, `bornMs`, `kind` (`arrow`, `grapple`, `ink`), `damage`.
 
-`MatchState`: `mapId`, `phase` (`warmup`, `live`, `end`), `phaseEndsAtMs`, `scoreRed`, `scoreGreen`, `players` (map of `PlayerState` keyed by session id, bots use `bot-1` style keys), `arrows` (map of `ArrowState`), `inkClouds` (M7).
+`MatchState`: `mapId`, `phase` (`warmup`, `live`, `end`), `phaseEndsAtMs`, `scoreSun`, `scoreMoon`, `players` (map of `PlayerState` keyed by session id, computer-controlled players use `bot-1` style keys), `arrows` (map of `ArrowState`), `inkClouds` (M7).
 
 **Time base:** `bornMs`, `phaseEndsAtMs` and every other absolute time must use the same server clock that the client's `room.clock.serverNow()` tracks. Read `RoomClock.d.ts` and `predictedSpawns.d.ts` to confirm which server value that is before stamping.
 
@@ -140,7 +140,7 @@ Server to client:
 | `hitConfirm` | the attacker | `{ target, damage, headshot }` |
 | `damaged` | the victim | `{ fromX, fromZ, damage }` |
 | `robinHood` | everyone (M6) | `{ shooterA, shooterB, x, y, z }` |
-| `matchEnd` | everyone | `{ winner: "red", "green" or "draw", mvp }` |
+| `matchEnd` | everyone | `{ winner: "sun", "moon" or "draw", mvp }` |
 
 ## Joining, leaving, reconnecting
 

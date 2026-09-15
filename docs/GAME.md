@@ -23,7 +23,7 @@ A fast team shooter drawn in blue ballpoint on notebook paper. Everyone has a bo
 
 ## Teams and colors
 
-Two teams: **Red** and **Green**. The world is drawn in blue ink. Team colors mark players, arrows and UI. Exact colors are in `docs/RENDERING.md`.
+Two teams: **Sun** (team 0, orange) and **Moon** (team 1, indigo). Warm sepia world lines and watercolor scenery keep both teams readable. Exact colors are in `docs/RENDERING.md`.
 
 ## Controls (desktop)
 

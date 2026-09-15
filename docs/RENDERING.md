@@ -1,112 +1,59 @@
 # Bowdle rendering
 
-## The look
+From W1 onward Bowdle is an explorer's Expedition Journal: sepia ink and loose watercolor sketches of lost jungle ruins on aged parchment. There are no ruled notebook lines, margin lines, blue-ballpoint world outlines, or monochrome surfaces.
 
-Blue ballpoint pen on cream notebook paper. Every edge is an ink outline that wobbles slightly, as if redrawn a few times per second. Shadows are pen hatching. Team members are outlined in red or green ink. Interactive things (grapple points, pickups) are outlined in orange.
+## Palette and materials
 
-Our own style choices, so Bowdle does not look like other doodle games:
+Canonical colors and material ids are defined in `docs/WORLD.md` and implemented by `src/client/render/palette.ts`. The G-buffer alpha channel stores material ids 0–31. `InkMaterial` writes view-space normal XY, tone, and material id; map boxes carry a `material` name. Team 0 uses `teamSun` orange and team 1 uses `teamMoon` indigo. Interactive surfaces use `gold`.
 
-- Ruled page lines appear only in empty background, never over geometry.
-- Hatching gets denser in three steps and uses the ink color of the object.
-- Team colors are red and green on a blue ink world.
-- Fonts are Gochi Hand (HUD) and Permanent Marker (titles).
-
-## Palette (`src/client/render/palette.ts`)
-
-| Name | Hex | Ink id |
-|---|---|---|
-| Paper | `#F3EEDF` | |
-| Ruled line | `#A9C4E8` | |
-| Margin line | `#E39A9A` | |
-| Background (no object) | | 0 |
-| Blue ink (world) | `#233C9B` | 1 |
-| Red team | `#D1382F` | 2 |
-| Green team | `#2F9E57` | 3 |
-| Orange highlight | `#F08A24` | 4 |
-
-Map boxes carry an `ink` name (see `MAP.md`). The client converts it to an ink id.
+Render-only tuning numbers live in `src/client/render/look.ts`; gameplay numbers remain in `src/shared/constants.ts`.
 
 ## Pipeline
 
-Three passes per frame with `WebGLRenderer`. No `EffectComposer`: we manage render targets directly.
+Three passes run through `WebGLRenderer` without `EffectComposer`:
 
-### Pass A: world G-buffer
+1. The world G-buffer stores normal XY, lit tone, material id, and depth.
+2. A separate viewmodel G-buffer keeps the bow from clipping into the world.
+3. A full-screen composite combines the selected G-buffer with the Expedition Journal treatment.
 
-- Target: `WebGLRenderTarget`, RGBA8, with a `DepthTexture` attached.
-- Every world mesh uses `InkMaterial`: a `ShaderMaterial` with `glslVersion: THREE.GLSL3` and one uniform, `inkId`.
-- Output per pixel:
-  - `R, G` = view-space normal `xy * 0.5 + 0.5`
-  - `B` = tone: `0.35 + 0.65 * max(dot(worldNormal, LIGHT_DIR), 0.0)`, with `LIGHT_DIR = normalize(vec3(0.4, 1.0, 0.3))`
-  - `A` = `inkId / 255.0`
-- Clear color `(0.5, 0.5, 1.0, 0.0)`: facing the camera, full tone, ink id 0.
+The composite works in CSS pixels and renders:
 
-### Pass B: viewmodel G-buffer
+- A sky-to-parchment background wash, two map-seeded coffee rings, faint 64 px map grid, paper grain, and a compass rose.
+- Material watercolor mixed by tone, four-pixel granulation, darker pigment pooling next to edges, and material-specific outline colors.
+- Sepia 45-degree hatching for light materials and cross-hatching for fully hatched materials.
+- 1.8 px outlines with 6 fps, 1 px boil; depth fade from 35 m to 120 m and thinner far outlines.
+- Animated wave strokes for water and four optional drifting sun shafts.
 
-- Same format, separate target and depth texture.
-- Separate scene and camera for the first-person bow and hand: FOV 70, near 0.01, far 10.
-- Keeps the bow from clipping into walls.
+Resize both targets with the viewport and clamp device pixel ratio to 2.
 
-### Pass C: composite
+## Procedural meshes
 
-One full-screen triangle with an orthographic camera. The shader reads both G-buffers and both depth textures and writes the final color to the canvas.
+Map boxes are merged per material. Players use low-poly head/body/limb geometry and their team material. Bows, arrows, ropes, ink clouds, effects, map props, and later jungle props are generated in code; no art files are used. Grapple ropes and ready outlines use gold. Ink clouds use layered dark-foliage scribble spheres.
 
-Work in CSS pixels: `p = gl_FragCoord.xy / devicePixelRatio / renderScale`, so line spacing looks the same on every screen.
+## Floating notes
 
-1. **Paper:** paper color plus grain, `hash(floor(p / 2.0))` scaled to plus or minus 0.02.
-2. **Boil:** `step = floor(time * 8.0)`. Offset every edge and hatch lookup by `(hash2(floor(p / 3.0) + step) - 0.5) * 1.2` CSS px.
-3. **Edges:** sample at plus or minus 1.5 CSS px around the pixel.
-   - Depth edge: Sobel on linearized depth divided by the center depth, threshold 0.08.
-   - Normal edge: Sobel on decoded normals, magnitude threshold 0.35.
-   - Edge color: ink of the nearest sample (smallest depth) in the 3×3 neighborhood.
-4. **Hatching**, using tone `t` from the B channel and the pixel's ink color at 55% opacity:
-   - `t < 0.80`: lines at 45 degrees, 8 px apart, 1 px wide
-   - `t < 0.55`: add lines at -45 degrees, 8 px apart
-   - `t < 0.30`: add horizontal lines, 5 px apart
-   - Anti-alias with `fwidth`.
-5. **Background** (ink id 0): paper, ruled lines every 28 CSS px (1.2 px, 60% opacity), margin line at x = 64 CSS px (1.5 px, 70% opacity).
-6. **Viewmodel:** where the viewmodel ink id is above 0, or a viewmodel edge exists, use the viewmodel result instead of the world result.
+Each map may provide up to six short notes with world positions. The renderer projects them into screen space as sepia handwriting and fades them with distance. M8 provides the setting to hide them.
 
-Resize all targets on window resize. Clamp device pixel ratio to 2.
+## HUD
 
-## Meshes (all procedural)
+The HUD uses handwritten fonts with system fallbacks. It includes a shrinking draw crosshair, hit/headshot feedback, health, Sun/Moon scores, kill feed, scoreboard, death/replay UI, ability cooldown cards, and moment banners. DOM overlays remain readable against both sky and watercolor surfaces.
 
-| Thing | How |
-|---|---|
-| Map | One `BoxGeometry` per box, merged per ink with `mergeGeometries` from `three/addons/utils/BufferGeometryUtils.js`. Skip `invisible` boxes |
-| Player | Sphere head (12 segments), capsule torso, cylinder limbs (6 radial segments), team ink |
-| Player animation | Code-driven: legs swing up to 35 degrees at a rate tied to speed, slide pose, draw pose (string hand pulls back by draw fraction) |
-| Bow | `TubeGeometry` along a curved arc (radius 0.02). String is two thin cylinders meeting at the nock, which moves with draw fraction |
-| Arrow | Shaft cylinder 0.8 m long, radius 0.012, cone head, two crossed double-sided fletching quads. Scale thickness up to 2× with distance so arrows stay visible |
-| Sun | Torus plus ray boxes |
-| Paper plane | A few triangles, orbiting slowly |
-| Spiral rings | Tori along the north wall top |
+## Effects
 
-## HUD (DOM overlay)
+- Headshots leave deterministic irregular team-color splats.
+- Wall arrows persist for eight seconds; body arrows persist for three.
+- Damage uses a screen-edge scribbled direction arc.
+- Near-wall arrow kills can pin a body.
+- Ink clouds are layered scribble spheres and never alter arrow collision.
 
-- Fonts from Google Fonts via `<link>`: Gochi Hand, Permanent Marker. Fallback stack: `"Comic Sans MS", "Chalkboard SE", cursive`.
-- Crosshair: a hand-drawn circle that shrinks from 18 px to 6 px radius as draw fraction goes from 0 to 1. A tick mark appears at full draw.
-- Hit marker: scribbled X. Headshot: red X and a "HEADSHOT" pop.
-- Health: scribbled bar bottom left. Team scores top center. Kill feed top right.
+## Performance
 
-## Effects (M6)
-
-| Effect | How |
-|---|---|
-| Ink splat on headshot | Flat irregular disc, 9 to 14 vertices with seeded random radii, in the victim's team ink |
-| Stuck arrows | Client copy stays in the wall for 8 s |
-| Arrow trail | Ribbon mesh behind flying arrows, color from the arrow trail cosmetic |
-| Damage direction | Scribbled arc at the screen edge toward the attacker |
-| Pinned body | On a kill, the body flies along the arrow direction and sticks if a wall is within 3 m, otherwise falls |
-| Ink cloud (M7) | Sphere of scribble strokes, drawn as world geometry with ink id 1 |
-
-## Performance rules
-
-- One draw call for the composite pass. Map geometry merged by ink.
-- No per-frame allocations. Reuse `Vector3`, `Matrix4` and arrays.
-- `renderer.info.render.calls` feeds the F3 overlay.
-- Dynamic resolution as described in `TECH.md`.
+- One draw call for the composite pass; static map geometry is merged by material.
+- No allocations in frame loops. Reuse vectors, attributes, arrays, and visual instances.
+- `renderer.info.render.calls` feeds the debug overlay.
+- Props beyond 90 m are hidden and the complete scene stays at or below 150 draw calls and 300,000 triangles.
+- Dynamic resolution follows `docs/TECH.md`.
 
 ## Accessibility (M8)
 
-- Settings: field of view, mouse sensitivity, volume, boil on or off (some players find wobbling lines tiring).
-- Colorblind option: adds a symbol above each player (circle for Red, triangle for Green) and thickens team outlines.
+Settings cover field of view, mouse sensitivity, volume, boil, floating notes, and colorblind symbols. The colorblind option adds a circle above Sun players and a triangle above Moon players, with thicker team outlines.

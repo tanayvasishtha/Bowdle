@@ -49,7 +49,7 @@ bowdle/
       math/                 vec3.ts, rng.ts (seeded), angles.ts
       sim/                  movement.ts, collision.ts, bow.ts, arrows.ts,
                             hitboxes.ts, melee.ts, health.ts, match.ts
-      maps/                 types.ts, helpers.ts, notebook.ts, range.ts, validate.ts
+      maps/                 types.ts, helpers.ts, launch maps, camp.ts, validate.ts
       bots/                 aim.ts (projectile lead), nav.ts (waypoint paths)
       input.ts              PlayerInputFrame type and BTN button flags
       cosmetics.ts          item catalog (M11)
@@ -168,7 +168,7 @@ Tests never touch the internet. Seed every random source.
 | Draw calls in a match | 150 or fewer | F3 overlay |
 | Server tick, 8 players and 20 arrows | under 3 ms | Server log every 10 s in dev |
 
-Merge static map geometry by ink color. Dynamic resolution: drop render scale in 10% steps (down to 60%) when the average frame time goes over 20 ms for 2 seconds.
+Merge static map geometry by material. Dynamic resolution: drop render scale in 10% steps (down to 60%) when the average frame time goes over 20 ms for 2 seconds.
 
 ## Debug tools
 

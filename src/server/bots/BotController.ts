@@ -18,6 +18,7 @@ import {
   PLAYER_WIDTH,
   BOT_STUCK_MS,
   BOT_STUCK_MOVE_M,
+  ZIP_ATTACH_DIST,
 } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import type { MapData, Vec3Tuple, Waypoint } from "../../shared/maps/types.ts";
@@ -86,10 +87,19 @@ export class BotController {
     else this.navigate(player, target?.[1], map);
     if (this.mode === "retreat" && player.inkCooldownMs <= 0) this.input.buttons |= BTN.INK;
     this.guideRamp(player, map, target?.[1]);
+    this.useNearbyZip(player, map);
     this.avoidBoulders(player, map, hazards);
-    this.input.buttons &= ~BTN.USE;
     if (nowMs - this.movedAtMs >= BOT_STUCK_MS) { this.input.yaw = player.yaw + Math.PI / 2; this.input.pitch = 0; this.input.moveX = 0; this.input.moveZ = 1; this.input.buttons = BTN.JUMP; this.movedAtMs = nowMs; }
     return this.input;
+  }
+
+  private useNearbyZip(player: PlayerSim, map: MapData): void {
+    if (player.zipId) return;
+    for (const zip of map.zipLines) {
+      if (Math.hypot(player.x - zip.from[0], player.y - zip.from[1], player.z - zip.from[2]) > ZIP_ATTACH_DIST) continue;
+      this.input.buttons |= BTN.USE;
+      return;
+    }
   }
 
   private guideRamp(player: PlayerSim, map: MapData, target: PlayerSim | undefined): void {
@@ -160,7 +170,10 @@ export class BotController {
       const start = nearestWaypoint(map, player.x, player.y, player.z);
       let goal: Waypoint;
       if (this.mode === "retreat") {
-        const spawn = player.team === 0 ? map.spawns.sun[0]! : map.spawns.moon[0]!; goal = nearestWaypoint(map, ...spawn.pos);
+        let grassX = 0, grassY = 0, grassZ = 0, foundGrass = false;
+        for (const volume of map.volumes) if (volume.kind === "tallGrass" && (player.team === 0 ? volume.max[0] <= 0 : volume.min[0] >= 0)) { grassX = (volume.min[0] + volume.max[0]) / 2; grassY = volume.min[1]; grassZ = (volume.min[2] + volume.max[2]) / 2; foundGrass = true; break; }
+        if (foundGrass) goal = nearestWaypoint(map, grassX, grassY, grassZ);
+        else { const spawn = player.team === 0 ? map.spawns.sun[0]! : map.spawns.moon[0]!; goal = nearestWaypoint(map, ...spawn.pos); }
       } else if (target) goal = nearestWaypoint(map, target.x, target.y, target.z);
       else {
         this.routeSerial += 1;

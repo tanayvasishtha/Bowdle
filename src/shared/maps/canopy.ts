@@ -63,8 +63,10 @@ for (const [id,x,y,z] of [
   ["moon-exit",24.5,0,-6],["moon-hub",24.5,0,0],["moon-west-ramp-low",24.5,0,0],["moon-west-low",18.5,4.8,0],["moon-low-nw",18,4.8,3],["moon-high-approach",18,4.8,8.5],["moon-low-nbridge",15,4.8,4],["moon-low-ne",12,4.8,3],["moon-low-sw",18,4.8,-3],["moon-low-sbridge",15,4.8,-4],["moon-west-low-center",11.5,4.8,0],["moon-west-high-low",17.1,4.8,8.5],["moon-west-high",17.1,8.8,2.5],["moon-high-east",12.8,8.8,2.2],["moon-high-bridge",12.5,8.8,0],["moon-north-deck",15,4.8,12.5],["moon-south-deck",15,4.8,-12.5],
   ["sun-ring-ramp-low",-11,0,4],["sun-ring-ramp-high",-5,4.8,4],["center-low",-5,4.8,0],["ring-low-north",0,4.8,5],["center-low-east",5,4.8,0],["moon-ring-ramp-high",5,4.8,4],["ring-high-approach",2.2,4.8,11],["ring-high-low",0,4.8,11],["ring-high-west",-5,8.8,0],["ring-high-nw",-4,8.8,3],["center-high",0,8.8,5],["ring-high-east",5,8.8,0],["ring-high-ne",4,8.8,3],["ring-high-sw",-4,8.8,-3],["ring-high-se",4,8.8,-3],["moon-ring-ramp-low",11,0,4],
   ["sun-zip-north-high",-3,8.8,5],["sun-zip-south-high",-3,8.8,-5],["moon-zip-north-high",3,8.8,5],["moon-zip-south-high",3,8.8,-5],
+  ["sun-grass-north",-20,0,9],["sun-grass-south",-20,0,-9],["moon-grass-north",20,0,9],["moon-grass-south",20,0,-9],
 ] as const) node(id, x, y, z);
 connect("sun-spawn-0","sun-exit"); connect("sun-exit","sun-hub"); connect("moon-spawn-0","moon-exit"); connect("moon-exit","moon-hub");
+connect("sun-hub","sun-grass-north"); connect("sun-hub","sun-grass-south"); connect("moon-hub","moon-grass-north"); connect("moon-hub","moon-grass-south");
 for (let i = 1; i < 4; i += 1) { connect(`sun-spawn-${i}`, "sun-hub", "jump"); connect(`moon-spawn-${i}`, "moon-hub", "jump"); }
 for (const chain of [
   ["sun-hub","sun-west-ramp-low","sun-west-low","sun-low-nw","sun-high-approach","sun-west-high-low","sun-west-high","sun-high-east","sun-high-bridge","ring-high-west","ring-high-nw","center-high"],

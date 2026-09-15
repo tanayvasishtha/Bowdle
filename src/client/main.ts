@@ -7,6 +7,7 @@ import { OnlineSession, type RenderedPlayer } from "./game/OnlineSession.ts";
 import { kitMap } from "../shared/maps/fixtures/kit.ts";
 import { propsGalleryMap } from "../shared/maps/fixtures/props.ts";
 import { sunTempleMap } from "../shared/maps/sunTemple.ts";
+import { canopyMap } from "../shared/maps/canopy.ts";
 
 declare global {
   interface Window {
@@ -57,7 +58,8 @@ if (params.get("scene") === "online") {
   });
 } else if (params.get("scene") === "map" || params.get("scene") === "range" || params.get("scene") === "kit" || params.get("scene") === "props") {
   const isRange = params.get("scene") === "range";
-  const map = params.get("scene") === "kit" ? kitMap : params.get("scene") === "props" ? propsGalleryMap : params.get("map") === "sun-temple" ? sunTempleMap : isRange ? rangeMap : undefined;
+  const mapId = params.get("map");
+  const map = params.get("scene") === "kit" ? kitMap : params.get("scene") === "props" ? propsGalleryMap : mapId === sunTempleMap.id ? sunTempleMap : mapId === canopyMap.id ? canopyMap : isRange ? rangeMap : undefined;
   const renderer = new Renderer(app, params.has("debug"), map, isRange ? practiceTargets : undefined);
   const sampler = new InputSampler(renderer.canvas, isRange ? 0 : map?.spawns.sun[0]?.yaw ?? -Math.PI / 2);
   const session = isRange ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);

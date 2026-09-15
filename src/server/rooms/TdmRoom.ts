@@ -31,6 +31,7 @@ import { notebookMap } from "../../shared/maps/notebook.ts";
 import { kitMap } from "../../shared/maps/fixtures/kit.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { sunTempleMap } from "../../shared/maps/sunTemple.ts";
+import { canopyMap } from "../../shared/maps/canopy.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
 import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
@@ -70,6 +71,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly clashA0 = { x: 0, y: 0, z: 0 }; private readonly clashA1 = { x: 0, y: 0, z: 0 };
   private readonly clashB0 = { x: 0, y: 0, z: 0 }; private readonly clashB1 = { x: 0, y: 0, z: 0 };
   readonly xpEvents: Array<{ type: "robinHood"; player: string }> = [];
+  zipRideCount = 0;
   private rewindState!: Rewind;
   private arrowSerial = 0;
   private cloudSerial = 0;
@@ -79,7 +81,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly bots = new Map<string, BotController>();
 
   onCreate(options: JoinOptions): void {
-    this.map = options.mapId === kitMap.id ? kitMap : options.testMapId === sunTempleMap.id ? sunTempleMap : notebookMap;
+    this.map = options.mapId === kitMap.id ? kitMap : options.testMapId === sunTempleMap.id ? sunTempleMap : options.testMapId === canopyMap.id ? canopyMap : notebookMap;
     this.state.mapId = this.map.id;
     for (const boulder of this.map.boulders) {
       const hazard = new BoulderHazardState(); resetBoulderHazard(hazard, 0);
@@ -116,14 +118,14 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         if (!player.alive) continue;
         player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
         this.tryLever(sessionId, player, frame, nowMs);
-        this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs }));
+        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs })); if (!beforeZip && player.zipId) this.zipRideCount += 1;
       }
     }
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
       const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards);
-      this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs }));
+      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs })); if (!beforeZip && player.zipId) this.zipRideCount += 1;
     }
     this.updateHazards(nowMs, context.dt);
     this.stepArrows(context);

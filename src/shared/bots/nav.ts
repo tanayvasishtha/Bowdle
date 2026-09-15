@@ -53,6 +53,7 @@ export function followPath(player: PlayerSim, path: readonly Waypoint[], index: 
   out.buttons = 0;
   const prior = path[Math.max(0, nextIndex - 1)]!; const link = linkTo(prior, target.id);
   if (link?.kind === "jump") out.buttons |= BTN.JUMP;
+  if (link?.kind === "zip") out.buttons |= BTN.USE;
   if (link?.kind === "walk" && distance(prior, target) >= BOT_LONG_LINK_M && rng() < BOT_SLIDE_CHANCE) out.buttons |= BTN.CROUCH;
   return nextIndex;
 }

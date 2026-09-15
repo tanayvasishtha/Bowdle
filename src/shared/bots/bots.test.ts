@@ -8,6 +8,7 @@ import { BotController } from "../../server/bots/BotController.ts";
 import { createPlayerSim } from "../sim/movement.ts";
 import { BTN } from "../input.ts";
 import { kitMap } from "../maps/fixtures/kit.ts";
+import { canopyMap } from "../maps/canopy.ts";
 
 describe("computer-controlled navigation and aim", () => {
   it("finds a route between every pair of spawns", () => {
@@ -65,5 +66,12 @@ describe("computer-controlled abilities", () => {
     const input = controller.update(player, [["bot", player]], kitMap, 1000, [], [["center-boulder", { phase: "telegraph", x: -8, z: -6 }]]);
     expect(Math.hypot(input.moveX, input.moveZ)).toBeGreaterThan(0);
     expect(input.buttons & BTN.USE).toBe(0);
+  });
+
+  it("attaches to a nearby Canopy Village zip line", () => {
+    const zip = canopyMap.zipLines[0]!;
+    const player = createPlayerSim(...zip.from); player.team = 0;
+    const input = new BotController("bot", 15).update(player, [["bot", player]], canopyMap, 1000);
+    expect(input.buttons & BTN.USE).toBe(BTN.USE);
   });
 });

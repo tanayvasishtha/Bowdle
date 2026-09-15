@@ -5,6 +5,7 @@ import { BTN } from "../../src/shared/input.ts";
 import { SCORE_LIMIT, SPAWN_PROTECT_MS } from "../../src/shared/constants.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import type { PlayerInput } from "../../src/net/schema.ts";
+import { ArrowState } from "../../src/net/schema.ts";
 
 type WireInput = { data: PlayerInput; send(): void };
 
@@ -58,5 +59,14 @@ describe("authoritative online combat", () => {
     await fullDraw(room, input, 0.025);
     for (let frame = 0; frame < 12 && target.alive; frame += 1) await room.waitForNextTimestep();
     expect(room.state.scoreRed).toBe(SCORE_LIMIT); expect(room.state.phase).toBe("end");
+  });
+
+  it("head-on enemy arrows destroy each other", async () => {
+    const { room } = await setup();
+    const left = new ArrowState(); left.x = -1; left.y = 5; left.vx = 95; left.owner = "left"; left.team = 0;
+    const right = new ArrowState(); right.x = 1; right.y = 5; right.vx = -95; right.owner = "right"; right.team = 1;
+    room.state.arrows.set("left", left); room.state.arrows.set("right", right);
+    room.simulateTick({ dt: 1 / 30, dtMs: 1000 / 30, tick: 1, subSteps: 2, subDt: 1 / 60, subDtMs: 1000 / 60 }, 100);
+    expect(room.state.arrows.size).toBe(0); expect(room.xpEvents).toHaveLength(2);
   });
 });

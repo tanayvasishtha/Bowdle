@@ -2,6 +2,7 @@ import { Room, type Client, type Rewind, type StepContext as RoomStepContext } f
 import {
   ARROW_LIFETIME_MS,
   ARROW_MAX_PER_PLAYER,
+  ARROW_RADIUS,
   ASSIST_MIN_DAMAGE,
   ASSIST_WINDOW_MS,
   HEAD_MULT,
@@ -22,16 +23,17 @@ import type { PlayerInputFrame } from "../../shared/input.ts";
 import { notebookMap } from "../../shared/maps/notebook.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
-import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage } from "../../net/messages.ts";
+import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
 import { spawnArrow, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
 import { chooseSpawn, respawnPlayer, scoreKill, updateMatchPhase } from "../../shared/sim/match.ts";
 import { meleeHit } from "../../shared/sim/melee.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
+import { segmentDistance } from "../../shared/math/segments.ts";
 import { BotController } from "../bots/BotController.ts";
 
 type JoinOptions = { name?: string; test?: boolean };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
 type ArrowOrigin = { x: number; z: number };
@@ -52,6 +54,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly arrowFrom = { x: 0, y: 0, z: 0 };
   private readonly arrowTo = { x: 0, y: 0, z: 0 };
   private readonly hitTarget = { x: 0, y: 0, z: 0, height: STAND_HEIGHT, crouched: false };
+  private readonly clashA0 = { x: 0, y: 0, z: 0 }; private readonly clashA1 = { x: 0, y: 0, z: 0 };
+  private readonly clashB0 = { x: 0, y: 0, z: 0 }; private readonly clashB1 = { x: 0, y: 0, z: 0 };
+  readonly xpEvents: Array<{ type: "robinHood"; player: string }> = [];
   private rewindState!: Rewind;
   private arrowSerial = 0;
   private botSerial = 0;
@@ -117,6 +122,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private createArrow(owner: string, team: number, event: Parameters<typeof spawnArrow>[0]): void {
     const sim = spawnArrow(event, this.state.players.get(owner)?.crouched);
     const arrow = new ArrowState(); Object.assign(arrow, sim);
+    arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
     arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs;
     const id = `${owner}-${this.arrowSerial += 1}`;
     this.state.arrows.set(id, arrow); this.arrowOrigins.set(id, { x: event.x, z: event.z });
@@ -129,6 +135,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (let substep = 0; substep < context.subSteps; substep += 1) {
       for (const [id, arrow] of this.state.arrows) {
         const fromX = arrow.x, fromY = arrow.y, fromZ = arrow.z;
+        arrow.prevX = fromX; arrow.prevY = fromY; arrow.prevZ = fromZ;
         const world = stepArrow(arrow, notebookMap, context.subDt);
         let targetId = "", headshot = false, earliest = Number.POSITIVE_INFINITY;
         const seen = this.rewindState.lastSeenBy(arrow.owner);
@@ -148,7 +155,20 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       }
       for (const id of this.removeArrows) this.deleteArrow(id);
       this.removeArrows.length = 0;
+      this.resolveArrowClashes();
     }
+  }
+
+  private resolveArrowClashes(): void {
+    for (const [idA, arrowA] of this.state.arrows) for (const [idB, arrowB] of this.state.arrows) {
+      if (idA >= idB || arrowA.team === arrowB.team || this.removeArrows.includes(idA) || this.removeArrows.includes(idB)) continue;
+      this.clashA0.x = arrowA.prevX; this.clashA0.y = arrowA.prevY; this.clashA0.z = arrowA.prevZ; this.clashA1.x = arrowA.x; this.clashA1.y = arrowA.y; this.clashA1.z = arrowA.z;
+      this.clashB0.x = arrowB.prevX; this.clashB0.y = arrowB.prevY; this.clashB0.z = arrowB.prevZ; this.clashB1.x = arrowB.x; this.clashB1.y = arrowB.y; this.clashB1.z = arrowB.z;
+      if (segmentDistance(this.clashA0, this.clashA1, this.clashB0, this.clashB1) >= ARROW_RADIUS * 2) continue;
+      this.removeArrows.push(idA, idB); this.xpEvents.push({ type: "robinHood", player: arrowA.owner }, { type: "robinHood", player: arrowB.owner });
+      this.broadcast("robinHood", { shooterA: arrowA.owner, shooterB: arrowB.owner, x: (arrowA.x + arrowB.x) / 2, y: (arrowA.y + arrowB.y) / 2, z: (arrowA.z + arrowB.z) / 2 });
+    }
+    for (const id of this.removeArrows) this.deleteArrow(id); this.removeArrows.length = 0;
   }
 
   private resolveMelee(attackerId: string, x: number, y: number, z: number, yaw: number): void {

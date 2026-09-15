@@ -24,6 +24,7 @@ export const ArrowState = schema({
   owner: t.string().default(""), team: t.uint8().default(0), bornMs: t.number().default(0),
   kind: t.string<"arrow" | "grapple" | "ink">().default("arrow"), damage: t.number().default(0),
   ageMs: t.number().noSync().default(0), stuck: t.boolean().noSync().default(false),
+  prevX: t.number().noSync().default(0), prevY: t.number().noSync().default(0), prevZ: t.number().noSync().default(0),
 }, "ArrowState");
 export type ArrowState = SchemaType<typeof ArrowState>;
 

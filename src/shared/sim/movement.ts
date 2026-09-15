@@ -32,6 +32,7 @@ import { clamp } from "../math/angles.ts";
 import { lengthXZ, normalizeXZ, type Vec3 } from "../math/vec3.ts";
 import { canOccupy, movePlayer } from "./collision.ts";
 import { stepCombat, type CombatEvent } from "./bow.ts";
+import { stepAbilityInput, stepGrapplePull, type AbilityEvent } from "./abilities.ts";
 
 export type PlayerSim = {
   name: string;
@@ -50,7 +51,7 @@ export type PlayerSim = {
 };
 
 export type StepContext = { nowMs: number };
-export type PlayerEvent = CombatEvent;
+export type PlayerEvent = CombatEvent | AbilityEvent;
 
 const wish: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -119,6 +120,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
   const inputMagnitude = updateWish(input);
   state.yaw = input.yaw;
   state.pitch = input.pitch;
+  const abilityEvents = stepAbilityInput(state, input, map, 1000 / TICK_HZ);
 
   for (let substep = 0; substep < SUBSTEPS; substep += 1) {
     state.slideCooldownMs = Math.max(0, state.slideCooldownMs - dtMs);
@@ -165,6 +167,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     }
 
     state.vy -= GRAVITY * dt;
+    stepGrapplePull(state, dt, dtMs);
     const wasGrounded = state.grounded;
     movePlayer(state, map, dt);
     if (state.grounded) state.coyoteMs = COYOTE_MS;
@@ -176,7 +179,8 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     }
     capHorizontal(state, MAX_HORIZONTAL_SPEED);
   }
-  const events = stepCombat(state, input, 1000 / TICK_HZ);
+  const events: PlayerEvent[] = stepCombat(state, input, 1000 / TICK_HZ);
+  events.push(...abilityEvents);
   state.prevButtons = input.buttons;
   return events;
 }

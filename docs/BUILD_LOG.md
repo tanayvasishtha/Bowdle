@@ -1,5 +1,42 @@
 # Build log
 
+## W1 — Expedition Journal look
+
+Status: done.
+
+Built:
+
+- Replaced the ruled notebook presentation with a sky-to-parchment Expedition Journal composite: paper grain, faint map grid, seeded coffee rings, compass rose, watercolor granulation and edge pooling, sepia hatching/outlines, depth fade, water strokes, boil, and optional sun shafts.
+- Replaced world ink ids with the full material-id table and migrated existing arena/range surfaces to earth, stone, carved stone, wood, foliage, canvas, rope, and gold while preserving collider layout.
+- Renamed all runtime team data and labels to Sun and Moon while keeping team indices 0 and 1.
+- Added gold grapple surfaces, orange/indigo team materials, screen-projected sepia notes, journal-styled HUD/replay/practice overlays, and nearest-palette screenshot classification including explicit legacy colors.
+- Added `src/client/render/look.ts` as the canonical home for render-only tuning and updated the project instructions and world/render/map/netcode documentation.
+
+Tests added or updated:
+
+- Browser palette proof for combined parchment/sky, material washes, sepia, and near-zero legacy ruled/blue colors.
+- Journal-look browser coverage for the range and an online match.
+- Existing schema, map, match, server, and browser assertions migrated to Sun/Moon and material names without reducing coverage.
+
+QA:
+
+- `npm run check`: passed with 61 tests.
+- `npm run e2e`: 7 passed.
+- `npm run size`: client JavaScript 241 KB gzipped, 900 KB budget.
+- Break check: forcing every composite pixel to the legacy paper color reduced material-wash coverage to zero and failed the new render test; restoring the journal composite returned it to green.
+- Screenshots: `test-results/qa/w1/journal-map.png`, `journal-range.png`, and `journal-online.png`.
+- Visual inspection: warm washes, dark pooled edges, sepia hatching, compass/grid details, Sun/Moon HUD labels, and gold interactions read clearly; no ruled lines, margin line, or blue-ballpoint world ink remains.
+
+Deviation:
+
+- The pre-existing Practice hit marker could clear before a busy browser runner observed it. Its visible animation now fades while retaining semantic text until the next hit, removing the timing race without sleeps or retries.
+
+Verify by hand:
+
+- Explore the current arena, practice trail, and an online match at 1080p; confirm the wash feels like translucent pigment rather than flat tint and distant geometry fades naturally into the page.
+- Confirm Sun orange and Moon indigo players remain instantly distinguishable against every current material.
+- Toggle through bright and dark viewpoints and judge whether the subtle grid, stains, compass, and notes support navigation without becoming visual noise.
+
 ## M7 — Abilities
 
 Status: done.

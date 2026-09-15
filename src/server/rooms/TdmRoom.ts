@@ -236,6 +236,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       player.y = 0; player.z = TEST_DUEL_LANE_Z; player.yaw = team === 0 ? -Math.PI / 2 : Math.PI / 2;
     }
     this.state.players.set(client.sessionId, player);
+    if (this.testMode && red + green + 1 >= TEAM_COUNT) this.lock();
   }
 
   async onDrop(client: GameClient): Promise<void> {

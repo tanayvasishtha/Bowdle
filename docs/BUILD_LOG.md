@@ -1,5 +1,42 @@
 # Build log
 
+## M7 — Abilities
+
+Status: done.
+
+Built:
+
+- Deterministic grapple input, solid-aware grapple-box ray attachment, range and cooldown enforcement, pull acceleration, maximum pull speed, and release on jump, second press, anchor distance, or maximum duration.
+- Grapple state remains entirely in `PlayerState`, so authoritative simulation and rollback replay share the same anchor, timer, velocity, and release behavior.
+- Authoritative grapple and ink projectiles with distinct gravity, zero combat damage, ink-cloud creation on world impact, synchronized expiry, and isolation from normal arrow clashes.
+- Ink clouds block computer-controlled sight rays while remaining transparent to arrow collision.
+- Computer-controlled players throw ink while retreating and select grapple shortcuts when a reachable grapple surface materially shortens their current route.
+- Immediate special-projectile prediction, orange scribbled grapple ropes and target outlines, layered scribble-sphere ink clouds, and paper-card cooldown indicators for E and Q.
+
+Tests added:
+
+- Grapple attachment tests for tag and range plus every release condition, cooldowns, and ink event creation.
+- Center-ray ink-cloud visibility blocker proof and computer-controlled sight/retreat behavior tests.
+- Sixty-frame authoritative-versus-shared grapple position comparison with explicit replay-state protection.
+- Server ink impact/cloud creation test.
+- Two-client browser ability flow with screenshots at `test-results/qa/m7/grapple-rope.png` and `test-results/qa/m7/ink-cloud.png`.
+
+QA:
+
+- `npm run check`: passed with 61 tests.
+- `npm run e2e`: 6 passed.
+- `npm run size`: client JavaScript 239 KB gzipped, 900 KB budget.
+- Break check: removing `grappleMs` from `PlayerState` failed the named 60-frame grapple test with missing replay state; restoring the field returned it to green.
+- Visual inspection: grapple-ready orange outlines remain legible across the arena, the rope reads clearly against paper and geometry, cooldown states are glanceable, and the layered ink cloud visibly occludes the center lane.
+
+Deviation: none.
+
+Verify by hand:
+
+- Grapple from ground level to the bridge and perch; confirm the pull feels fast but steerable and a jump release preserves momentum with a useful upward fling.
+- Play online under latency and confirm repeated grapples never produce position corrections or rope snaps.
+- Throw ink between an opponent and a computer-controlled player; confirm vision is blocked while arrows continue through the cloud.
+
 ## M6 — Highlight moments
 
 Status: done.

@@ -10,7 +10,7 @@ import { BTN } from "../input.ts";
 
 describe("computer-controlled navigation and aim", () => {
   it("finds a route between every pair of spawns", () => {
-    const spawns = [...notebookMap.spawns.red, ...notebookMap.spawns.green];
+    const spawns = [...notebookMap.spawns.sun, ...notebookMap.spawns.moon];
     for (const from of spawns) for (const to of spawns) {
       const start = nearestWaypoint(notebookMap, ...from.pos), goal = nearestWaypoint(notebookMap, ...to.pos);
       expect(findPath(notebookMap, start.id, goal.id).length).toBeGreaterThan(0);

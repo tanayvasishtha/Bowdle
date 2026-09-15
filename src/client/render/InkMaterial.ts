@@ -2,10 +2,10 @@ import { GLSL3, ShaderMaterial } from "three";
 import { inkFragmentShader, inkVertexShader } from "./shaders/ink.ts";
 
 export class InkMaterial extends ShaderMaterial {
-  constructor(inkId: number) {
+  constructor(materialId: number) {
     super({
       glslVersion: GLSL3,
-      uniforms: { inkId: { value: inkId } },
+      uniforms: { materialId: { value: materialId } },
       vertexShader: inkVertexShader,
       fragmentShader: inkFragmentShader,
     });

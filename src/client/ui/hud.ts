@@ -31,10 +31,10 @@ export class MatchHud {
   }
 
   update(state: MatchState, sessionId: string, serverNow: number): void {
-    this.score.textContent = `${state.scoreRed}  —  ${state.scoreGreen}`;
+    this.score.textContent = `${state.scoreSun}  —  ${state.scoreMoon}`;
     const seconds = Math.max(0, Math.ceil((state.phaseEndsAtMs - serverNow) / 1000));
     this.timer.textContent = state.phase === "warmup" ? `DRAW IN ${seconds}` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-    let board = "RED                         GREEN\n";
+    let board = "SUN                         MOON\n";
     for (const [id, player] of state.players) board += `${player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${id === sessionId ? "  YOU" : ""}\n`;
     this.scoreboard.textContent = board;
     const me = state.players.get(sessionId);

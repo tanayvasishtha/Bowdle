@@ -18,6 +18,6 @@ describe("full computer-controlled match", () => {
     const totalTicks = TIME_LIMIT_S * TICK_HZ;
     for (let tick = 0; tick <= totalTicks && room.state.phase === "live"; tick += 1) { context.tick = tick; room.simulateTick(context, tick * context.dtMs); }
     expect(room.state.players.size).toBe(8); expect([...room.state.players.values()].every((player) => player.isBot)).toBe(true);
-    expect(room.state.scoreRed + room.state.scoreGreen).toBeGreaterThan(0); expect(room.state.phase).toBe("end");
+    expect(room.state.scoreSun + room.state.scoreMoon).toBeGreaterThan(0); expect(room.state.phase).toBe("end");
   }, 20_000);
 });

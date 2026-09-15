@@ -42,7 +42,7 @@ describe("authoritative online combat", () => {
     const target = room.addStationaryPlayer("target", 1, 5, 0, -8);
     await fullDraw(room, input, 0.025);
     for (let frame = 0; frame < 12 && target.alive; frame += 1) await room.waitForNextTimestep();
-    expect(target.alive).toBe(false); expect(room.state.scoreRed).toBe(1);
+    expect(target.alive).toBe(false); expect(room.state.scoreSun).toBe(1);
   });
 
   it("friendly arrows never cause damage", async () => {
@@ -54,11 +54,11 @@ describe("authoritative online combat", () => {
   });
 
   it("the score limit moves the room into the end phase", async () => {
-    const { room, input } = await setup(); room.state.scoreRed = SCORE_LIMIT - 1;
+    const { room, input } = await setup(); room.state.scoreSun = SCORE_LIMIT - 1;
     const target = room.addStationaryPlayer("winner", 1, 5, 0, -8);
     await fullDraw(room, input, 0.025);
     for (let frame = 0; frame < 12 && target.alive; frame += 1) await room.waitForNextTimestep();
-    expect(room.state.scoreRed).toBe(SCORE_LIMIT); expect(room.state.phase).toBe("end");
+    expect(room.state.scoreSun).toBe(SCORE_LIMIT); expect(room.state.phase).toBe("end");
   });
 
   it("head-on enemy arrows destroy each other", async () => {

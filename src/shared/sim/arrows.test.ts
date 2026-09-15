@@ -6,7 +6,7 @@ import { headCenterY } from "./hitboxes.ts";
 import { stepArrow, sweepArrowVsTarget, type ArrowSim } from "./arrows.ts";
 
 function emptyMap(boxes: MapData["boxes"] = []): MapData {
-  return { id: "test", name: "test", bounds: { min: [-100, -100, -100], max: [100, 100, 100] }, boxes, spawns: { red: [], green: [] }, waypoints: [], decor: [] };
+  return { id: "test", name: "test", bounds: { min: [-100, -100, -100], max: [100, 100, 100] }, boxes, spawns: { sun: [], moon: [] }, waypoints: [], decor: [] };
 }
 
 function arrow(): ArrowSim {
@@ -23,7 +23,7 @@ describe("arrows", () => {
   });
 
   it("does not tunnel through a 0.1 m wall at 95 m/s", () => {
-    const wall = { id: "thin", min: [1, 0, -1], max: [1.1, 4, 1], ink: "blue", tags: ["solid"] } as const;
+    const wall = { id: "thin", min: [1, 0, -1], max: [1.1, 4, 1], material: "stone", tags: ["solid"] } as const;
     const shot = arrow();
     shot.vy = 0;
     const result = stepArrow(shot, emptyMap([wall]), 1 / 60);

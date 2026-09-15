@@ -1,9 +1,8 @@
+import { JOURNAL_LOOK as L } from "../look.ts";
+
 export const compositeVertexShader = /* glsl */ `
   out vec2 vUv;
-  void main() {
-    vUv = position.xy * 0.5 + 0.5;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
-  }
+  void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }
 `;
 
 export const compositeFragmentShader = /* glsl */ `
@@ -16,89 +15,113 @@ export const compositeFragmentShader = /* glsl */ `
   uniform float devicePixelRatio;
   uniform float renderScale;
   uniform float time;
+  uniform float sunShafts;
+  uniform float stainSeed;
   in vec2 vUv;
   out vec4 outColor;
 
-  const vec3 PAPER = vec3(0.953, 0.933, 0.875);
-  const vec3 RULED = vec3(0.663, 0.769, 0.910);
-  const vec3 MARGIN = vec3(0.890, 0.604, 0.604);
+  const vec3 PARCHMENT = vec3(0.937, 0.890, 0.776);
+  const vec3 PARCHMENT_SHADE = vec3(0.851, 0.780, 0.624);
+  const vec3 SKY = vec3(0.659, 0.812, 0.847);
+  const vec3 SEPIA = vec3(0.290, 0.208, 0.153);
 
-  float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+  vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(17.2, 91.7))); }
+
+  vec3 wash(float id) {
+    if (id < 1.5) return vec3(0.788, 0.651, 0.420);
+    if (id < 2.5) return vec3(0.722, 0.573, 0.353);
+    if (id < 3.5) return vec3(0.612, 0.420, 0.247);
+    if (id < 4.5) return vec3(0.369, 0.549, 0.227);
+    if (id < 5.5) return vec3(0.498, 0.682, 0.306);
+    if (id < 6.5) return vec3(0.541, 0.416, 0.271);
+    if (id < 7.5) return vec3(0.247, 0.561, 0.549);
+    if (id < 8.5) return vec3(0.718, 0.608, 0.416);
+    if (id < 9.5) return vec3(0.890, 0.698, 0.235);
+    if (id < 10.5) return vec3(0.949, 0.627, 0.353);
+    if (id < 11.5) return vec3(0.549, 0.600, 0.902);
+    if (id < 12.5) return vec3(0.788, 0.275, 0.239);
+    if (id < 13.5) return vec3(0.902, 0.843, 0.690);
+    return vec3(0.247, 0.420, 0.173);
   }
 
-  vec2 hash2(vec2 p) {
-    return vec2(hash(p), hash(p + vec2(17.2, 91.7)));
+  vec3 outline(float id) {
+    if (id > 3.5 && id < 5.5) return vec3(0.184, 0.290, 0.133);
+    if (id > 6.5 && id < 7.5) return vec3(0.122, 0.337, 0.329);
+    if (id > 8.5 && id < 9.5) return vec3(0.541, 0.353, 0.071);
+    if (id > 9.5 && id < 10.5) return vec3(0.824, 0.325, 0.122);
+    if (id > 10.5 && id < 11.5) return vec3(0.200, 0.275, 0.722);
+    if (id > 11.5 && id < 12.5) return vec3(0.478, 0.118, 0.090);
+    if (id > 13.5) return vec3(0.145, 0.251, 0.106);
+    return SEPIA;
   }
 
-  vec3 ink(float id) {
-    if (id < 1.5) return vec3(0.137, 0.235, 0.608);
-    if (id < 2.5) return vec3(0.820, 0.220, 0.184);
-    if (id < 3.5) return vec3(0.184, 0.620, 0.341);
-    return vec3(0.941, 0.541, 0.141);
+  float granulation(float id) {
+    if (id < 1.5) return 0.6; if (id < 2.5) return 0.7; if (id < 3.5) return 0.4;
+    if (id < 4.5) return 0.5; if (id < 5.5) return 0.4; if (id < 6.5) return 0.8;
+    if (id < 7.5) return 0.2; if (id < 9.5) return id < 8.5 ? 0.0 : 0.3;
+    if (id < 12.5) return id < 11.5 ? 0.2 : 0.0; if (id < 13.5) return 0.3; return 0.5;
   }
 
-  float linearDepth(float value) {
-    float near = 0.1;
-    float far = 250.0;
-    float z = value * 2.0 - 1.0;
-    return (2.0 * near * far) / (far + near - z * (far - near));
-  }
+  float hatchMode(float id) { if (id < 2.5 || (id > 5.5 && id < 6.5)) return 2.0; if (id < 4.5 || (id > 9.5 && id < 11.5) || id > 12.5) return 1.0; return 0.0; }
+  float linearDepth(float value) { float near = 0.1, far = 250.0, z = value * 2.0 - 1.0; return (2.0 * near * far) / (far + near - z * (far - near)); }
+  float stroke(float value, float spacing, float width) { float d = abs(fract(value / spacing) - 0.5) * spacing; return 1.0 - smoothstep(width - fwidth(value), width + fwidth(value), d); }
 
-  float stripe(float value, float spacing, float width) {
-    float d = abs(fract(value / spacing) - 0.5) * spacing;
-    return 1.0 - smoothstep(width - fwidth(value), width + fwidth(value), d);
-  }
-
-  vec4 compose(sampler2D colorTex, sampler2D depthTex, vec2 uv, vec2 cssPixel, vec2 boil) {
-    vec4 center = texture(colorTex, uv);
-    float centerId = floor(center.a * 255.0 + 0.5);
-    vec2 texel = 1.5 * devicePixelRatio * renderScale / resolution;
-    float centerDepth = linearDepth(texture(depthTex, uv).r);
-    float depthEdge = 0.0;
-    float normalEdge = 0.0;
-    float nearestDepth = centerDepth;
-    float nearestId = centerId;
-    for (int y = -1; y <= 1; y++) {
-      for (int x = -1; x <= 1; x++) {
-        vec2 sampleUv = uv + vec2(float(x), float(y)) * texel;
-        vec4 sampleColor = texture(colorTex, sampleUv);
-        float sampleDepth = linearDepth(texture(depthTex, sampleUv).r);
-        depthEdge = max(depthEdge, abs(sampleDepth - centerDepth) / max(centerDepth, 0.01));
-        normalEdge = max(normalEdge, length(sampleColor.rg - center.rg));
-        if (sampleDepth < nearestDepth) {
-          nearestDepth = sampleDepth;
-          nearestId = floor(sampleColor.a * 255.0 + 0.5);
-        }
-      }
+  vec3 journalBackground(vec2 p) {
+    float cssHeight = resolution.y / devicePixelRatio / renderScale;
+    vec3 base = mix(PARCHMENT, SKY, smoothstep(cssHeight * ${L.skyEndFraction}, cssHeight, p.y));
+    base += (hash(floor(p / ${L.grainCellCssPx}.0)) - 0.5) * ${L.grainStrength};
+    float grid = max(stroke(p.x, ${L.gridCssPx}.0, 0.45), stroke(p.y, ${L.gridCssPx}.0, 0.45));
+    base = mix(base, SEPIA, grid * ${L.gridOpacity});
+    for (int index = 0; index < 2; index++) {
+      vec2 seed = hash2(vec2(float(index) + stainSeed, float(index) + stainSeed * 0.17));
+      vec2 center = vec2(seed.x * resolution.x / devicePixelRatio, seed.y * cssHeight * 0.7);
+      float radius = mix(${L.coffeeRadiusMinCssPx}.0, ${L.coffeeRadiusMaxCssPx}.0, hash(seed));
+      float ring = 1.0 - smoothstep(1.5, 4.5, abs(length(p - center) - radius));
+      base = mix(base, PARCHMENT_SHADE, ring * ${L.coffeeOpacity});
     }
-    bool edge = depthEdge > 0.08 || normalEdge > 0.35;
-    if (centerId < 0.5 && !edge) return vec4(0.0);
-    float chosenId = edge ? nearestId : centerId;
-    vec3 inkColor = ink(max(chosenId, 1.0));
-    if (edge) return vec4(inkColor, 1.0);
-    vec2 hatchP = cssPixel + boil;
-    float hatch = 0.0;
-    if (center.b < 0.80) hatch = max(hatch, stripe(hatchP.x + hatchP.y, 11.314, 1.0));
-    if (center.b < 0.55) hatch = max(hatch, stripe(hatchP.x - hatchP.y, 11.314, 1.0));
-    if (center.b < 0.30) hatch = max(hatch, stripe(hatchP.y, 5.0, 1.0));
-    return vec4(mix(PAPER, inkColor, hatch * 0.55), 1.0);
+    vec2 roseCenter = vec2(resolution.x / devicePixelRatio - 92.0, cssHeight - 88.0), rose = p - roseCenter;
+    float circle = 1.0 - smoothstep(1.0, 2.3, abs(length(rose) - 38.0));
+    float axes = max(1.0 - smoothstep(0.6, 1.8, abs(rose.x)), 1.0 - smoothstep(0.6, 1.8, abs(rose.y)));
+    float diagonal = max(1.0 - smoothstep(0.6, 1.8, abs(rose.x - rose.y)), 1.0 - smoothstep(0.6, 1.8, abs(rose.x + rose.y)));
+    base = mix(base, SEPIA, max(circle, max(axes, diagonal * 0.6)) * ${L.compassOpacity} * smoothstep(60.0, 42.0, length(rose)));
+    if (sunShafts > 0.5) {
+      float shafts = 0.0;
+      for (int index = 0; index < ${L.sunShaftCount}; index++) shafts = max(shafts, stroke(p.x + p.y * 0.55 + time * 3.0 + float(index) * 87.0, 348.0, 22.0));
+      base = mix(base, vec3(1.0), shafts * ${L.sunShaftLighten});
+    }
+    return base;
+  }
+
+  vec4 compose(sampler2D colorTex, sampler2D depthTex, vec2 uv, vec2 p, vec2 boil, vec3 background) {
+    vec4 center = texture(colorTex, uv); float centerId = floor(center.a * 255.0 + 0.5); float depth = linearDepth(texture(depthTex, uv).r);
+    float outlineWidth = mix(${L.outlineCssPx}, ${L.farOutlineCssPx}.0, smoothstep(${L.thinOutlineM}.0, ${L.fadeFarM}.0, depth));
+    vec2 texel = outlineWidth * devicePixelRatio * renderScale / resolution;
+    float edgeStrength = 0.0, nearestDepth = depth, nearestId = centerId;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      vec2 sampleUv = uv + vec2(float(x), float(y)) * texel; vec4 sampleColor = texture(colorTex, sampleUv); float sampleDepth = linearDepth(texture(depthTex, sampleUv).r);
+      edgeStrength = max(edgeStrength, max(abs(sampleDepth - depth) / max(depth, 0.01) / 0.08, length(sampleColor.rg - center.rg) / 0.35));
+      if (sampleDepth < nearestDepth) { nearestDepth = sampleDepth; nearestId = floor(sampleColor.a * 255.0 + 0.5); }
+    }
+    if (centerId < 0.5 && edgeStrength < 1.0) return vec4(0.0);
+    float id = edgeStrength >= 1.0 ? nearestId : centerId; vec3 ink = outline(max(id, 1.0));
+    if (edgeStrength >= 1.0) return vec4(mix(ink, background, smoothstep(${L.fadeNearM}.0, ${L.fadeFarM}.0, nearestDepth)), 1.0);
+    float noise = (hash(floor((p + boil) / 4.0)) - 0.5) * granulation(id) * 0.18;
+    vec3 color = mix(PARCHMENT, wash(id), ${L.washLight} + ${L.washShade} * (1.0 - center.b)); color *= 1.0 + noise;
+    color *= 1.0 - smoothstep(0.0, 1.0, edgeStrength) * ${L.pigmentEdgeDarken};
+    float hatch = 0.0, mode = hatchMode(id); vec2 hp = p + boil;
+    if (mode > 0.5 && center.b < ${L.hatchLightTone}) hatch = stroke(hp.x + hp.y, ${L.hatchCssPx * 1.414}, 0.7);
+    if (mode > 1.5 && center.b < ${L.hatchFullTone}) hatch = max(hatch, stroke(hp.x - hp.y, ${L.hatchCssPx * 1.414}, 0.7));
+    if (id > 6.5 && id < 7.5) hatch = max(hatch, stroke(hp.x + sin(hp.y * 0.03) * 3.0 + time * ${L.waterDriftCssPxPerSecond}.0, ${L.waterStrokeCssPx}.0, 0.8) * ${L.waterStrokeOpacity});
+    color = mix(color, ink, hatch * ${L.hatchOpacity});
+    color = mix(color, background, smoothstep(${L.fadeNearM}.0, ${L.fadeFarM}.0, depth));
+    return vec4(color, 1.0);
   }
 
   void main() {
-    vec2 p = gl_FragCoord.xy / devicePixelRatio / renderScale;
-    float grain = (hash(floor(p / 2.0)) - 0.5) * 0.04;
-    vec3 paper = PAPER + grain;
-    float ruled = 1.0 - smoothstep(0.6, 1.8, abs(mod(p.y, 28.0) - 14.0));
-    float margin = 1.0 - smoothstep(0.75, 2.25, abs(p.x - 64.0));
-    vec3 background = mix(paper, RULED, ruled * 0.6);
-    background = mix(background, MARGIN, margin * 0.7);
-    float frame = floor(time * 8.0);
-    vec2 boil = (hash2(floor(p / 3.0) + frame) - 0.5) * 1.2;
-    vec4 world = compose(worldColor, worldDepth, vUv, p, boil);
-    vec4 viewmodel = compose(viewColor, viewDepth, vUv, p, boil);
-    vec3 color = world.a > 0.0 ? world.rgb : background;
-    if (viewmodel.a > 0.0) color = viewmodel.rgb;
-    outColor = vec4(color, 1.0);
+    vec2 p = gl_FragCoord.xy / devicePixelRatio / renderScale; vec3 background = journalBackground(p);
+    float frame = floor(time * ${L.boilHz}.0); vec2 boil = (hash2(floor(p / 3.0) + frame) - 0.5) * ${L.boilCssPx}.0;
+    vec4 world = compose(worldColor, worldDepth, vUv, p, boil, background); vec4 viewmodel = compose(viewColor, viewDepth, vUv, p, boil, background);
+    vec3 color = world.a > 0.0 ? world.rgb : background; if (viewmodel.a > 0.0) color = viewmodel.rgb; outColor = vec4(color, 1.0);
   }
 `;

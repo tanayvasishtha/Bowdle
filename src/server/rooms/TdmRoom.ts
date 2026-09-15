@@ -228,7 +228,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private clientById(sessionId: string): GameClient | undefined { return this.clients.find((client) => client.sessionId === sessionId); }
   private deleteArrow(id: string): void { this.state.arrows.delete(id); this.arrowOrigins.delete(id); }
   private sendMatchEnd(): void {
-    const winner = this.state.scoreRed === this.state.scoreGreen ? "draw" : this.state.scoreRed > this.state.scoreGreen ? "red" : "green";
+    const winner = this.state.scoreSun === this.state.scoreMoon ? "draw" : this.state.scoreSun > this.state.scoreMoon ? "sun" : "moon";
     let mvp = "", kills = -1; for (const [id, player] of this.state.players) if (player.kills > kills) { kills = player.kills; mvp = id; }
     this.broadcast("matchEnd", { winner, mvp });
   }
@@ -266,13 +266,13 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       for (const id of this.bots.keys()) this.state.players.delete(id);
       this.bots.clear();
     }
-    let red = 0;
-    let green = 0;
-    for (const player of this.state.players.values()) if (!player.isBot) player.team === 0 ? red += 1 : green += 1;
-    const team = red <= green ? 0 : 1;
+    let sun = 0;
+    let moon = 0;
+    for (const player of this.state.players.values()) if (!player.isBot) player.team === 0 ? sun += 1 : moon += 1;
+    const team = sun <= moon ? 0 : 1;
     const replaced = [...this.state.players].find(([, player]) => player.isBot && player.team === team);
     if (replaced) { this.state.players.delete(replaced[0]); this.bots.delete(replaced[0]); }
-    const spawn = team === 0 ? notebookMap.spawns.red[red % notebookMap.spawns.red.length]! : notebookMap.spawns.green[green % notebookMap.spawns.green.length]!;
+    const spawn = team === 0 ? notebookMap.spawns.sun[sun % notebookMap.spawns.sun.length]! : notebookMap.spawns.moon[moon % notebookMap.spawns.moon.length]!;
     const player = new PlayerState();
     player.name = options?.name?.trim().slice(0, MAX_NAME_LENGTH) || "Player";
     player.team = team;
@@ -282,7 +282,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       player.y = 0; player.z = TEST_DUEL_LANE_Z; player.yaw = team === 0 ? -Math.PI / 2 : Math.PI / 2;
     }
     this.state.players.set(client.sessionId, player);
-    if (this.testMode && red + green + 1 >= TEAM_COUNT) this.lock();
+    if (this.testMode && sun + moon + 1 >= TEAM_COUNT) this.lock();
   }
 
   async onDrop(client: GameClient): Promise<void> {

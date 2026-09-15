@@ -1,4 +1,4 @@
-import type { Box, InkName, Vec3Tuple } from "./types.ts";
+import type { Box, MaterialName, Vec3Tuple } from "./types.ts";
 
 export function mirrorX(box: Box, newId: string): Box {
   return {
@@ -18,7 +18,7 @@ export type StairsOptions = {
   rise: number;
   run: number;
   width: number;
-  ink: InkName;
+  material: MaterialName;
 };
 
 export function stairs(options: StairsOptions): Box[] {
@@ -42,7 +42,7 @@ export function stairs(options: StairsOptions): Box[] {
       min = [x, y, z - along - options.run];
       max = [x + options.width, y + height, z - along];
     }
-    result.push({ id: `${options.idPrefix}-${index + 1}`, min, max, ink: options.ink, tags: ["solid", "stairs"] });
+    result.push({ id: `${options.idPrefix}-${index + 1}`, min, max, material: options.material, tags: ["solid", "stairs"] });
   }
   return result;
 }

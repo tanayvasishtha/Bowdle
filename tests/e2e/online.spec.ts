@@ -47,6 +47,7 @@ test("a solo online player gets a full match", async ({ page }) => {
   await page.keyboard.down("Tab");
   await expect(page.locator(".bowdle-scoreboard")).toContainText("Doodle");
   await page.screenshot({ path: "test-results/qa/m5/full-match.png", fullPage: true });
+  await page.screenshot({ path: "test-results/qa/w1/journal-online.png", fullPage: true });
   await page.keyboard.up("Tab");
   expect(errors).toEqual([]);
 });

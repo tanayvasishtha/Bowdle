@@ -113,13 +113,13 @@ export class BotController {
       const start = nearestWaypoint(map, player.x, player.y, player.z);
       let goal: Waypoint;
       if (this.mode === "retreat") {
-        const spawn = player.team === 0 ? map.spawns.red[0]! : map.spawns.green[0]!; goal = nearestWaypoint(map, ...spawn.pos);
+        const spawn = player.team === 0 ? map.spawns.sun[0]! : map.spawns.moon[0]!; goal = nearestWaypoint(map, ...spawn.pos);
       } else if (target) goal = nearestWaypoint(map, target.x, target.y, target.z);
       else {
         this.routeSerial += 1;
         if (this.routeSerial % BOT_SCENIC_ROUTE_EVERY === 0) goal = map.waypoints[Math.floor(this.rng() * map.waypoints.length)]!;
         else {
-          const enemySpawns = player.team === 0 ? map.spawns.green : map.spawns.red;
+          const enemySpawns = player.team === 0 ? map.spawns.moon : map.spawns.sun;
           goal = nearestWaypoint(map, ...enemySpawns[Math.floor(this.rng() * enemySpawns.length)]!.pos);
         }
       }

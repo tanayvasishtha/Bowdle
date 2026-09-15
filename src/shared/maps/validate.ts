@@ -95,7 +95,7 @@ export function validateMap(map: MapData): string[] {
       if (!solids.some((candidate) => sameBox(mirrored, candidate))) errors.push(`mirror symmetry: ${box.id}`);
     }
   }
-  for (const spawn of [...map.spawns.red, ...map.spawns.green]) {
+  for (const spawn of [...map.spawns.sun, ...map.spawns.moon]) {
     if (solids.some((box) => overlapsSpawn(box, spawn))) errors.push(`spawn overlap: ${spawn.pos.join(",")}`);
     if (!hasGround(solids, spawn)) errors.push(`spawn ground: ${spawn.pos.join(",")}`);
   }
@@ -120,7 +120,7 @@ export function validateMap(map: MapData): string[] {
     if (!target) errors.push(`waypoint link: ${point.id} -> ${link.to}`);
     else if (link.kind === "walk" && !walkClear(map, point.pos, target.pos)) errors.push(`waypoint walk: ${point.id} -> ${link.to}`);
   }
-  for (const spawn of [...map.spawns.red, ...map.spawns.green]) {
+  for (const spawn of [...map.spawns.sun, ...map.spawns.moon]) {
     const spawnEye: Vec3Tuple = [spawn.pos[0], spawn.pos[1] + EYE_STAND, spawn.pos[2]];
     const covered = map.waypoints.some((point) => {
       if (Math.hypot(point.pos[0] - spawn.pos[0], point.pos[1] - spawn.pos[1], point.pos[2] - spawn.pos[2]) > WAYPOINT_SPAWN_MAX_DIST) return false;
@@ -129,11 +129,11 @@ export function validateMap(map: MapData): string[] {
     });
     if (!covered) errors.push(`spawn waypoint: ${spawn.pos.join(",")}`);
   }
-  for (const red of map.spawns.red) {
-    const redEye: Vec3Tuple = [red.pos[0], red.pos[1] + EYE_STAND, red.pos[2]];
-    for (const green of map.spawns.green) {
-      const greenEye: Vec3Tuple = [green.pos[0], green.pos[1] + EYE_STAND, green.pos[2]];
-      if (!solids.some((box) => segmentHitsBox(redEye, greenEye, box))) errors.push(`spawn line of sight: ${red.pos.join(",")} -> ${green.pos.join(",")}`);
+  for (const sun of map.spawns.sun) {
+    const sunEye: Vec3Tuple = [sun.pos[0], sun.pos[1] + EYE_STAND, sun.pos[2]];
+    for (const moon of map.spawns.moon) {
+      const moonEye: Vec3Tuple = [moon.pos[0], moon.pos[1] + EYE_STAND, moon.pos[2]];
+      if (!solids.some((box) => segmentHitsBox(sunEye, moonEye, box))) errors.push(`spawn line of sight: ${sun.pos.join(",")} -> ${moon.pos.join(",")}`);
     }
   }
   return [...new Set(errors)];

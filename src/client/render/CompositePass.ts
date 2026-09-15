@@ -53,6 +53,8 @@ export class CompositePass {
         devicePixelRatio: { value: 1 },
         renderScale: { value: 1 },
         time: { value: 0 },
+        sunShafts: { value: 0 },
+        stainSeed: { value: 0 },
       },
       vertexShader: compositeVertexShader,
       fragmentShader: compositeFragmentShader,
@@ -61,6 +63,9 @@ export class CompositePass {
     });
     this.scene.add(new Mesh(geometry, this.material));
   }
+
+  setSunShafts(enabled: boolean): void { this.material.uniforms.sunShafts!.value = enabled ? 1 : 0; }
+  setStainSeed(seed: number): void { this.material.uniforms.stainSeed!.value = seed; }
 
   resize(width: number, height: number, dpr: number, renderScale = 1): void {
     const pixelWidth = Math.max(1, Math.floor(width * dpr * renderScale));

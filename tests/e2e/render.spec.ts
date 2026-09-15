@@ -1,16 +1,25 @@
 import { expect, test } from "@playwright/test";
 import { collectErrors } from "./helpers.ts";
 
-test("Notebook Page renders as ink on paper", async ({ page }) => {
+type JournalSnapshot = Record<"parchment" | "parchmentShade" | "sky" | "sepia" | "sunWash" | "moonWash" | "gold" | "hazard" | "stone" | "carvedStone" | "wood" | "canopy" | "fern" | "earth" | "water" | "rope" | "canvas" | "foliageDark" | "legacyRuled" | "legacyInk", number>;
+
+test("Expedition Journal renders watercolor on parchment", async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto("/?scene=map&test");
   await page.waitForFunction(() => "__bowdleTest" in window);
-  const fractions = await page.evaluate(() => (window as unknown as Window & {
-    __bowdleTest: { snapshot(): { paper: number; ink: number } };
-  }).__bowdleTest.snapshot());
-  expect(fractions.paper).toBeGreaterThanOrEqual(0.4);
-  expect(fractions.ink).toBeGreaterThanOrEqual(0.02);
-  await page.screenshot({ path: "test-results/qa/m1/notebook-map.png", fullPage: true });
-  await page.screenshot({ path: "test-results/qa/m2/notebook-movement.png", fullPage: true });
+  const fractions = await page.evaluate(() => (window as unknown as { __bowdleTest: { snapshot(): JournalSnapshot } }).__bowdleTest.snapshot());
+  const washes = fractions.stone + fractions.carvedStone + fractions.wood + fractions.canopy + fractions.fern + fractions.earth + fractions.water + fractions.rope + fractions.gold + fractions.sunWash + fractions.moonWash + fractions.hazard + fractions.canvas + fractions.foliageDark;
+  expect(fractions.parchment + fractions.sky).toBeGreaterThanOrEqual(0.35);
+  expect(washes).toBeGreaterThanOrEqual(0.10);
+  expect(fractions.sepia).toBeGreaterThanOrEqual(0.02);
+  expect(fractions.legacyRuled + fractions.legacyInk).toBeLessThan(0.01);
+  await page.screenshot({ path: "test-results/qa/w1/journal-map.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("practice range uses the journal look", async ({ page }) => {
+  const errors = collectErrors(page); await page.goto("/?scene=range");
+  await expect(page.locator("#game-canvas")).toBeVisible();
+  await page.screenshot({ path: "test-results/qa/w1/journal-range.png", fullPage: true });
   expect(errors).toEqual([]);
 });

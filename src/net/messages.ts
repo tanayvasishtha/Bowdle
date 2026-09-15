@@ -6,7 +6,7 @@ export const KillMessage = z.object({ killer: z.string(), victim: z.string(), we
 export const HitConfirmMessage = z.object({ target: z.string(), damage: z.number().positive(), headshot: z.boolean() });
 export const DamagedMessage = z.object({ fromX: z.number(), fromZ: z.number(), damage: z.number().positive() });
 export const RobinHoodMessage = z.object({ shooterA: z.string(), shooterB: z.string(), x: z.number(), y: z.number(), z: z.number() });
-export const MatchEndMessage = z.object({ winner: z.enum(["red", "green", "draw"]), mvp: z.string() });
+export const MatchEndMessage = z.object({ winner: z.enum(["sun", "moon", "draw"]), mvp: z.string() });
 
 export type SetNameMessage = z.infer<typeof SetNameMessage>;
 export type KillMessage = z.infer<typeof KillMessage>;

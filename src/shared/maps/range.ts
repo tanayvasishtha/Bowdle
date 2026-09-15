@@ -19,17 +19,19 @@ export const rangeMap: MapData = {
   name: "Practice Range",
   bounds: { min: [-12, -1, -82], max: [12, 8, 8] },
   boxes: [
-    { id: "floor", min: [-12, -1, -82], max: [12, 0, 8], ink: "blue", tags: ["solid"] },
-    { id: "wall-west", min: [-12, 0, -82], max: [-11.5, 5, 8], ink: "blue", tags: ["solid"] },
-    { id: "wall-east", min: [11.5, 0, -82], max: [12, 5, 8], ink: "blue", tags: ["solid"] },
-    { id: "backstop", min: [-12, 0, -82], max: [12, 6, -81.5], ink: "blue", tags: ["solid"] },
-    { id: "slide-bar-1", min: [-10, CROUCH_HEIGHT + 0.1, -12], max: [-5, CROUCH_HEIGHT + 0.3, -11.5], ink: "blue", tags: ["solid"] },
-    { id: "slide-bar-2", min: [-10, CROUCH_HEIGHT + 0.1, -20], max: [-5, CROUCH_HEIGHT + 0.3, -19.5], ink: "blue", tags: ["solid"] },
-    ...stairs({ idPrefix: "stepup", start: [6, 0, -8], dir: "-z", steps: 5, rise: STEP_HEIGHT, run: 1, width: PLAYER_WIDTH * 4, ink: "blue" }),
+    { id: "floor", min: [-12, -1, -82], max: [12, 0, 8], material: "earth", tags: ["solid"] },
+    { id: "wall-west", min: [-12, 0, -82], max: [-11.5, 5, 8], material: "stone", tags: ["solid"] },
+    { id: "wall-east", min: [11.5, 0, -82], max: [12, 5, 8], material: "stone", tags: ["solid"] },
+    { id: "backstop", min: [-12, 0, -82], max: [12, 6, -81.5], material: "stone", tags: ["solid"] },
+    { id: "slide-bar-1", min: [-10, CROUCH_HEIGHT + 0.1, -12], max: [-5, CROUCH_HEIGHT + 0.3, -11.5], material: "wood", tags: ["solid"] },
+    { id: "slide-bar-2", min: [-10, CROUCH_HEIGHT + 0.1, -20], max: [-5, CROUCH_HEIGHT + 0.3, -19.5], material: "wood", tags: ["solid"] },
+    ...stairs({ idPrefix: "stepup", start: [6, 0, -8], dir: "-z", steps: 5, rise: STEP_HEIGHT, run: 1, width: PLAYER_WIDTH * 4, material: "stone" }),
   ],
-  spawns: { red: [{ pos: [0, 0, 0], yaw: 0 }], green: [] },
+  spawns: { sun: [{ pos: [0, 0, 0], yaw: 0 }], moon: [] },
   waypoints: [{ id: "range-spawn", pos: [0, 0, 0], links: [] }],
   decor: [],
+  notes: [{ text: "practice trail", pos: [0, 3, -12] }, { text: "long shot", pos: [0, 3, -45] }],
+  look: { sunShafts: true, stainSeed: 211 },
 };
 
 export const practiceTargetHeight = STAND_HEIGHT;

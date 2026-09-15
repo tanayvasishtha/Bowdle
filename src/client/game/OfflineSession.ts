@@ -25,7 +25,7 @@ export class OfflineSession {
   constructor(renderer: Renderer, sampler: InputSampler) {
     this.renderer = renderer;
     this.sampler = sampler;
-    const spawn = notebookMap.spawns.red[0]!;
+    const spawn = notebookMap.spawns.sun[0]!;
     this.player = createPlayerSim(spawn.pos[0], spawn.pos[1], spawn.pos[2]);
     this.player.yaw = spawn.yaw;
     this.previous = createPlayerSim(spawn.pos[0], spawn.pos[1], spawn.pos[2]);

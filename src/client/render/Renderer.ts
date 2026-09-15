@@ -21,7 +21,7 @@ import {
 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { notebookMap } from "../../shared/maps/notebook.ts";
-import type { InkName, MapData } from "../../shared/maps/types.ts";
+import type { MaterialName, MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import type { PracticeTarget } from "../../shared/maps/range.ts";
 import { BODY_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
@@ -29,7 +29,7 @@ import { mulberry32 } from "../../shared/math/rng.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
 import { InkMaterial } from "./InkMaterial.ts";
-import { INK_ID } from "./palette.ts";
+import { MATERIAL_ID, PALETTE } from "./palette.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
@@ -37,29 +37,29 @@ const arrowDirection = new Vector3();
 const ropePoints = 9;
 
 function mapMeshes(map: MapData): Mesh[] {
-  const groups = new Map<InkName, BufferGeometry[]>();
+  const groups = new Map<MaterialName, BufferGeometry[]>();
   for (const box of map.boxes) {
-    if (box.tags.includes("invisible") || box.ink === "none") continue;
+    if (box.tags.includes("invisible")) continue;
     const width = box.max[0] - box.min[0];
     const height = box.max[1] - box.min[1];
     const depth = box.max[2] - box.min[2];
     const geometry = new BoxGeometry(width, height, depth);
     geometry.translate((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
-    const list = groups.get(box.ink) ?? [];
+    const list = groups.get(box.material) ?? [];
     list.push(geometry);
-    groups.set(box.ink, list);
+    groups.set(box.material, list);
   }
   const meshes: Mesh[] = [];
-  for (const [ink, geometries] of groups) {
+  for (const [material, geometries] of groups) {
     const merged = mergeGeometries(geometries);
-    meshes.push(new Mesh(merged, new InkMaterial(INK_ID[ink])));
+    meshes.push(new Mesh(merged, new InkMaterial(MATERIAL_ID[material])));
     for (const geometry of geometries) geometry.dispose();
   }
   return meshes;
 }
 
 function addSun(scene: Scene): void {
-  const material = new InkMaterial(INK_ID.blue);
+  const material = new InkMaterial(MATERIAL_ID.gold);
   const sun = new Mesh(new TorusGeometry(6, 0.18, 6, 24), material);
   sun.position.set(0, 28, -70);
   scene.add(sun);
@@ -94,7 +94,7 @@ function cylinderBetween(from: Vector3, to: Vector3, radius: number, material: I
 }
 
 function addViewmodel(scene: Scene): Group {
-  const material = new InkMaterial(INK_ID.blue);
+  const material = new InkMaterial(MATERIAL_ID.wood);
   const group = new Group();
   const curve = new QuadraticBezierCurve3(new Vector3(0, -0.85, 0), new Vector3(0.5, 0, -0.15), new Vector3(0, 0.85, 0));
   const bow = new Mesh(new TubeGeometry(curve, 18, 0.025, 5, false), material);
@@ -110,7 +110,7 @@ function addViewmodel(scene: Scene): Group {
 
 function createPlayer(): Group {
   const group = new Group();
-  const material = new InkMaterial(INK_ID.red);
+  const material = new InkMaterial(MATERIAL_ID.teamSun);
   const torsoHeight = STAND_HEIGHT - HEAD_RADIUS * 2;
   const torso = new Mesh(new CylinderGeometry(BODY_RADIUS, BODY_RADIUS, torsoHeight, 8), material);
   torso.position.y = torsoHeight / 2;
@@ -122,7 +122,7 @@ function createPlayer(): Group {
 
 function createArrowVisual(kind: "arrow" | "grapple" | "ink" = "arrow"): Group {
   const group = new Group();
-  const material = new InkMaterial(kind === "arrow" ? INK_ID.blue : INK_ID.orange);
+  const material = new InkMaterial(kind === "arrow" ? MATERIAL_ID.wood : MATERIAL_ID.gold);
   const shaft = new Mesh(new CylinderGeometry(0.012, 0.012, 0.8, 6), material);
   const head = new Mesh(new ConeGeometry(0.055, 0.14, 6), material);
   head.position.y = 0.47;
@@ -134,7 +134,7 @@ function createArrowVisual(kind: "arrow" | "grapple" | "ink" = "arrow"): Group {
   return group;
 }
 
-export type SnapshotFractions = { paper: number; ink: number };
+export type SnapshotFractions = Record<keyof typeof PALETTE, number>;
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -150,6 +150,7 @@ export class Renderer {
   private readonly ropes = new Map<string, Line>();
   private readonly clouds = new Map<string, Group>();
   private readonly grappleHighlights: Mesh[] = [];
+  private readonly notes: Array<{ element: HTMLDivElement; world: Vector3; x: number; y: number; z: number }> = [];
   private readonly viewBow: Group;
   private readonly overlay: HTMLDivElement | null;
   private readonly map: MapData;
@@ -167,29 +168,19 @@ export class Renderer {
     this.canvas = this.renderer.domElement;
     this.canvas.id = "game-canvas";
     container.append(this.canvas);
+    this.composite.setSunShafts(map.look?.sunShafts ?? false); this.composite.setStainSeed(map.look?.stainSeed ?? 0);
     for (const mesh of mapMeshes(map)) this.worldScene.add(mesh);
     for (const box of map.boxes) {
       if (!box.tags.includes("grapple")) continue;
-      const material = new InkMaterial(INK_ID.orange); material.wireframe = true;
+      const material = new InkMaterial(MATERIAL_ID.gold); material.wireframe = true;
       const visual = new Mesh(new BoxGeometry(box.max[0] - box.min[0] + 0.08, box.max[1] - box.min[1] + 0.08, box.max[2] - box.min[2] + 0.08), material);
       visual.position.set((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
       visual.visible = false; this.grappleHighlights.push(visual); this.worldScene.add(visual);
     }
-    if (map.id === "notebook") {
-      addSun(this.worldScene);
-      const planeMaterial = new InkMaterial(INK_ID.blue);
-      for (let index = 0; index < 2; index += 1) {
-        const plane = new Mesh(planeGeometry(), planeMaterial);
-        this.planes.push(plane);
-        this.worldScene.add(plane);
-      }
-      const spiralMaterial = new InkMaterial(INK_ID.blue);
-      for (let index = 0; index < 18; index += 1) {
-        const ring = new Mesh(new TorusGeometry(0.62, 0.075, 5, 10), spiralMaterial);
-        ring.position.set(-28 + index * (56 / 17), 7, 21);
-        ring.rotation.y = Math.PI / 2;
-        this.worldScene.add(ring);
-      }
+    for (const note of (map.notes ?? []).slice(0, 6)) {
+      const element = document.createElement("div"); element.textContent = note.text;
+      element.style.cssText = "position:absolute;left:0;top:0;color:#4a3527;font:22px 'Gochi Hand',cursive;pointer-events:none;text-shadow:0 1px #efe3c6;transform:translate(-50%,-50%)";
+      container.append(element); this.notes.push({ element, world: new Vector3(...note.pos), x: note.pos[0], y: note.pos[1], z: note.pos[2] });
     }
     for (const target of practice) {
       const visual = createPlayer();
@@ -265,7 +256,7 @@ export class Renderer {
     let player = this.players.get(id);
     if (!player) {
       player = createPlayer();
-      const inkId = team === 0 ? INK_ID.red : INK_ID.green;
+      const inkId = team === 0 ? MATERIAL_ID.teamSun : MATERIAL_ID.teamMoon;
       player.traverse((child) => {
         if (child instanceof Mesh) child.material = new InkMaterial(inkId);
       });
@@ -307,7 +298,7 @@ export class Renderer {
     if (!cloud) {
       cloud = new Group();
       for (let layer = 0; layer < 3; layer += 1) {
-        const material = new InkMaterial(layer === 1 ? INK_ID.orange : INK_ID.blue); material.wireframe = true;
+        const material = new InkMaterial(layer === 1 ? MATERIAL_ID.gold : MATERIAL_ID.foliageDark); material.wireframe = true;
         const sphere = new Mesh(new SphereGeometry(1, 9 + layer, 7), material); sphere.scale.setScalar(1 - layer * 0.12); sphere.rotation.set(layer * 0.4, layer * 0.7, layer * 0.2); cloud.add(sphere);
       }
       this.clouds.set(id, cloud); this.worldScene.add(cloud);
@@ -328,7 +319,7 @@ export class Renderer {
       vertices[offset + 6] = Math.cos(a1) * r1; vertices[offset + 7] = Math.sin(a1) * r1; vertices[offset + 8] = 0;
     }
     const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(vertices, 3)); geometry.computeVertexNormals();
-    const splat = new Mesh(geometry, new InkMaterial(team === 0 ? INK_ID.red : INK_ID.green)); splat.position.set(x, y + EYE_STAND, z); this.worldScene.add(splat);
+    const splat = new Mesh(geometry, new InkMaterial(team === 0 ? MATERIAL_ID.teamSun : MATERIAL_ID.teamMoon)); splat.position.set(x, y + EYE_STAND, z); this.worldScene.add(splat);
   }
 
   pinPlayer(id: string, fromX: number, fromZ: number): void {
@@ -355,6 +346,12 @@ export class Renderer {
       plane.position.set(Math.cos(angle) * radius, index === 0 ? 16 : 19, Math.sin(angle) * radius);
       plane.rotation.y = -angle;
     }
+    for (const note of this.notes) {
+      const distance = note.world.distanceTo(this.camera.position); note.world.project(this.camera);
+      note.element.style.left = `${(note.world.x * 0.5 + 0.5) * window.innerWidth}px`; note.element.style.top = `${(-note.world.y * 0.5 + 0.5) * window.innerHeight}px`;
+      note.element.style.opacity = String(Math.max(0, Math.min(1, 1 - distance / 80))); note.element.style.display = note.world.z < 1 ? "block" : "none";
+      note.world.set(note.x, note.y, note.z);
+    }
     this.renderer.setClearColor(clear.color, clear.alpha);
     this.renderer.setRenderTarget(this.composite.world);
     this.renderer.clear();
@@ -379,16 +376,18 @@ export class Renderer {
     const height = gl.drawingBufferHeight;
     const pixels = new Uint8Array(width * height * 4);
     gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    let paper = 0;
-    let ink = 0;
-    const paperRgb = [243, 238, 223] as const;
-    const inks = [[35, 60, 155], [209, 56, 47], [47, 158, 87], [240, 138, 36]] as const;
+    const entries = Object.entries(PALETTE) as Array<[keyof typeof PALETTE, number]>;
+    const counts = Object.fromEntries(entries.map(([name]) => [name, 0])) as SnapshotFractions;
     for (let offset = 0; offset < pixels.length; offset += 4) {
-      const close = (color: readonly [number, number, number]) => Math.abs(pixels[offset]! - color[0]) <= 12 && Math.abs(pixels[offset + 1]! - color[1]) <= 12 && Math.abs(pixels[offset + 2]! - color[2]) <= 12;
-      if (close(paperRgb)) paper += 1;
-      if (inks.some(close)) ink += 1;
+      let nearest = entries[0]![0], distance = Number.POSITIVE_INFINITY;
+      for (const [name, color] of entries) {
+        const dr = pixels[offset]! - (color >> 16 & 255), dg = pixels[offset + 1]! - (color >> 8 & 255), db = pixels[offset + 2]! - (color & 255);
+        const candidate = dr * dr + dg * dg + db * db; if (candidate < distance) { nearest = name; distance = candidate; }
+      }
+      counts[nearest] += 1;
     }
     const total = width * height;
-    return { paper: paper / total, ink: ink / total };
+    for (const [name] of entries) counts[name] /= total;
+    return counts;
   }
 }

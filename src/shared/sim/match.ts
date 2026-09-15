@@ -3,10 +3,10 @@ import type { MapData, SpawnPoint } from "../maps/types.ts";
 import type { PlayerSim } from "./movement.ts";
 
 export type MatchPhase = "warmup" | "live" | "end";
-export type MatchCore = { phase: MatchPhase; phaseEndsAtMs: number; scoreRed: number; scoreGreen: number };
+export type MatchCore = { phase: MatchPhase; phaseEndsAtMs: number; scoreSun: number; scoreMoon: number };
 
 export function chooseSpawn(map: MapData, team: number, players: Iterable<PlayerSim>): SpawnPoint {
-  const spawns = team === 0 ? map.spawns.red : map.spawns.green;
+  const spawns = team === 0 ? map.spawns.sun : map.spawns.moon;
   let best = spawns[0]!;
   let bestDistance = -1;
   for (const spawn of spawns) {
@@ -27,8 +27,8 @@ export function respawnPlayer(player: PlayerSim, spawn: SpawnPoint): void {
 }
 
 export function scoreKill(match: MatchCore, team: number, nowMs: number): boolean {
-  if (team === 0) match.scoreRed += 1; else match.scoreGreen += 1;
-  if (match.scoreRed < SCORE_LIMIT && match.scoreGreen < SCORE_LIMIT) return false;
+  if (team === 0) match.scoreSun += 1; else match.scoreMoon += 1;
+  if (match.scoreSun < SCORE_LIMIT && match.scoreMoon < SCORE_LIMIT) return false;
   match.phase = "end"; match.phaseEndsAtMs = nowMs + END_SCREEN_MS;
   return true;
 }
@@ -41,5 +41,5 @@ export function updateMatchPhase(match: MatchCore, nowMs: number): "live" | "end
   if (match.phase === "live") {
     match.phase = "end"; match.phaseEndsAtMs = nowMs + END_SCREEN_MS; return "end";
   }
-  match.phase = "warmup"; match.phaseEndsAtMs = nowMs + WARMUP_MS; match.scoreRed = 0; match.scoreGreen = 0; return "restart";
+  match.phase = "warmup"; match.phaseEndsAtMs = nowMs + WARMUP_MS; match.scoreSun = 0; match.scoreMoon = 0; return "restart";
 }

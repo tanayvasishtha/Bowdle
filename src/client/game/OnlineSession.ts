@@ -202,5 +202,10 @@ export class OnlineSession {
   killFeed(): string { return this.hud.feedText(); }
   cloudCount(): number { return this.room.state.inkClouds.size; }
   grappleActive(): boolean { return this.me.state.grappleActive; }
-  aimAtGrapple(): void { const dx = -14 - this.me.state.x, dz = -17 - this.me.state.z, horizontal = Math.hypot(dx, dz); this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(3 - (this.me.state.y + EYE_STAND), horizontal)); }
+  aimAtGrapple(): void {
+    const target = notebookMap.boxes.find((box) => box.id === "ruler-bridge")!;
+    const x = (target.min[0] + target.max[0]) / 2, y = (target.min[1] + target.max[1]) / 2, z = (target.min[2] + target.max[2]) / 2;
+    const dx = x - this.me.state.x, dz = z - this.me.state.z, horizontal = Math.hypot(dx, dz);
+    this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(y - (this.me.state.y + EYE_STAND), horizontal));
+  }
 }

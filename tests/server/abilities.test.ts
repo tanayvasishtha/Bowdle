@@ -17,6 +17,7 @@ describe("authoritative online abilities", () => {
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
     const serverPlayer = room.state.players.get(client.sessionId)!;
+    expect(serverPlayer.grappleMs).toBe(0);
     serverPlayer.x = -20; serverPlayer.y = 0; serverPlayer.z = 5;
     const direct = createPlayerSim(serverPlayer.x, serverPlayer.y, serverPlayer.z);
     const yaw = Math.atan2(-1.5, -4);

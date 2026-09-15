@@ -14,12 +14,47 @@ describe("map validation", () => {
   it("accepts Practice Range", () => expect(validateMap(rangeMap)).toEqual([]));
   it("accepts the jungle map kit", () => expect(validateMap(kitMap)).toEqual([]));
 
-  it("rejects every invalid map-kit primitive", () => {
+  it("rejects a ramp over the slope limit", () => {
     const steep = { ...kitMap.ramps[0]!, max: [-7, 5, 2] as const };
     expect(validateMap({ ...kitMap, ramps: [steep] })).toContain(`ramp slope: ${steep.id}`);
+  });
+
+  it("rejects an unsupported ramp end", () => {
+    const unsupported = { ...kitMap.ramps[0]!, min: [-8, 4, -2] as const, max: [-4, 6, 2] as const };
+    expect(validateMap({ ...kitMap, ramps: [unsupported] })).toContain(`ramp end: ${unsupported.id}`);
+  });
+
+  it("rejects a floating volume", () => {
     expect(validateMap({ ...kitMap, volumes: [{ ...kitMap.volumes[0]!, min: [-13, 5, -13], max: [-9, 6, -9] }] }).some((error) => error.startsWith("volume ground"))).toBe(true);
+  });
+
+  it("rejects an uphill zip line", () => {
     expect(validateMap({ ...kitMap, zipLines: [{ id: "uphill", from: [-12, 3, -10], to: [-5, 7, -10] }] })).toContain("zip direction: uphill");
+  });
+
+  it("rejects a zip line without collider clearance", () => {
+    expect(validateMap({ ...kitMap, zipLines: [{ id: "blocked", from: [0, 4, 8], to: [0, 2, 8] }] })).toContain("zip clearance: blocked");
+  });
+
+  it("rejects a boulder sweep through a collider", () => {
     expect(validateMap({ ...kitMap, boulders: [{ ...kitMap.boulders[0]!, path: [[-8, 0, -6], [8, 0, -6]] }] })).toContain("boulder collider: center-boulder");
+  });
+
+  it("rejects an alcove touched by the boulder sweep", () => {
+    const unsafe = { ...kitMap.boulders[0]!, alcoves: [{ min: [-2, 0, -7], max: [2, 2, -5] }] as const };
+    expect(validateMap({ ...kitMap, boulders: [unsafe] })).toContain("boulder alcove: center-boulder");
+  });
+
+  it("rejects a boulder path too close to a spawn", () => {
+    const nearSpawn = { ...kitMap.boulders[0]!, path: [[-18, 1.51, 8], [-12, 1.51, 8]] as const };
+    expect(validateMap({ ...kitMap, boulders: [nearSpawn] })).toContain("boulder spawn: center-boulder");
+  });
+
+  it("checks mirror symmetry for every map-kit type", () => {
+    expect(validateMap({ ...kitMap, ramps: [kitMap.ramps[0]!] }).some((error) => error.startsWith("mirror symmetry"))).toBe(true);
+    expect(validateMap({ ...kitMap, volumes: [kitMap.volumes[0]!] }).some((error) => error.startsWith("mirror symmetry"))).toBe(true);
+    expect(validateMap({ ...kitMap, zipLines: [kitMap.zipLines[0]!] }).some((error) => error.startsWith("mirror symmetry"))).toBe(true);
+    expect(validateMap({ ...kitMap, boulders: [{ ...kitMap.boulders[0]!, lever: [1, 1, -3] }] }).some((error) => error.startsWith("mirror symmetry"))).toBe(true);
     expect(validateMap({ ...kitMap, props: [kitMap.props[0]!] }).some((error) => error.startsWith("mirror symmetry"))).toBe(true);
   });
 

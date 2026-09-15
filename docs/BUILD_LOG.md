@@ -1,5 +1,43 @@
 # Build log
 
+## W4 — Sun Temple
+
+Status: done.
+
+Built:
+
+- Added the mirrored Sun Temple arena with three combat lanes, a stepped pyramid and altar, two smooth tunnel ramps into a lowered trench, four safe alcoves, north colonnades, a four-metre ravine and rope bridge, carved courtyard pools, tall-grass stealth pockets, grapple vines, camp silhouettes, dense jungle boundaries, notes, and journal lighting.
+- Added the alternating temple boulder route and altar lever using the shared authoritative hazard system.
+- Authored a connected waypoint graph spanning every spawn, both surface lanes, the tunnel, ravine bridge, two complete altar stairways, drops, jumps, and grapple transitions. A walk-only path reaches the altar.
+- Added ramp-centering and deterministic stuck recovery to computer-controlled navigation so combat strafing cannot wedge a player against a tunnel lip.
+- Added `/?scene=map&map=sun-temple` while keeping ordinary online rooms on the original arena.
+- Added a test-only fixed-camera tour API for repeatable landmark captures.
+
+Tests added:
+
+- Sun Temple map validation, including mirrored geometry, grounded volumes, hidden spawns, trap clearance, safe alcoves, spawn distance, graph connectivity, traversable walk links, and walk access to the altar.
+- Full eight-player authoritative match simulation through the end phase, with a boulder roll observed and a movement watchdog rejecting any living unprotected player stationary for more than three seconds.
+- Four browser views—spawn, altar, tunnel, and courtyard—with zero console errors and a 150-draw-call ceiling. Screenshots are in `test-results/qa/w4/`.
+
+QA:
+
+- `npm run check`: passed with 86 tests.
+- `npm run e2e`: 10 passed.
+- `npm run size`: client JavaScript 249 KB gzipped, 900 KB budget.
+- Diff review: no dependency changes, unsafe randomness, weak typing, forbidden imports, per-tick allocations, or reduced tests were introduced.
+
+Deviation:
+
+- Pyramid tiers are split into quadrants around the three-metre stair channel and the boulder tunnel rather than forming four uninterrupted slabs. Their authored extents and heights are unchanged; the split preserves the specified stairs and gives the three-metre boulder physical clearance.
+- Boulder validation treats a supporting ground surface at exactly one radius below the path as support, while still rejecting every wall, ceiling, or raised collider touched by the sweep.
+
+Verify by hand:
+
+- Walk both surface lanes, descend and climb both tunnel ramps, cross the ravine, and climb each altar staircase without a bounce or snag.
+- Pull the altar lever while an opponent enters the tunnel, then verify the warning is readable, every alcove is safe, and a trap elimination credits the puller.
+- Check all four Sun and Moon spawns from opposing routes and confirm no direct sightline reaches a spawn.
+- Play a complete match and confirm opponents rotate among the colonnade, courtyard, tunnel, altar, and bridge rather than collecting at one entrance.
+
 ## W3 — Props and ambience
 
 Status: done.

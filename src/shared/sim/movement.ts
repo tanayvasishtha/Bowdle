@@ -25,6 +25,7 @@ import {
   STOP_SPEED,
   SUBSTEPS,
   TICK_HZ,
+  WATER_SPEED_MULT,
 } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData } from "../maps/types.ts";
@@ -33,6 +34,7 @@ import { lengthXZ, normalizeXZ, type Vec3 } from "../math/vec3.ts";
 import { canOccupy, movePlayer } from "./collision.ts";
 import { stepCombat, type CombatEvent } from "./bow.ts";
 import { stepAbilityInput, stepGrapplePull, type AbilityEvent } from "./abilities.ts";
+import { isInWater } from "./volumes.ts";
 
 export type PlayerSim = {
   name: string;
@@ -110,7 +112,7 @@ function updateWish(input: PlayerInputFrame): number {
   return magnitude;
 }
 
-export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapData, _ctx: StepContext): PlayerEvent[] {
+export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapData, ctx: StepContext): PlayerEvent[] {
   const dt = 1 / (TICK_HZ * SUBSTEPS);
   const dtMs = dt * 1000;
   const jumpPressed = pressed(input, state.prevButtons, BTN.JUMP);
@@ -123,6 +125,8 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
   const abilityEvents = stepAbilityInput(state, input, map, 1000 / TICK_HZ);
 
   for (let substep = 0; substep < SUBSTEPS; substep += 1) {
+    const water = isInWater(map, state.x, state.y, state.z, ctx.nowMs);
+    if (water) state.sliding = false;
     state.slideCooldownMs = Math.max(0, state.slideCooldownMs - dtMs);
     state.jumpBufferMs = Math.max(0, state.jumpBufferMs - dtMs);
     const startingSpeed = Math.hypot(state.vx, state.vz);
@@ -152,6 +156,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     if (state.grounded && !skipFriction && !startedSlide) friction(state, state.sliding ? SLIDE_FRICTION : FRICTION, dt);
 
     let speed = state.crouched && !state.sliding ? CROUCH_SPEED : RUN_SPEED;
+    if (water) speed *= WATER_SPEED_MULT;
     if (held(input.buttons, BTN.AIM)) speed *= AIM_SPEED_MULT;
     if (inputMagnitude > 0) {
       if (state.sliding) accelerate(state, wish, speed * inputMagnitude, SLIDE_STEER_ACCEL, dt);
@@ -177,7 +182,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
       state.slideMs += dtMs;
       if (state.slideMs >= SLIDE_MAX_MS || Math.hypot(state.vx, state.vz) < SLIDE_END_SPEED || !held(input.buttons, BTN.CROUCH)) state.sliding = false;
     }
-    capHorizontal(state, MAX_HORIZONTAL_SPEED);
+    capHorizontal(state, water ? RUN_SPEED * WATER_SPEED_MULT : MAX_HORIZONTAL_SPEED);
   }
   const events: PlayerEvent[] = stepCombat(state, input, 1000 / TICK_HZ);
   events.push(...abilityEvents);

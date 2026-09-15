@@ -1,4 +1,5 @@
-import { PLAYER_WIDTH, STEP_HEIGHT } from "../constants.ts";
+import { GROUND_SNAP, PLAYER_WIDTH, STEP_HEIGHT } from "../constants.ts";
+import { rampHeightAt } from "../maps/ramps.ts";
 import type { MapData } from "../maps/types.ts";
 
 export type CollisionBody = {
@@ -102,4 +103,12 @@ export function movePlayer(body: CollisionBody, map: MapData, dt: number): void 
   moveX(body, body.vx * dt, map);
   moveZ(body, body.vz * dt, map);
   moveY(body, body.vy * dt, map);
+  if (body.vy <= 0) for (const ramp of map.ramps) {
+    const surface = rampHeightAt(ramp, body.x, body.z);
+    if (surface !== null && body.y >= surface - GROUND_SNAP && body.y <= surface + GROUND_SNAP) {
+      body.y = surface;
+      body.vy = 0;
+      body.grounded = true;
+    }
+  }
 }

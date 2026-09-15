@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { JUMP_VELOCITY, MAX_HORIZONTAL_SPEED, RUN_SPEED, SLIDE_BOOST } from "../constants.ts";
+import { FLOOD_MS, JUMP_VELOCITY, MAX_HORIZONTAL_SPEED, RUN_SPEED, SLIDE_BOOST, WATER_SPEED_MULT } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData } from "../maps/types.ts";
 import { createPlayerSim, stepPlayer, type PlayerSim } from "./movement.ts";
@@ -81,6 +81,33 @@ describe("movement", () => {
     run(blocked, { ...idle, moveZ: 1 }, 10, arena(0.5));
     expect(blocked.x).toBeLessThan(2);
     expect(blocked.y).toBe(0);
+  });
+
+  it("walks smoothly up and down ramps", () => {
+    const map = { ...arena(), ramps: [{ id: "ramp", min: [1, 0, -2], max: [5, 2, 2], up: "+x", material: "earth", tags: ["solid"] }] } as MapData;
+    const state = createPlayerSim();
+    run(state, { ...idle, moveZ: 1 }, 25, map);
+    expect(state.y).toBeGreaterThan(1);
+    run(state, { ...idle, moveZ: -1 }, 25, map);
+    expect(state.y).toBeCloseTo(0, 5);
+    expect(state.grounded).toBe(true);
+  });
+
+  it("slows water movement, prevents slides, and applies flood only in its window", () => {
+    const water = { ...arena(), volumes: [{ id: "water", min: [-20, 0, -20], max: [20, 1, 20], kind: "water", flood: true }] } as MapData;
+    const flooded = createPlayerSim();
+    run(flooded, { ...idle, moveZ: 1 }, 60, water);
+    expect(Math.hypot(flooded.vx, flooded.vz)).toBeCloseTo(RUN_SPEED * WATER_SPEED_MULT, 5);
+    flooded.vx = RUN_SPEED;
+    stepPlayer(flooded, { ...idle, buttons: BTN.CROUCH }, water, { nowMs: 0 });
+    expect(flooded.sliding).toBe(false);
+    const raised = { ...water, boxes: [...water.boxes, { id: "raised-floor", min: [-20, 0, -20], max: [20, 1.2, 20], material: "earth", tags: ["solid"] }] } as MapData;
+    const dryWindow = createPlayerSim(0, 1.2, 0);
+    for (let tick = 0; tick < 60; tick += 1) stepPlayer(dryWindow, { ...idle, moveZ: 1 }, raised, { nowMs: FLOOD_MS });
+    expect(Math.hypot(dryWindow.vx, dryWindow.vz)).toBeCloseTo(RUN_SPEED, 5);
+    const floodWindow = createPlayerSim(0, 1.2, 0);
+    for (let tick = 0; tick < 60; tick += 1) stepPlayer(floodWindow, { ...idle, moveZ: 1 }, raised, { nowMs: FLOOD_MS / 2 });
+    expect(Math.hypot(floodWindow.vx, floodWindow.vz)).toBeCloseTo(RUN_SPEED * WATER_SPEED_MULT, 5);
   });
 
   it("never penetrates a thin wall after 10,000 substeps", () => {

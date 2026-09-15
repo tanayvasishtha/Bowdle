@@ -4,6 +4,8 @@ import { rangeMap } from "./range.ts";
 import { kitMap } from "./fixtures/kit.ts";
 import { sunTempleMap } from "./sunTemple.ts";
 import { canopyMap } from "./canopy.ts";
+import { campMap } from "./camp.ts";
+import { lostRiverMap } from "./lostRiver.ts";
 import type { MapData } from "./types.ts";
 import { validateMap } from "./validate.ts";
 
@@ -17,6 +19,8 @@ describe("map validation", () => {
   it("accepts the jungle map kit", () => expect(validateMap(kitMap)).toEqual([]));
   it("accepts Sun Temple", () => expect(validateMap(sunTempleMap)).toEqual([]));
   it("accepts Canopy Village", () => expect(validateMap(canopyMap)).toEqual([]));
+  it("accepts Lost River", () => expect(validateMap(lostRiverMap)).toEqual([]));
+  it("accepts Practice Camp", () => expect(validateMap(campMap)).toEqual([]));
 
   it("rejects a ramp over the slope limit", () => {
     const steep = { ...kitMap.ramps[0]!, max: [-7, 5, 2] as const };

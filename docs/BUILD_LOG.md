@@ -1,5 +1,47 @@
 # Build log
 
+## M5 — Computer-controlled teams
+
+Status: done.
+
+Built:
+
+- A 38-node mirrored Notebook Page navigation graph covering every spawn, both lanes, cover flanks, bridge stairs/top, and perch stairs/top.
+- Map validation rules 6–8: graph connectivity, capsule-aware standing walk sweeps with step-up, and a visible waypoint within three metres of every spawn.
+- A* routing, waypoint following, jump links, and seeded slide decisions on long walk links.
+- Three-iteration ballistic lead with gravity and target velocity, plus seeded easy/normal/hard aim error.
+- Deterministic roam, engage, and low-health retreat states with solid-box sight checks, 250 ms reaction time, 450–650 ms draw timing, and combat strafing.
+- Automatic 4v4 team filling. A joining person replaces a computer-controlled slot on the less-populated human team; a departing person is replaced while preserving stats.
+- Scenic patrol routing mixed with pressure toward enemy spawns so opponents traverse authored vertical routes while continuing to find fights.
+
+Tests added:
+
+- Broken-map proofs for disconnected graphs, blocked walk links, and spawns without nearby visible nodes.
+- A* routes between every pair of team spawns.
+- At least 90 of 100 seeded 30 m lead shots against a target moving at 6 m/s.
+- Server join proof for eight total players and balanced 4v4 teams.
+- Eight-player, timer-free 7-minute match simulation that produces kills and reaches the end phase.
+- Solo browser match proof with all slots visible on the scoreboard and screenshot at `test-results/qa/m5/full-match.png`.
+
+QA:
+
+- `npm run check`: passed with 49 tests.
+- `npm run e2e`: 5 passed.
+- `npm run size`: client JavaScript 234 KB gzipped, 900 KB budget.
+- Break check: setting lead refinement to zero reduced the accuracy result from passing to 0/100; restoring three iterations returned it to green.
+- Visual inspection: the warmup scene presents a readable full 4v4 roster over the procedural arena.
+
+Deviation:
+
+- The authored navigation graph has 38 nodes rather than an exact 40; the map asks for approximately 40, and all named areas plus every validation requirement are covered.
+- Deterministic two-page duel rooms lock after their pair joins so a later normal browser check cannot inherit that stripped-down test room.
+
+Verify by hand:
+
+- Play alone and confirm computer-controlled players traverse both stair routes, the bridge, and the perch.
+- Confirm no opponent remains caught on cover for more than three seconds.
+- Confirm normal accuracy pressures a moving player without becoming oppressive and that a complete match ends cleanly.
+
 ## M4b — Online combat and match loop
 
 Status: done.

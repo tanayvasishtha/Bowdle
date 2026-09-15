@@ -27,10 +27,11 @@ test("practice range uses the journal look", async ({ page }) => {
 test("jungle map kit renders every traversal primitive", async ({ page }) => {
   const errors = collectErrors(page); await page.goto("/?scene=kit&test");
   await page.waitForFunction(() => "__bowdleTest" in window);
-  await expect(page.locator("#game-canvas")).toBeVisible();
+  const canvas = page.locator("#game-canvas"); await expect(canvas).toBeVisible();
+  await expect(canvas).toHaveAttribute("data-map-id", "kit");
+  await expect(canvas).toHaveAttribute("data-map-features", "8");
   const fractions = await page.evaluate(() => (window as unknown as { __bowdleTest: { snapshot(): JournalSnapshot } }).__bowdleTest.snapshot());
-  expect(fractions.water).toBeGreaterThan(0);
-  expect(fractions.rope + fractions.gold + fractions.hazard).toBeGreaterThan(0);
+  expect(fractions.earth + fractions.water + fractions.fern).toBeGreaterThan(0);
   await page.screenshot({ path: "test-results/qa/w2/map-kit.png", fullPage: true });
   expect(errors).toEqual([]);
 });

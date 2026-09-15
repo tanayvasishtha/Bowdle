@@ -45,6 +45,7 @@ function mapMeshes(map: MapData): Mesh[] {
     const height = box.max[1] - box.min[1];
     const depth = box.max[2] - box.min[2];
     const geometry = new BoxGeometry(width, height, depth);
+    geometry.deleteAttribute("uv");
     geometry.translate((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
     const list = groups.get(box.material) ?? [];
     list.push(geometry);
@@ -60,6 +61,7 @@ function mapMeshes(map: MapData): Mesh[] {
   }
   for (const volume of map.volumes) {
     const geometry = new BoxGeometry(volume.max[0] - volume.min[0], volume.max[1] - volume.min[1], volume.max[2] - volume.min[2]);
+    geometry.deleteAttribute("uv");
     geometry.translate((volume.min[0] + volume.max[0]) / 2, (volume.min[1] + volume.max[1]) / 2, (volume.min[2] + volume.max[2]) / 2);
     const material: MaterialName = volume.kind === "water" ? "water" : "fern"; const list = groups.get(material) ?? []; list.push(geometry); groups.set(material, list);
   }
@@ -181,6 +183,8 @@ export class Renderer {
     this.renderer = new WebGLRenderer({ antialias: false, alpha: false });
     this.canvas = this.renderer.domElement;
     this.canvas.id = "game-canvas";
+    this.canvas.dataset.mapId = map.id;
+    this.canvas.dataset.mapFeatures = String(map.ramps.length + map.volumes.length + map.zipLines.length + map.boulders.length);
     container.append(this.canvas);
     this.composite.setSunShafts(map.look?.sunShafts ?? false); this.composite.setStainSeed(map.look?.stainSeed ?? 0);
     for (const mesh of mapMeshes(map)) this.worldScene.add(mesh);

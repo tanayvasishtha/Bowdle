@@ -2,7 +2,13 @@ import { mirrorX, stairs } from "./helpers.ts";
 import type { Boulder, Box, MapData, Prop, Ramp, SpawnPoint, Vec3Tuple, Volume, Waypoint } from "./types.ts";
 
 const boxes: Box[] = [
-  { id: "floor-south", min: [-36, -1, -28], max: [36, 0, -1.8], material: "earth", tags: ["solid"] },
+  { id: "floor-deep-south", min: [-36, -1, -28], max: [36, 0, -18], material: "earth", tags: ["solid"] },
+  { id: "floor-south-inner", min: [-36, -1, -12], max: [36, 0, -1.8], material: "earth", tags: ["solid"] },
+  { id: "floor-pool-band-west", min: [-36, -1, -18], max: [-18, 0, -12], material: "earth", tags: ["solid"] },
+  { id: "floor-pool-band-center", min: [-10, -1, -18], max: [10, 0, -12], material: "earth", tags: ["solid"] },
+  { id: "floor-pool-band-east", min: [18, -1, -18], max: [36, 0, -12], material: "earth", tags: ["solid"] },
+  { id: "sun-pool-bed", min: [-18, -0.6, -18], max: [-10, -0.4, -12], material: "stone", tags: ["solid"] },
+  { id: "moon-pool-bed", min: [10, -0.6, -18], max: [18, -0.4, -12], material: "stone", tags: ["solid"] },
   { id: "floor-north", min: [-36, -1, 1.8], max: [36, 0, 20], material: "earth", tags: ["solid"] },
   { id: "floor-far-north", min: [-36, -1, 26], max: [36, 0, 28], material: "earth", tags: ["solid"] },
   { id: "ravine-floor", min: [-36, -4.2, 20], max: [36, -4, 26], material: "stone", tags: ["solid"] },
@@ -40,7 +46,7 @@ const sunVine: Box = { id: "sun-vine", min: [-10.08, 0.4, 4], max: [-9.92, 3.4, 
 
 const sunRamp: Ramp = { id: "sun-tunnel-ramp", min: [-18, -2.4, -1.6], max: [-11, 0, 1.6], up: "-x", material: "earth", tags: ["solid"] };
 const ramps: Ramp[] = [sunRamp, mirrorX(sunRamp, "moon-tunnel-ramp")];
-const sunWater: Volume = { id: "sun-pool", min: [-18, 0, -18], max: [-10, 0.6, -12], kind: "water" };
+const sunWater: Volume = { id: "sun-pool", min: [-18, -0.4, -18], max: [-10, 0, -12], kind: "water" };
 const sunGrass: Volume = { id: "sun-grass", min: [-26, 0, -16], max: [-20, 1.2, -8], kind: "tallGrass" };
 const volumes: Volume[] = [sunWater, mirrorX(sunWater, "moon-pool"), sunGrass, mirrorX(sunGrass, "moon-grass")];
 const boulder: Boulder = { id: "temple-boulder", path: [[-18, 1.5, 0], [-11, -0.9, 0], [11, -0.9, 0], [18, 1.5, 0]], lever: [0, 4.8, 2], alcoves: [{ min: [-6, -2.4, -4], max: [-4, 0, -2.1] }, { min: [-6, -2.4, 2.1], max: [-4, 0, 4] }, { min: [4, -2.4, -4], max: [6, 0, -2.1] }, { min: [4, -2.4, 2.1], max: [6, 0, 4] }] };
@@ -49,7 +55,7 @@ const props: Prop[] = [{ kind: "sunDisc", pos: [0, 4.8, 0], yaw: 0, scale: 1, se
 for (const x of [-8, -3, 3, 8]) { const torch: Prop = { kind: "torch", pos: [x, -2.4, -1.55], yaw: 0, scale: 0.75, seed: 410 + x }; props.push(torch, mirrorX(torch)); }
 for (const [x, z] of [[-31, -9], [-29, -13], [-32, 10], [-31, 22]] as const) { const prop: Prop = { kind: x === -31 && z === -9 ? "tent" : "giantTree", pos: [x, 0, z], yaw: 0.2, scale: 1, seed: 500 + z }; props.push(prop, mirrorX(prop)); }
 for (const box of sunPillars.slice(0, 6)) { const prop: Prop = { kind: "pillar", pos: [(box.min[0] + box.max[0]) / 2, 0, (box.min[2] + box.max[2]) / 2], yaw: 0, scale: 0.7, seed: 600 + props.length }; props.push(prop, mirrorX(prop)); }
-props.push({ kind: "waterSurface", pos: [-14, 0.62, -15], yaw: 0, scale: 1.7, seed: 701 }, { kind: "waterSurface", pos: [14, 0.62, -15], yaw: 0, scale: 1.7, seed: 701 });
+props.push({ kind: "waterSurface", pos: [-14, 0.02, -15], yaw: 0, scale: 1.7, seed: 701 }, { kind: "waterSurface", pos: [14, 0.02, -15], yaw: 0, scale: 1.7, seed: 701 });
 
 const sunSpawns: SpawnPoint[] = [-6, -2, 2, 6].map((z) => ({ pos: [-29, 0, z], yaw: -Math.PI / 2 }));
 const moonSpawns: SpawnPoint[] = sunSpawns.map((spawn) => ({ pos: [-spawn.pos[0], spawn.pos[1], spawn.pos[2]], yaw: Math.PI / 2 }));

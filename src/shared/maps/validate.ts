@@ -78,6 +78,12 @@ function graphConnected(map: MapData): boolean {
   return visited.size === map.waypoints.length;
 }
 
+function walkReaches(map: MapData, startId: string, goalId: string): boolean {
+  const byId = new Map(map.waypoints.map((point) => [point.id, point])), visited = new Set<string>(), stack = [startId];
+  while (stack.length > 0) { const id = stack.pop()!; if (id === goalId) return true; if (visited.has(id)) continue; visited.add(id); for (const link of byId.get(id)?.links ?? []) if (link.kind === "walk") stack.push(link.to); }
+  return false;
+}
+
 function walkClear(map: MapData, from: Vec3Tuple, to: Vec3Tuple): boolean {
   const solids = map.boxes.filter((box) => box.tags.includes("solid"));
   const radius = PLAYER_WIDTH / 2;
@@ -136,7 +142,7 @@ export function validateMap(map: MapData): string[] {
     if (boulder.path.length < 2) errors.push(`boulder path: ${boulder.id}`);
     for (let index = 1; index < boulder.path.length; index += 1) {
       const from = boulder.path[index - 1]!; const to = boulder.path[index]!;
-      if (solids.some((box) => segmentHitsBox(from, to, expandedBox(box, BOULDER_RADIUS)))) errors.push(`boulder collider: ${boulder.id}`);
+      if (solids.some((box) => box.max[1] > Math.max(from[1], to[1]) - BOULDER_RADIUS + EPSILON && segmentHitsBox(from, to, expandedBox(box, BOULDER_RADIUS)))) errors.push(`boulder collider: ${boulder.id}`);
       for (const alcove of boulder.alcoves) if (segmentHitsBox(from, to, expandedBox(alcove, BOULDER_RADIUS + PLAYER_WIDTH / 2))) errors.push(`boulder alcove: ${boulder.id}`);
       for (const spawn of [...map.spawns.sun, ...map.spawns.moon]) if (pointSegmentDistance(spawn.pos, from, to) < BOULDER_SPAWN_CLEARANCE - EPSILON) errors.push(`boulder spawn: ${boulder.id}`);
     }
@@ -171,6 +177,7 @@ export function validateMap(map: MapData): string[] {
     }
   }
   if (!graphConnected(map)) errors.push("waypoint graph: disconnected");
+  if (map.id === "sun-temple" && !walkReaches(map, "sun-spawn-0", "altar")) errors.push("altar walk: unreachable");
   const byId = new Map(map.waypoints.map((point) => [point.id, point]));
   for (const point of map.waypoints) for (const link of point.links) {
     const target = byId.get(link.to);

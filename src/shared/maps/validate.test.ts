@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { notebookMap } from "./notebook.ts";
 import { rangeMap } from "./range.ts";
 import { kitMap } from "./fixtures/kit.ts";
+import { sunTempleMap } from "./sunTemple.ts";
 import type { MapData } from "./types.ts";
 import { validateMap } from "./validate.ts";
 
@@ -13,6 +14,7 @@ describe("map validation", () => {
   it("accepts Notebook Page", () => expect(validateMap(notebookMap)).toEqual([]));
   it("accepts Practice Range", () => expect(validateMap(rangeMap)).toEqual([]));
   it("accepts the jungle map kit", () => expect(validateMap(kitMap)).toEqual([]));
+  it("accepts Sun Temple", () => expect(validateMap(sunTempleMap)).toEqual([]));
 
   it("rejects a ramp over the slope limit", () => {
     const steep = { ...kitMap.ramps[0]!, max: [-7, 5, 2] as const };

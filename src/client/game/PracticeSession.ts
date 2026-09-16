@@ -86,15 +86,15 @@ export class PracticeSession {
   }
 
   private updateTargets(): void {
-    const width = PRACTICE_RAIL_HALF_WIDTH;
     for (const target of this.targets) {
       if (!target.alive && this.simTimeMs >= target.respawnAtMs) {
         target.alive = true;
         target.hp = MAX_HP;
       }
       if (target.speed > 0) {
+        const width = target.railHalfWidth ?? PRACTICE_RAIL_HALF_WIDTH;
         const distance = (this.simTimeMs / 1000 * target.speed) % (width * 4);
-        target.x = distance <= width * 2 ? -width + distance : width * 3 - distance;
+        target.x = target.pos[0] + (distance <= width * 2 ? -width + distance : width * 3 - distance);
       }
       this.renderer.setTargetPosition(target.id, target.x, target.pos[1], target.pos[2], target.alive);
     }

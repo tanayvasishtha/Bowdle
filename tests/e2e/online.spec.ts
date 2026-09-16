@@ -11,7 +11,7 @@ test("two online players see shared movement", async ({ browser }) => {
   const pageB = await contextB.newPage();
   const errorsA = collectErrors(pageA);
   const errorsB = collectErrors(pageB);
-  await Promise.all([pageA.goto("/?scene=online&test"), pageB.goto("/?scene=online&test")]);
+  await Promise.all([pageA.goto("/?scene=online&test&map=lost-river"), pageB.goto("/?scene=online&test&map=lost-river")]);
   await Promise.all([
     pageA.waitForFunction(() => "__bowdleTest" in window),
     pageB.waitForFunction(() => "__bowdleTest" in window),
@@ -19,16 +19,17 @@ test("two online players see shared movement", async ({ browser }) => {
   const idA = await pageA.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.sessionId);
   await pageB.waitForFunction((id) => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.players().some((player) => player.id === id), idA);
   const before = await pageB.evaluate((id) => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.players().find((player) => player.id === id)!, idA);
-  await pageA.keyboard.down("w");
+  await Promise.all([pageA.keyboard.down("a"), pageB.keyboard.down("d")]);
   await expect.poll(async () => {
     const after = await pageB.evaluate((id) => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.players().find((player) => player.id === id)!, idA);
     return Math.hypot(after.x - before.x, after.z - before.z);
   }, { timeout: 8_000 }).toBeGreaterThan(5);
-  await pageA.keyboard.up("w");
+  await Promise.all([pageA.keyboard.up("a"), pageB.keyboard.up("d")]);
   const idB = await pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.sessionId);
   await pageA.evaluate((id) => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.aimAt(id), idB);
   await pageA.mouse.down();
   await pageA.waitForFunction(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.drawMs() >= 550);
+  await pageA.evaluate((id) => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.aimAt(id), idB);
   await pageA.mouse.up();
   await expect.poll(async () => pageA.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.killFeed()), { timeout: 3_000 }).toContain("HEADSHOT");
   await expect.poll(async () => pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.killFeed()), { timeout: 3_000 }).toContain("HEADSHOT");
@@ -54,11 +55,11 @@ test("a solo online player gets a full match", async ({ page }) => {
 
 test("grapple and ink cloud are visible online", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=online&test");
+  await page.goto("/?scene=online&test&map=lost-river");
   await page.waitForFunction(() => "__bowdleTest" in window);
   const peer = await page.context().newPage();
   const peerErrors = collectErrors(peer);
-  await peer.goto("/?scene=online&test");
+  await peer.goto("/?scene=online&test&map=lost-river");
   await peer.waitForFunction(() => "__bowdleTest" in window);
   await expect.poll(async () => page.locator(".bowdle-timer").textContent(), { timeout: 8_000 }).not.toContain("DRAW IN");
   await page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.aimAtGrapple());

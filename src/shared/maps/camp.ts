@@ -1,14 +1,15 @@
-import { CROUCH_HEIGHT, PLAYER_WIDTH, STAND_HEIGHT, STEP_HEIGHT } from "../constants.ts";
+import { CROUCH_HEIGHT, PLAYER_WIDTH, PRACTICE_PATROL_HALF_WIDTH, PRACTICE_PATROL_SPEED, STAND_HEIGHT, STEP_HEIGHT } from "../constants.ts";
 import { stairs } from "./helpers.ts";
 import type { MapData, Vec3Tuple } from "./types.ts";
 
-export type CampTarget = { id: string; pos: Vec3Tuple; speed: number };
+export type CampTarget = { id: string; pos: Vec3Tuple; speed: number; railHalfWidth?: number };
 
 export const campTargets: readonly CampTarget[] = [
   { id: "target-10", pos: [0, 0, -10], speed: 0 }, { id: "target-20", pos: [0, 0, -20], speed: 0 },
   { id: "target-30", pos: [0, 0, -30], speed: 0 }, { id: "target-45", pos: [0, 0, -45], speed: 0 },
   { id: "target-60", pos: [0, 0, -60], speed: 0 }, { id: "moving-25", pos: [0, 0, -25], speed: 4 },
   { id: "moving-40", pos: [0, 0, -40], speed: 7 },
+  { id: "stealth-patrol", pos: [9, 0, -55], speed: PRACTICE_PATROL_SPEED, railHalfWidth: PRACTICE_PATROL_HALF_WIDTH },
 ];
 
 export const campMap: MapData = {

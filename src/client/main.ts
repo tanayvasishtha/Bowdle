@@ -54,6 +54,7 @@ if (params.get("scene") === "online") {
       cloudCount: () => session.cloudCount(),
       grappleActive: () => session.grappleActive(),
       aimAtGrapple: () => session.aimAtGrapple(),
+      stats: () => renderer.stats(),
     };
   }).catch((error: unknown) => {
     loading.textContent = error instanceof Error ? `Connection failed: ${error.message}` : "Connection failed";

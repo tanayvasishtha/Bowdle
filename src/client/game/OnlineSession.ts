@@ -217,9 +217,14 @@ export class OnlineSession {
   cloudCount(): number { return this.room.state.inkClouds.size; }
   grappleActive(): boolean { return this.me.state.grappleActive; }
   aimAtGrapple(): void {
-    const target = this.map.boxes.find((box) => box.tags.includes("grapple"));
-    if (!target) return;
-    const x = (target.min[0] + target.max[0]) / 2, y = (target.min[1] + target.max[1]) / 2, z = (target.min[2] + target.max[2]) / 2;
+    let x = 0, y = 0, z = 0, bestDistance = Number.POSITIVE_INFINITY;
+    for (const box of this.map.boxes) {
+      if (!box.tags.includes("grapple")) continue;
+      const candidateX = (box.min[0] + box.max[0]) / 2, candidateY = (box.min[1] + box.max[1]) / 2, candidateZ = (box.min[2] + box.max[2]) / 2;
+      const distance = Math.hypot(candidateX - this.me.state.x, candidateY - this.me.state.y, candidateZ - this.me.state.z);
+      if (distance < bestDistance) { bestDistance = distance; x = candidateX; y = candidateY; z = candidateZ; }
+    }
+    if (!Number.isFinite(bestDistance)) return;
     const dx = x - this.me.state.x, dz = z - this.me.state.z, horizontal = Math.hypot(dx, dz);
     this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(y - (this.me.state.y + EYE_STAND), horizontal));
   }

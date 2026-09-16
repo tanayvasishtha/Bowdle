@@ -241,3 +241,46 @@ Stop when npm run check and npm run e2e pass.
 **Draw calls over budget.** Props are not instanced, or map colliders are not merged by material.
 
 **A map feels empty.** Add props, notes and landmarks before adding more colliders.
+
+---
+
+## W7: Make the maps look like a place
+
+Runs after M9. The systems are all working, the art is not landing yet.
+
+**Prompt:**
+
+```
+Build milestone W7 only: make the maps look like a place. Read AGENTS.md,
+docs/WORLD.md (The look, Never do these, Art density rules) and
+docs/JUNGLE-MAPS.md.
+
+Every map currently reads as flat 3D: the boundaries are plain slabs, the
+ground is one huge flat color, and each map has about 12 props.
+
+1. src/shared/maps/scatter.ts: a seeded scatter helper that places props by
+   area, density and material, skipping colliders, spawn boxes, lanes marked
+   as no-scatter and the boulder path. Pure and unit tested.
+2. Replace every boundary slab with a tree line: instanced trunks and canopy
+   blobs 6 m deep, a silhouette band behind them, and an invisible collider
+   wall for the play bounds. Same treatment for the ceiling.
+3. Raise every map to the Art density rules in WORLD.md: 120 props or more,
+   4 or more ground material patches, ground detail, and one landmark 8 m or
+   taller visible from both spawns.
+4. Renderer: per instance wash jitter, contact shading where geometry meets
+   the ground, outline weight by depth gap, horizon canopy band with haze,
+   and drifting birds. New numbers go in src/client/render/look.ts.
+5. Fix the unhandled pointer lock rejection by catching the promise.
+6. Tests: scatter unit tests; per map snapshot fractions (background <= 0.45,
+   washes >= 0.25, sepia >= 0.03); prop count per map >= 120; draw calls
+   <= 150 and triangles <= 300000 on every map; screenshots from 4 points per
+   map into test-results/qa/w7/.
+
+Do not change gameplay, collision or netcode. Layout changes are limited to
+scenery that never blocks a lane.
+Stop when npm run check and npm run e2e pass.
+```
+
+**Verify:** stand at each spawn. You should see a landmark, layered trees with depth, uneven ground and scattered detail. Nothing should read as a flat slab. Put the W6 and W7 screenshots side by side: the difference has to be obvious at a glance.
+
+**Break it on purpose:** set the scatter density to zero. The prop count test must fail. Revert.

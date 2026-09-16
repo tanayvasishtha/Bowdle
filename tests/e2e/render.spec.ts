@@ -10,7 +10,8 @@ test("Expedition Journal renders watercolor on parchment", async ({ page }) => {
   await page.evaluate(() => (window as unknown as { __bowdleTest: { cameraAt(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void } }).__bowdleTest.cameraAt(-29, 7, -7, 0, 7, 0));
   const fractions = await page.evaluate(() => (window as unknown as { __bowdleTest: { snapshot(): JournalSnapshot } }).__bowdleTest.snapshot());
   const washes = fractions.stone + fractions.carvedStone + fractions.wood + fractions.canopy + fractions.fern + fractions.earth + fractions.water + fractions.rope + fractions.gold + fractions.sunWash + fractions.moonWash + fractions.hazard + fractions.canvas + fractions.foliageDark;
-  expect(fractions.parchment + fractions.sky).toBeGreaterThanOrEqual(0.35);
+  // The page still shows through the canopy, but the jungle now fills most of the frame (W7).
+  expect(fractions.parchment + fractions.sky).toBeGreaterThanOrEqual(0.15);
   expect(washes).toBeGreaterThanOrEqual(0.10);
   expect(fractions.sepia).toBeGreaterThanOrEqual(0.02);
   expect(fractions.legacyRuled + fractions.legacyInk).toBeLessThan(0.01);

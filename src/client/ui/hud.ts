@@ -1,3 +1,4 @@
+import { lockPointer } from "../game/pointerLock.ts";
 import type { MatchState } from "../../net/schema.ts";
 import type { KillMessage, MatchEndMessage } from "../../net/messages.ts";
 import { GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS } from "../../shared/constants.ts";
@@ -65,7 +66,7 @@ export class MatchHud {
     const vote = document.createElement("p"); vote.textContent = "Vote for the next expedition";
     this.endPanel.append(title, summary, vote);
     for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); this.endPanel.append(button); }
-    const again = document.createElement("button"); again.className = "play-again"; again.textContent = "Play again"; again.addEventListener("click", () => { this.endPanel.style.display = "none"; void document.querySelector<HTMLCanvasElement>("#game-canvas")?.requestPointerLock(); }); this.endPanel.append(again);
+    const again = document.createElement("button"); again.className = "play-again"; again.textContent = "Play again"; again.addEventListener("click", () => { this.endPanel.style.display = "none"; lockPointer(document.querySelector<HTMLCanvasElement>("#game-canvas")); }); this.endPanel.append(again);
   }
   banner(text: string): void { this.moment.textContent = text; this.moment.animate([{ opacity: 0, transform: "translateX(-50%) scale(.7) rotate(-5deg)" }, { opacity: 1, transform: "translateX(-50%) scale(1.08) rotate(2deg)" }, { opacity: 0 }], { duration: 1800 }); }
   setReplay(active: boolean): void { this.center.style.visibility = active ? "hidden" : "visible"; }

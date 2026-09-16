@@ -5,6 +5,7 @@ export const PALETTE = {
   stone: 0xc9a66b, carvedStone: 0xb8925a, wood: 0x9c6b3f, canopy: 0x5e8c3a,
   fern: 0x7fae4e, earth: 0x8a6a45, water: 0x3f8f8c, rope: 0xb79b6a,
   canvas: 0xe6d7b0, foliageDark: 0x3f6b2c,
+  canopyInk: 0x2f4a22, waterInk: 0x1f5654, foliageInk: 0x25401b,
   legacyRuled: 0xa9c4e8, legacyInk: 0x233c9b,
 } as const;
 

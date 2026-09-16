@@ -1,3 +1,4 @@
+import { lockPointer } from "../game/pointerLock.ts";
 import type { InputSampler } from "../game/InputSampler.ts";
 import { loadSettings } from "../settings.ts";
 import { showSettings } from "./menu.ts";
@@ -8,7 +9,7 @@ export function attachPauseMenu(container: HTMLElement, sampler: InputSampler): 
   container.append(panel);
   const setOpen = (open: boolean): void => {
     panel.style.display = open ? "grid" : "none"; sampler.setPaused(open);
-    if (open) document.exitPointerLock(); else void document.querySelector<HTMLCanvasElement>("#game-canvas")?.requestPointerLock();
+    if (open) document.exitPointerLock(); else lockPointer(document.querySelector<HTMLCanvasElement>("#game-canvas"));
   };
   panel.querySelector("[data-action=resume]")!.addEventListener("click", () => setOpen(false));
   panel.querySelector("[data-action=settings]")!.addEventListener("click", () => { panel.style.display = "none"; showSettings(container, () => { panel.style.display = "grid"; }); });

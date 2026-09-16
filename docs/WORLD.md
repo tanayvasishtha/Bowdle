@@ -149,3 +149,19 @@ Budgets: 150 draw calls or fewer, 300k triangles on screen or fewer, props beyon
 - Water: low-passed noise scaled by distance to the nearest water volume.
 - Boulder: low rumble during telegraph, stone roll while moving. Lever clunk.
 - Zip line: rope whine rising with speed.
+
+## Art density rules (W7)
+
+Numbers every map must hit before it ships. They exist because the first pass reads as flat 3D instead of a drawn page: boundaries were plain slabs, the ground was one flat color and each map had about 12 props.
+
+| Rule | Target |
+|---|---|
+| Props per map | 120 or more, placed by seeded scatter, never inside colliders, lanes or spawn boxes |
+| Boundary | A 6 m deep tree line of instanced trunks and canopy blobs with a silhouette band behind it, plus an invisible collider wall for the play bounds. Never a flat slab |
+| Ground | At least 4 material patches (earth path, moss, fern undergrowth, sand or gravel near water) plus ground detail: leaf litter, roots, small rocks |
+| Landmark | One structure 8 m or taller, visible from both spawns, that gives the map its name |
+| Wash variation | Per box and per prop instance, value jitter of plus or minus 8 percent from a seeded id |
+| Contact shading | Wash darkens by 20 percent within 0.6 m of where geometry meets the ground |
+| Silhouette weight | Outline width follows the depth gap: 2.4 CSS px across a large gap, 1.2 px on interior creases |
+| Horizon | Canopy silhouette band with haze behind the boundary, plus a few drifting birds |
+| Screenshot test | Background 45 percent of pixels or less, washes 25 percent or more, sepia 3 percent or more |

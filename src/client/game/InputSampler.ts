@@ -1,3 +1,4 @@
+import { lockPointer } from "./pointerLock.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { PITCH_LIMIT, clamp, wrapAngle } from "../../shared/math/angles.ts";
 import { loadSettings, type GameSettings } from "../settings.ts";
@@ -24,7 +25,7 @@ export class InputSampler {
       this.pitch = clamp(this.pitch - event.movementY * this.settings.sensitivity, -PITCH_LIMIT, PITCH_LIMIT);
     });
     window.addEventListener("contextmenu", (event) => event.preventDefault());
-    this.canvas.addEventListener("click", () => void this.canvas.requestPointerLock());
+    this.canvas.addEventListener("click", () => lockPointer(this.canvas));
     window.addEventListener("bowdle-settings", (event) => { this.settings = (event as CustomEvent<GameSettings>).detail; });
   }
 

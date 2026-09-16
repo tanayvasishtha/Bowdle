@@ -1,4 +1,6 @@
+import { jungleDressing } from "./dressing.ts";
 import { mirrorX } from "./helpers.ts";
+import { rect } from "./scatter.ts";
 import type { Box, MapData, Prop, Ramp, SpawnPoint, Volume, Waypoint, ZipLine } from "./types.ts";
 
 const boxes: Box[] = [
@@ -6,10 +8,10 @@ const boxes: Box[] = [
   { id: "great-tree", min: [-2, 0, -2], max: [2, 14, 2], material: "wood", tags: ["solid", "grapple"] },
   { id: "great-root-x", min: [-7, 0, -1], max: [7, 3, 1], material: "wood", tags: ["solid", "grapple"] },
   { id: "great-root-z", min: [-1, 0, -8], max: [1, 3, 8], material: "wood", tags: ["solid", "grapple"] },
-  { id: "boundary-west", min: [-36, 0, -26], max: [-34, 12, 26], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-east", min: [34, 0, -26], max: [36, 12, 26], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-south", min: [-36, 0, -26], max: [36, 12, -24], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-north", min: [-36, 0, 24], max: [36, 12, 26], material: "foliageDark", tags: ["solid"] },
+  { id: "boundary-west", min: [-36, 0, -26], max: [-34, 12, 26], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-east", min: [34, 0, -26], max: [36, 12, 26], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-south", min: [-36, 0, -26], max: [36, 12, -24], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-north", min: [-36, 0, 24], max: [36, 12, 26], material: "foliageDark", tags: ["solid", "invisible"] },
   { id: "ceiling", min: [-36, 16, -26], max: [36, 17, 26], material: "canopy", tags: ["solid", "invisible"] },
 ];
 function addPair(box: Box): void { boxes.push(box, mirrorX(box, box.id.replace("sun", "moon"))); }
@@ -81,5 +83,18 @@ connect("center-high","sun-zip-north-high"); connect("center-high","moon-zip-nor
 connect("sun-zip-north-high","sun-north-deck","zip",false); connect("sun-zip-south-high","sun-south-deck","zip",false); connect("moon-zip-north-high","moon-north-deck","zip",false); connect("moon-zip-south-high","moon-south-deck","zip",false);
 connect("center-high","center-low","drop"); connect("sun-west-low-center","center-high","grapple"); connect("moon-west-low-center","center-high","grapple");
 for (let i = 0; i < waypoints.length; i += 1) waypoints[i] = { ...waypoints[i]!, links: links.get(waypoints[i]!.id) ?? [] };
+
+const dressing = jungleDressing({
+  idPrefix: "canopy",
+  seed: 5501,
+  bounds: rect(-34, -24, 34, 24),
+  blockers: { boxes, ramps, volumes, zipLines, spawns: [...sunSpawns, ...moonSpawns] },
+  patchMaterials: ["fern", "canopy", "stone"],
+  grassVolumes: volumes,
+  treeSpacing: 4,
+  scatterCount: 120,
+});
+props.push(...dressing.props);
+boxes.push(...dressing.patches);
 
 export const canopyMap: MapData = { id: "canopy", name: "Canopy Village", bounds: { min: [-36,-2,-26], max: [36,17,26] }, boxes, ramps, volumes, zipLines, boulders: [], props, spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "high ground", pos: [0,10,4] }, { text: "zip line", pos: [-7,9,8] }], look: { sunShafts: true, stainSeed: 5501 } };

@@ -68,7 +68,8 @@ function mapMeshes(map: MapData): Mesh[] {
     const geometry = new BoxGeometry(volume.max[0] - volume.min[0], volume.max[1] - volume.min[1], volume.max[2] - volume.min[2]);
     geometry.deleteAttribute("uv");
     geometry.translate((volume.min[0] + volume.max[0]) / 2, (volume.min[1] + volume.max[1]) / 2, (volume.min[2] + volume.max[2]) / 2);
-    const material: MaterialName = volume.kind === "water" ? "water" : "fern"; const list = groups.get(material) ?? []; list.push(geometry); groups.set(material, list);
+    if (volume.kind !== "water") { geometry.dispose(); continue; }
+    const list = groups.get("water") ?? []; list.push(geometry); groups.set("water", list);
   }
   const meshes: Mesh[] = [];
   for (const [material, geometries] of groups) {
@@ -195,6 +196,7 @@ export class Renderer {
     this.container = container;
     this.map = map;
     this.renderer = new WebGLRenderer({ antialias: false, alpha: false });
+    this.renderer.info.autoReset = false;
     this.canvas = this.renderer.domElement;
     this.canvas.id = "game-canvas";
     this.canvas.dataset.mapId = map.id;
@@ -442,6 +444,7 @@ export class Renderer {
       const player = this.players.get(id); if (!player || !this.settings.colorblindSymbols || !player.visible) { symbol.element.style.display = "none"; continue; }
       symbolWorld.copy(player.position); symbolWorld.y += STAND_HEIGHT + 0.5; symbolWorld.project(this.camera); symbol.element.style.left = `${(symbolWorld.x * 0.5 + 0.5) * window.innerWidth}px`; symbol.element.style.top = `${(-symbolWorld.y * 0.5 + 0.5) * window.innerHeight}px`; symbol.element.style.display = symbolWorld.z < 1 ? "block" : "none";
     }
+    this.renderer.info.reset();
     this.renderer.setClearColor(clear.color, clear.alpha);
     this.renderer.setRenderTarget(this.composite.world);
     this.renderer.clear();

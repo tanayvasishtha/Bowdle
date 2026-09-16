@@ -1,4 +1,6 @@
+import { jungleDressing } from "./dressing.ts";
 import { mirrorX, stairs } from "./helpers.ts";
+import { rect } from "./scatter.ts";
 import type { Boulder, Box, MapData, Prop, Ramp, SpawnPoint, Vec3Tuple, Volume, Waypoint } from "./types.ts";
 
 const boxes: Box[] = [
@@ -18,10 +20,10 @@ const boxes: Box[] = [
   { id: "bridge", min: [-8, 0, 21.5], max: [8, 0.25, 24.5], material: "wood", tags: ["solid", "grapple"] },
   { id: "altar", min: [-2.5, 3.6, -2.5], max: [2.5, 4.8, 2.5], material: "carvedStone", tags: ["solid", "grapple"] },
   { id: "tunnel-screen", min: [-1, 1, -2], max: [1, 3, 2], material: "carvedStone", tags: ["solid"] },
-  { id: "boundary-west", min: [-36, 0, -28], max: [-34, 10, 28], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-east", min: [34, 0, -28], max: [36, 10, 28], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-south", min: [-36, 0, -28], max: [36, 10, -26], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-north", min: [-36, 0, 26], max: [36, 10, 28], material: "foliageDark", tags: ["solid"] },
+  { id: "boundary-west", min: [-36, 0, -28], max: [-34, 10, 28], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-east", min: [34, 0, -28], max: [36, 10, 28], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-south", min: [-36, 0, -28], max: [36, 10, -26], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-north", min: [-36, 0, 26], max: [36, 10, 28], material: "foliageDark", tags: ["solid", "invisible"] },
   { id: "ceiling", min: [-36, 16, -28], max: [36, 17, 28], material: "canopy", tags: ["solid", "invisible"] },
 ];
 
@@ -59,6 +61,20 @@ props.push({ kind: "waterSurface", pos: [-14, 0.02, -15], yaw: 0, scale: 1.7, se
 
 const sunSpawns: SpawnPoint[] = [-6, -2, 2, 6].map((z) => ({ pos: [-29, 0, z], yaw: -Math.PI / 2 }));
 const moonSpawns: SpawnPoint[] = sunSpawns.map((spawn) => ({ pos: [-spawn.pos[0], spawn.pos[1], spawn.pos[2]], yaw: Math.PI / 2 }));
+
+const dressing = jungleDressing({
+  idPrefix: "temple",
+  seed: 4401,
+  bounds: rect(-34, -26, 34, 26),
+  blockers: {
+    boxes, ramps, volumes, boulders: [boulder], spawns: [...sunSpawns, ...moonSpawns],
+    extra: [rect(-36, 19, 36, 27), rect(-2, -12, 2, 12)],
+  },
+  patchMaterials: ["fern", "canopy", "stone"],
+  grassVolumes: volumes,
+});
+props.push(...dressing.props);
+boxes.push(...dressing.patches);
 
 type Node = { id: string; pos: Vec3Tuple };
 const nodes: Node[] = [];

@@ -1,6 +1,50 @@
 # Build log
 
-## M8 — Menus, onboarding and settings
+## W7: Scenery density and the instancing fix
+
+Status: done.
+
+Built:
+
+- Seeded scatter helper in src/shared/maps/scatter.ts that places props by area and density while avoiding colliders, ramps, water, zip lines, boulder paths and spawns.
+- Jungle dressing helper in src/shared/maps/dressing.ts: a tree line outside the play area, undergrowth inside it, ground patches that break up the flat floor, and grass that fills every tall grass volume. Everything mirrors across x = 0, so map validation still passes.
+- Sun Temple, Canopy Village, Lost River and Practice Camp now carry 250 to 500 props each instead of about 12. Boundary slabs became invisible colliders standing behind a real tree line.
+- Ground patches are decoration only. Without the solid tag they never collide, never slow the simulation and never block the boulder path.
+- Tall grass volumes are no longer drawn as green boxes. The volume still drives stealth and bot sight; the grass itself is drawn as props.
+- Ink material: per surface color variation and contact shading where geometry meets the ground.
+- A pointer lock helper that swallows the browser rejection when a page cannot capture the mouse.
+
+Fixed:
+
+- Instancing: the ink vertex shader ignored instanceMatrix, so every instanced prop rendered stacked at the world origin. That is why the maps looked empty while a blob of trees sat on the temple. Props now render where the map places them.
+- Draw call counting: renderer info reset on every pass, so stats() only reported the final composite pass (1 call, 1 triangle) and the performance budgets could never fail. Info now accumulates across the frame and the budgets are real.
+
+Tests added:
+
+- Scatter and dressing unit tests: determinism, blocker avoidance, spacing, scale ranges, mirroring, and patches flush with the ground.
+- A shader test that fails if the instance matrix is dropped again.
+- tests/e2e/world-density.spec.ts: per map background at most 45 percent, washes at least 25 percent, ink at least 3 percent, draw calls at most 150, triangles at most 300000, plus at least 120 props and no visible boundary slab on every launch map.
+
+QA:
+
+- npm run check: passed with 112 tests.
+- npm run e2e: 20 passed.
+- npm run size: client JavaScript 258 KB gzipped, 900 KB budget.
+- Screenshots in test-results/qa/w7/.
+- Break check: not run for this milestone.
+
+Deviation:
+
+- Silhouette weight by depth gap, the horizon haze band and drifting birds from the W7 plan are not built. The tree line and the existing depth fade already carry the horizon, so these are queued for a later polish pass.
+- Playwright on this machine needs PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH pointing at the installed Chrome, because the browser build the config expects is not downloaded.
+
+Verify by hand:
+
+- Walk each map and confirm no prop hides a lane you can shoot through.
+- Stand in tall grass and confirm it reads as cover from outside and stays see-through from inside.
+- Compare the W6 and W7 screenshots: the difference should be obvious at a glance.
+
+## M8: Menus, onboarding and settings
 
 Status: done.
 
@@ -40,7 +84,7 @@ Verify by hand:
 - Inspect team symbols on mixed terrain and verify Sun and Moon remain distinguishable without relying on color.
 - Open on a touch-only phone or tablet and confirm the desktop message replaces the game controls.
 
-## W6 — Lost River, Practice Camp and rotation
+## W6: Lost River, Practice Camp and rotation
 
 Status: done.
 
@@ -79,7 +123,7 @@ Verify by hand:
 - Check each spawn for an obvious landmark, three useful exits, regular cover, and no enemy sightline into the protected area.
 - Confirm a stable 60 frames per second at 1080p on the target integrated-graphics laptop.
 
-## W5 — Canopy Village
+## W5: Canopy Village
 
 Status: done.
 
@@ -117,7 +161,7 @@ Verify by hand:
 - Crouch inside both team-side grass pockets, ambush an approaching opponent, and confirm retreating opponents deliberately enter cover.
 - Check every spawn view for a clear landmark and confirm no opposing lane sees directly into a spawn.
 
-## W4 — Sun Temple
+## W4: Sun Temple
 
 Status: done.
 
@@ -155,7 +199,7 @@ Verify by hand:
 - Check all four Sun and Moon spawns from opposing routes and confirm no direct sightline reaches a spawn.
 - Play a complete match and confirm opponents rotate among the colonnade, courtyard, tunnel, altar, and bridge rather than collecting at one entrance.
 
-## W3 — Props and ambience
+## W3: Props and ambience
 
 Status: done.
 
@@ -188,7 +232,7 @@ Verify by hand:
 - Watch flames, water, waterfalls, ropes, and the bridge from near and far; confirm the motion adds life without making collision surfaces appear to move.
 - Leave ambience active for five minutes near and far from water, then ride a zip and trigger a boulder; confirm the mix stays subtle and the hazard cues remain clear.
 
-## W2 — Map kit v2
+## W2: Map kit v2
 
 Status: done.
 
@@ -232,7 +276,7 @@ Verify by hand:
 - Pull the gold lever in an online kit room and judge whether the three-second warning, rolling speed, alcove safety, impact, and Trap banner are readable and satisfying.
 - Repeat a zip ride under network latency and confirm the camera never corrects away from the rope.
 
-## W1 — Expedition Journal look
+## W1: Expedition Journal look
 
 Status: done.
 
@@ -269,7 +313,7 @@ Verify by hand:
 - Confirm Sun orange and Moon indigo players remain instantly distinguishable against every current material.
 - Toggle through bright and dark viewpoints and judge whether the subtle grid, stains, compass, and notes support navigation without becoming visual noise.
 
-## M7 — Abilities
+## M7: Abilities
 
 Status: done.
 
@@ -306,7 +350,7 @@ Verify by hand:
 - Play online under latency and confirm repeated grapples never produce position corrections or rope snaps.
 - Throw ink between an opponent and a computer-controlled player; confirm vision is blocked while arrows continue through the cloud.
 
-## M6 — Highlight moments
+## M6: Highlight moments
 
 Status: done.
 
@@ -342,7 +386,7 @@ Verify by hand:
 - Confirm a headshot leaves a team-color splat, a near-wall arrow kill pins the body, and damage arcs point toward the attacker.
 - Capture a replay clip and judge whether the camera spacing and timing feel worth sharing; tune only if the motion feels cramped at the chosen capture resolution.
 
-## M5 — Computer-controlled teams
+## M5: Computer-controlled teams
 
 Status: done.
 
@@ -384,7 +428,7 @@ Verify by hand:
 - Confirm no opponent remains caught on cover for more than three seconds.
 - Confirm normal accuracy pressures a moving player without becoming oppressive and that a complete match ends cleanly.
 
-## M4b — Online combat and match loop
+## M4b: Online combat and match loop
 
 Status: done.
 
@@ -429,7 +473,7 @@ Verify by hand:
 - Confirm teammate hits do no damage, Tab shows all player stats, death respawns after three seconds, and a locally lowered score limit produces an end screen followed by a fresh match.
 - Run the documented 150 ms latency test against a strafing target and confirm rewound shots land where aimed; temporarily compare live target poses, then restore rewind.
 
-## M4a — Online movement
+## M4a: Online movement
 
 Status: done.
 
@@ -466,7 +510,7 @@ Verify by hand:
 - Enable the prediction debug panel and confirm the reconciler remains matched.
 - Temporarily multiply local `moveZ` by 1.5 and confirm visible correction plus divergence reporting, then revert.
 
-## M3 — Bow, arrows, dagger, and Practice Camp
+## M3: Bow, arrows, dagger, and Practice Camp
 
 Status: done.
 
@@ -503,7 +547,7 @@ Verify by hand:
 - Confirm front dagger hits need two strikes and a rear strike kills.
 - Confirm stuck arrows remain for about 8 seconds and procedural sounds feel crisp rather than harsh.
 
-## M2 — Movement
+## M2: Movement
 
 Status: done.
 
@@ -536,7 +580,7 @@ Verify by hand:
 - Confirm chained hops retain momentum and wall contact never sticks or penetrates.
 - Confirm crouch height and aim FOV transitions feel quick without snapping.
 
-## M1 — Doodle renderer and map data
+## M1: Doodle renderer and map data
 
 Status: done.
 

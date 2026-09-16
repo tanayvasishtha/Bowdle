@@ -8,6 +8,7 @@ export const JOURNAL_LOOK = {
   waterStrokeCssPx: 10, waterDriftCssPxPerSecond: 12, waterStrokeOpacity: 0.5,
   sunShaftCount: 4, sunShaftLighten: 0.12,
   hitMarkerMs: 900,
+  washJitter: 0.16, contactShade: 0.2, contactHeightM: 0.6,
 } as const;
 
 export const DYNAMIC_RESOLUTION = { frameBudgetMs: 20, sampleWindowMs: 2000, step: 0.1, minScale: 0.6 } as const;

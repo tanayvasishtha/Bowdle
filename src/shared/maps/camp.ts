@@ -1,6 +1,8 @@
 import { CROUCH_HEIGHT, PLAYER_WIDTH, PRACTICE_PATROL_HALF_WIDTH, PRACTICE_PATROL_SPEED, STAND_HEIGHT, STEP_HEIGHT } from "../constants.ts";
+import { JUNGLE_GROUND_KINDS, grassVolumeProps } from "./dressing.ts";
 import { stairs } from "./helpers.ts";
-import type { MapData, Vec3Tuple } from "./types.ts";
+import { blockerRects, rect, scatterProps, treeLineProps } from "./scatter.ts";
+import type { MapData, Prop, Vec3Tuple } from "./types.ts";
 
 export type CampTarget = { id: string; pos: Vec3Tuple; speed: number; railHalfWidth?: number };
 
@@ -12,7 +14,7 @@ export const campTargets: readonly CampTarget[] = [
   { id: "stealth-patrol", pos: [9, 0, -55], speed: PRACTICE_PATROL_SPEED, railHalfWidth: PRACTICE_PATROL_HALF_WIDTH },
 ];
 
-export const campMap: MapData = {
+const campBase: MapData = {
   id: "camp", name: "Practice Camp", bounds: { min: [-16, -2, -82], max: [16, 10, 10] },
   boxes: [
     { id: "floor", min: [-16, -1, -82], max: [16, 0, 10], material: "earth", tags: ["solid"] },
@@ -44,5 +46,23 @@ export const campMap: MapData = {
   notes: [{ text: "watchtower zip", pos: [-10, 7, -5] }, { text: "gold vine", pos: [12, 7, -17] }, { text: "stealth creek", pos: [9, 2, -52] }],
   look: { sunShafts: true, stainSeed: 7401 },
 };
+
+const campProps: Prop[] = [
+  ...grassVolumeProps({ seed: 7431, volumes: campBase.volumes }),
+  ...treeLineProps({ seed: 7411, outer: rect(-15.5, -81, 15.5, 9), depth: 8, spacing: 3.6, silhouetteRows: 2 }),
+  ...scatterProps({
+    seed: 7421,
+    area: rect(-15, -80, 15, 8),
+    count: 150,
+    kinds: JUNGLE_GROUND_KINDS,
+    blockers: blockerRects({
+      boxes: campBase.boxes, ramps: campBase.ramps, volumes: campBase.volumes, zipLines: campBase.zipLines,
+      boulders: campBase.boulders, spawns: campBase.spawns.sun, extra: [rect(-4.5, -82, 4.5, 10)],
+    }),
+    spacing: 2.2,
+  }),
+];
+
+export const campMap: MapData = { ...campBase, props: [...campBase.props, ...campProps] };
 
 export const campTargetHeight = STAND_HEIGHT;

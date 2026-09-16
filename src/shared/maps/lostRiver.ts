@@ -1,4 +1,6 @@
+import { jungleDressing } from "./dressing.ts";
 import { mirrorX } from "./helpers.ts";
+import { rect } from "./scatter.ts";
 import type { Box, MapData, Prop, Ramp, SpawnPoint, Volume, Waypoint } from "./types.ts";
 
 const boxes: Box[] = [
@@ -6,10 +8,10 @@ const boxes: Box[] = [
   { id: "moon-bank", min: [5, -1, -28], max: [36, 0, 28], material: "earth", tags: ["solid"] },
   { id: "river-bed", min: [-5, -2, -28], max: [5, -1, 28], material: "stone", tags: ["solid"] },
   { id: "river-island", min: [-1, -1, -4], max: [1, 2.8, 4], material: "carvedStone", tags: ["solid", "grapple"] },
-  { id: "boundary-west", min: [-36, 0, -28], max: [-34, 10, 28], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-east", min: [34, 0, -28], max: [36, 10, 28], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-south", min: [-36, 0, -28], max: [36, 10, -26], material: "foliageDark", tags: ["solid"] },
-  { id: "boundary-north", min: [-36, 0, 26], max: [36, 10, 28], material: "foliageDark", tags: ["solid"] },
+  { id: "boundary-west", min: [-36, 0, -28], max: [-34, 10, 28], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-east", min: [34, 0, -28], max: [36, 10, 28], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-south", min: [-36, 0, -28], max: [36, 10, -26], material: "foliageDark", tags: ["solid", "invisible"] },
+  { id: "boundary-north", min: [-36, 0, 26], max: [36, 10, 28], material: "foliageDark", tags: ["solid", "invisible"] },
   { id: "ceiling", min: [-36, 13, -28], max: [36, 14, 28], material: "canopy", tags: ["solid", "invisible"] },
   { id: "aqueduct-sun", min: [-14, 4.6, 8.75], max: [-1, 5, 11.25], material: "carvedStone", tags: ["solid", "grapple"] },
   { id: "aqueduct-moon", min: [1, 4.6, 8.75], max: [14, 5, 11.25], material: "carvedStone", tags: ["solid", "grapple"] },
@@ -83,6 +85,18 @@ for (const chain of [
   ["sun-hub","river-sun","river-north","river-moon","moon-hub"],
 ]) for (let index = 1; index < chain.length; index += 1) connect(chain[index - 1]!, chain[index]!);
 for (let index = 0; index < waypoints.length; index += 1) waypoints[index] = { ...waypoints[index]!, links: links.get(waypoints[index]!.id) ?? [] };
+
+const dressing = jungleDressing({
+  idPrefix: "river",
+  seed: 6301,
+  bounds: rect(-34, -26, 34, 26),
+  blockers: { boxes, ramps, volumes, spawns: [...sunSpawns, ...moonSpawns] },
+  patchMaterials: ["fern", "canopy", "earth"],
+  grassVolumes: volumes,
+  scatterCount: 130,
+});
+props.push(...dressing.props);
+boxes.push(...dressing.patches);
 
 export const lostRiverMap: MapData = {
   id: "lost-river", name: "Lost River", bounds: { min: [-36, -2, -28], max: [36, 14, 28] }, boxes, ramps, volumes, zipLines: [], boulders: [], props,

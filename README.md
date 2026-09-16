@@ -58,6 +58,8 @@ npm run e2e                        # browser tests
 | [CHARACTERS.md](docs/CHARACTERS.md) | The two explorer crews, rig, poses and first person |
 | [COMPLETION-PLAN.md](docs/COMPLETION-PLAN.md) | The v1 plan and what only Tanay can do |
 | [DEPLOY.md](docs/DEPLOY.md) | Hosting, environment variables, portal uploads |
+| [RETENTION.md](docs/RETENTION.md) | v1.1 plan: medals, challenges, streaks, unlock track, parties |
+| [RUNBOOK-RETENTION.md](docs/RUNBOOK-RETENTION.md) | Milestones R1 to R6 and the Codex prompt |
 | [BUILD_LOG.md](docs/BUILD_LOG.md) | What each milestone built and how it was checked |
 
 ## Stack

@@ -44,6 +44,16 @@ Two teams: **Sun** (team 0, orange) and **Moon** (team 1, indigo). Warm sepia wo
 | Tab | Scoreboard |
 | Esc | Menu, releases mouse |
 | F3 | Debug overlay (dev builds only) |
+| F1 | Controls overlay with the current keys |
+
+## Onboarding (v2)
+
+- **First launch:** a player with no saved name and no finished course names their explorer, plays the field course (`?scene=camp&course=first`), then goes straight into a first match. Returning players land on the menu, which has a Field course button (`?scene=camp&course`).
+- **Field course:** eight stations in Practice Camp, in order: walk to the marker, vine hop, slide, wall jump at the watchtower, mantle onto the course crate (1.8 m), grapple swing at the gold vine, headshot a target, and swat a slow practice arrow. Each station shows one line and a floating marker. Moves only count for the current station. The course can be skipped; plain practice starts without it once it is finished or skipped.
+- **Reward:** finishing calls `POST /api/tutorial/done`, which sets `tutorial_done` and grants 100 Ink once per account (5 calls per minute per account).
+- **Tips:** during a player's first 5 matches on a device, a tip line names a move that is available but unused for 40 s (reel, vine hop, dodge, scatter, slide), at most one every 45 s and each once per match. Settings can turn tips off.
+- **Help:** F1 lists every control. While the mouse is not captured, "Click the page to aim" shows in the middle of the screen.
+- **Funnel:** the client reports `menuOpened` through `POST /api/funnel` (only that event, 60 per hour per address); the server logs `tutorialDone`, `firstMatch` and `secondMatch` itself.
 
 ## Units and conventions
 

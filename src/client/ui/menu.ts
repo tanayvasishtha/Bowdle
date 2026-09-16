@@ -1,17 +1,13 @@
 import { MAX_FOV, MIN_FOV } from "../../shared/constants.ts";
-import { consumeSignInFragment, ensureAccount } from "../account.ts";
-import { ACTIONS, loadName, loadSettings, nameError, saveName, saveSettings, type Action, type GameSettings } from "../settings.ts";
+import { consumeSignInFragment, ensureAccount, reportFunnel } from "../account.ts";
+import { courseDone } from "../game/course.ts";
+import { ACTION_LABELS, ACTIONS, keyLabel, loadName, loadSettings, nameError, saveName, saveSettings, type Action, type GameSettings } from "../settings.ts";
 import { showLeaderboard, showProfile } from "./profile.ts";
 import { platform } from "../platform/sdk.ts";
 import { showPartyPanel } from "./party.ts";
 
-const LABELS: Record<Action, string> = {
-  forward: "Move forward", back: "Move back", left: "Move left", right: "Move right", jump: "Jump", crouch: "Crouch / slide",
-  draw: "Draw / fire", aim: "Aim", cancel: "Cancel draw", melee: "Dagger", grapple: "Grapple (hold to reel)", ink: "Ink cloud", use: "Use", dodge: "Dodge", slot1: "Broadhead arrow", slot2: "Scatter arrows", slot3: "Tether arrow",
-  scoreboard: "Scoreboard", menu: "Menu", debug: "Debug overlay",
-};
-
-function codeLabel(code: string): string { return code.replace("Key", "").replace("Digit", "").replace("Mouse", "Mouse "); }
+const LABELS: Record<Action, string> = ACTION_LABELS;
+const codeLabel = keyLabel;
 
 export function installMenuStyles(container: HTMLElement): void {
   if (document.querySelector("#bowdle-menu-style")) return;
@@ -33,6 +29,7 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     <label><input data-setting="colorblindSymbols" type="checkbox" ${settings.colorblindSymbols ? "checked" : ""}> Team symbols</label>
     <label><input data-setting="reduceMotion" type="checkbox" ${settings.reduceMotion ? "checked" : ""}> Reduce motion</label>
     <label><input data-setting="damageNumbers" type="checkbox" ${settings.damageNumbers ? "checked" : ""}> Damage numbers</label>
+    <label><input data-setting="tips" type="checkbox" ${settings.tips ? "checked" : ""}> Tips for new players</label>
     <h3>Bindings</h3><div class="bowdle-bindings"></div><button data-action="done">Done</button>`;
   const bindings = panel.querySelector<HTMLDivElement>(".bowdle-bindings")!;
   for (const action of ACTIONS) {
@@ -53,7 +50,7 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
   const update = (): void => {
     const number = (name: string): number => Number(panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.value);
     const checked = (name: string): boolean => panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.checked;
-    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers") };
+    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
     panel.querySelector("output")!.textContent = String(settings.fov); saveSettings(settings);
   };
   panel.addEventListener("input", update);
@@ -64,9 +61,10 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
 export function showMainMenu(container: HTMLElement): void {
   installMenuStyles(container);
   const menu = document.createElement("main"); menu.className = "bowdle-menu";
-  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><button data-action="party">Play with friends</button><button data-action="practice">Practice</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button><nav class="bowdle-legal"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></nav>`;
+  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><button data-action="party">Play with friends</button><button data-action="practice">Practice</button><button data-action="course">Field course</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button><nav class="bowdle-legal"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></nav>`;
   container.append(menu);
   platform().loaded();
+  reportFunnel("menuOpened");
   const signIn = consumeSignInFragment();
   if (signIn.linked || signIn.failed) {
     const toast = document.createElement("div"); toast.className = "bowdle-toast";
@@ -90,6 +88,9 @@ export function showMainMenu(container: HTMLElement): void {
   menu.querySelector("[data-action=play]")!.addEventListener("click", play);
   menu.querySelector("[data-action=party]")!.addEventListener("click", () => withName((name) => showPartyPanel(container, (code) => { void enter(name, code); })));
   menu.querySelector("[data-action=practice]")!.addEventListener("click", () => navigate("camp"));
+  menu.querySelector("[data-action=course]")!.addEventListener("click", () => { location.search = "?scene=camp&course"; });
+  // First launch: a name, then the field course, which leads into a first match. Returning players stay on the menu.
+  if (!loadName() && !courseDone()) withName(() => { location.search = "?scene=camp&course=first"; });
   menu.querySelector("[data-action=locker]")!.addEventListener("click", () => navigate("locker"));
   menu.querySelector("[data-action=profile]")!.addEventListener("click", () => { void showProfile(container, () => undefined); });
   menu.querySelector("[data-action=leaderboard]")!.addEventListener("click", () => { void showLeaderboard(container, () => undefined); });

@@ -28,6 +28,13 @@ describe("GameDatabase over the Postgres wire protocol", () => {
     await pglite.close();
   });
 
+  it("grants the field course Ink once through postgres.js", async () => {
+    const { profile } = await db.createGuest("Course");
+    expect(await db.completeTutorial(profile.id)).toEqual({ granted: true, ink: profile.ink + 100 });
+    expect(await db.completeTutorial(profile.id)).toEqual({ granted: false, ink: profile.ink + 100 });
+    expect((await db.profile(profile.id))?.tutorialDone).toBe(true);
+  });
+
   it("runs accounts, rewards, the shop and deletion through postgres.js", async () => {
     const { token, profile } = await db.createGuest("Wire");
     expect(await db.authenticate(token)).toBe(profile.id);

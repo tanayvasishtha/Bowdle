@@ -9,6 +9,9 @@ import { spawnVolley, stepArrow, type ArrowSim } from "../../shared/sim/arrows.t
 import { ARROW_SLOTS, fullDrawMs } from "../../shared/sim/bow.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
 import { QuiverStrip } from "../ui/quiver.ts";
+import { emptySnapshot, moveSignals, snapshotOf } from "./course.ts";
+import { TIP_TEXT, TipScheduler, countMatchStart, tipsActive, type TipId } from "./tips.ts";
+import { loadSettings } from "../settings.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
 import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
@@ -141,6 +144,7 @@ export class OnlineSession {
   }
 
   start(): void {
+    this.tipsOn = tipsActive(loadSettings().tips, countMatchStart());
     this.clips?.start();
     platform().loaded();
     platform().setPlaying(true);
@@ -228,7 +232,7 @@ export class OnlineSession {
     for (const hazard of this.room.state.hazards.values()) if (hazard.phase === "roll" || hazard.phase === "telegraph") { hazardPhase = hazard.phase; break; }
     if (hazardPhase === "telegraph" && this.previousHazardPhase !== "telegraph") this.renderer.leverAudio();
     this.previousHazardPhase = hazardPhase; this.renderer.setBoulderAudio(hazardPhase); this.renderer.setZipAudio(this.me.state.zipId ? ZIP_SPEED : 0);
-    if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; }
+    if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; this.updateTips(timeMs); }
     this.renderer.render(timeMs);
     requestAnimationFrame((time) => this.frame(time));
   }
@@ -261,6 +265,33 @@ export class OnlineSession {
 
   /** Tethers as zip lines, so prediction rides them like the server does. */
   private tetherZips: ZipLine[] = [];
+  private tipsOn = false;
+  private tips: TipScheduler | null = null;
+  private readonly tipBefore = emptySnapshot();
+  private readonly tipAvailable: TipId[] = [];
+
+  /** Runs with the HUD refresh: notes which moves were used and shows at most one tip for an unused one. */
+  private updateTips(nowMs: number): void {
+    if (!this.tipsOn || this.room.state.phase !== "live") return;
+    const state = this.me.state;
+    this.tips ??= new TipScheduler(nowMs);
+    const signals = moveSignals(this.tipBefore, state);
+    snapshotOf(state, this.tipBefore);
+    if (signals.has("reel") || signals.has("swing")) this.tips.used("reel", nowMs);
+    if (signals.has("vineHop")) this.tips.used("vineHop", nowMs);
+    if (signals.has("dodge")) this.tips.used("dodge", nowMs);
+    if (signals.has("slide")) this.tips.used("slide", nowMs);
+    if (state.arrowSlot === 1) this.tips.used("scatter", nowMs);
+    if (!state.alive) return;
+    const available = this.tipAvailable; available.length = 0;
+    if (state.grappleCooldownMs <= 0 && !state.grappleActive) available.push("reel");
+    if (!state.grounded && state.airJumps > 0) available.push("vineHop");
+    if (state.dodgeCooldownMs <= 0) available.push("dodge");
+    if (state.scatterCharges > 0 && state.arrowSlot !== 1) available.push("scatter");
+    if (state.grounded && Math.hypot(state.vx, state.vz) > 6.5) available.push("slide");
+    const tip = this.tips.next(nowMs, available);
+    if (tip) this.hud.tip(TIP_TEXT[tip]);
+  }
   private readonly quiver: QuiverStrip;
 
   private rebuildTetherZips(): void {

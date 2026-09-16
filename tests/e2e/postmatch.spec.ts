@@ -2,9 +2,11 @@ import { expect, test } from "@playwright/test";
 import type { KillMessage, MatchStatsMessage, RewardMessage } from "../../src/net/messages.ts";
 import { createMatchStats } from "../../src/shared/matchStats.ts";
 import { matchReward } from "../../src/shared/progression.ts";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, returningPlayer } from "./helpers.ts";
 
 type Hooks = { sessionId: string; showEndScreen(): void; showMatchRewards(stats: MatchStatsMessage, reward: RewardMessage): void; showKill(message: KillMessage, atMs: number): void };
+
+test.beforeEach(({ page }) => returningPlayer(page));
 
 test("post-match sequence finishes, shows rewards and unlocks, and click skips", async ({ page }) => {
   const errors = collectErrors(page);

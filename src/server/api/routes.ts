@@ -1,12 +1,22 @@
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
-import { DEV_GRANT_MAX, MAX_NAME_LENGTH } from "../../shared/constants.ts";
+import { DEV_GRANT_MAX, FUNNEL_EVENTS, MAX_NAME_LENGTH, ONBOARDING } from "../../shared/constants.ts";
 import { PROVIDERS, type GameDatabase, type Provider } from "../db/GameDatabase.ts";
 import { OAuth } from "./oauth.ts";
 import { Xsolla } from "./xsolla.ts";
 
 const GUESTS_PER_WINDOW = 20;
 const GUEST_WINDOW_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+
+type Window = { count: number; resetAt: number };
+/** Counts a call in a fixed window per key and says whether it is still allowed. */
+function allow(windows: Map<string, Window>, key: string, limit: number, windowMs: number, at: number): boolean {
+  const entry = windows.get(key);
+  if (!entry || entry.resetAt <= at) { windows.set(key, { count: 1, resetAt: at + windowMs }); return true; }
+  entry.count += 1;
+  return entry.count <= limit;
+}
 
 const NameBody = z.object({ name: z.string().max(MAX_NAME_LENGTH * 2) });
 const ItemBody = z.object({ itemId: z.string().max(64) });
@@ -33,6 +43,8 @@ export function apiRouter(options: ApiOptions): Router {
   const xsolla = options.xsolla ?? new Xsolla(process.env);
   const now = options.now ?? Date.now;
   const guestsByIp = new Map<string, { count: number; resetAt: number }>();
+  const tutorialCalls = new Map<string, Window>();
+  const funnelCalls = new Map<string, Window>();
   // The webhook signature covers the exact bytes, so this route reads the raw body before JSON parsing is installed.
   router.post("/xsolla/webhook", express.raw({ type: () => true, limit: "256kb" }), async (request, response) => {
     const raw = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
@@ -58,6 +70,23 @@ export function apiRouter(options: ApiOptions): Router {
     const body = NameBody.safeParse(request.body);
     const db = await options.database();
     response.status(201).json(await db.createGuest(body.success ? body.data.name : ""));
+  });
+
+  router.post("/tutorial/done", async (request, response) => {
+    const auth = await signedIn(request, response); if (!auth) return;
+    if (!allow(tutorialCalls, auth.accountId, ONBOARDING.courseCallsPerMinute, MINUTE_MS, now())) { response.status(429).json({ error: "slow_down" }); return; }
+    const result = await auth.db.completeTutorial(auth.accountId);
+    if (!result) { response.status(404).json({ error: "no_account" }); return; }
+    response.json(result);
+  });
+
+  /** Client funnel steps the server cannot see itself. Only known events are logged. */
+  router.post("/funnel", (request, response) => {
+    const body = z.object({ event: z.enum(FUNNEL_EVENTS) }).safeParse(request.body);
+    if (!body.success || body.data.event !== "menuOpened") { response.status(400).json({ error: "bad_event" }); return; }
+    if (!allow(funnelCalls, request.ip ?? "unknown", ONBOARDING.funnelPerHour, GUEST_WINDOW_MS, now())) { response.status(429).json({ error: "slow_down" }); return; }
+    console.log(JSON.stringify({ event: body.data.event }));
+    response.status(204).end();
   });
 
   router.get("/auth/providers", (_request, response) => {

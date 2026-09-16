@@ -26,6 +26,7 @@ const campBase: MapData = {
     { id: "vine-wall", min: [10, 0, -18], max: [14, 7, -17], material: "gold", tags: ["solid", "grapple"] },
     { id: "slide-log-1", min: [-9, CROUCH_HEIGHT + 0.1, -13], max: [-3, CROUCH_HEIGHT + 0.3, -12.5], material: "wood", tags: ["solid"] },
     { id: "slide-log-2", min: [-9, CROUCH_HEIGHT + 0.1, -21], max: [-3, CROUCH_HEIGHT + 0.3, -20.5], material: "wood", tags: ["solid"] },
+    { id: "course-crate", min: [3.5, 0, -7.5], max: [5.5, 1.8, -5.5], material: "wood", tags: ["solid"] },
     { id: "boulder-alcove", min: [8, 0, -36], max: [12, 3, -32], material: "stone", tags: ["solid"] },
     ...stairs({ idPrefix: "tower-step", start: [-10, 0, -2], dir: "-z", steps: 10, rise: STEP_HEIGHT, run: 0.7, width: PLAYER_WIDTH * 4, material: "wood" }),
   ],

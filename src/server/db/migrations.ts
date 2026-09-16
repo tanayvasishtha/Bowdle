@@ -81,6 +81,9 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE accounts ADD COLUMN best_streak INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE accounts ADD COLUMN longest_shot_m DOUBLE PRECISION NOT NULL DEFAULT 0
   `,
+  `
+  ALTER TABLE accounts ADD COLUMN tutorial_done BOOLEAN NOT NULL DEFAULT false
+  `,
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

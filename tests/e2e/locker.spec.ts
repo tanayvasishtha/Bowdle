@@ -1,11 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, returningPlayer } from "./helpers.ts";
 
 type Hooks = { locker: { look(): Record<string, string>; locker(): { ink: number; owned: string[]; loadout: Record<string, string> } | undefined } };
 const hooks = (page: Page) => page.evaluate(() => {
   const test = (window as unknown as { __bowdleTest: Hooks }).__bowdleTest;
   return { look: test.locker.look(), locker: test.locker.locker() };
 });
+
+test.beforeEach(({ page }) => returningPlayer(page));
 
 test("the locker previews, buys with Ink and equips", async ({ page }) => {
   const errors = collectErrors(page);

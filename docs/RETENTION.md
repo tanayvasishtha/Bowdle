@@ -241,4 +241,4 @@ Friends play in the same room with a code.
 - share of play days with 2 or more matches
 - challenge completion rate by challenge id
 
-The server also logs one JSON line per finished match (`matchFinished`: map, humans, bots, duration, score) and per level-up and challenge completion. The logs never include tokens or names.
+The server also logs one JSON line per finished match (`matchFinished`: map, humans, bots, duration, score) and per level-up and challenge completion, plus the onboarding funnel steps `menuOpened`, `tutorialDone`, `firstMatch` and `secondMatch` (v2). The logs never include tokens or names.

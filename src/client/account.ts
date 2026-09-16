@@ -49,6 +49,16 @@ export async function ensureAccount(name: string): Promise<Profile | undefined> 
   } catch { return undefined; }
 }
 
+/** Reports the finished field course. The server grants its Ink once per account. */
+export async function completeTutorial(): Promise<{ granted: boolean; ink: number } | undefined> {
+  try { return loadToken() ? await request<{ granted: boolean; ink: number }>("/tutorial/done", { method: "POST" }) : undefined; } catch { return undefined; }
+}
+
+/** A funnel step only the client sees. Failures are ignored. */
+export function reportFunnel(event: "menuOpened"): void {
+  void fetch(`${apiBase()}/funnel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event }), keepalive: true }).catch(() => undefined);
+}
+
 export async function fetchProfile(): Promise<Profile | undefined> {
   try { return loadToken() ? await request<Profile>("/profile") : undefined; } catch { return undefined; }
 }

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, returningPlayer } from "./helpers.ts";
+
+test.beforeEach(({ page }) => returningPlayer(page));
 
 test("Profile shows three daily and weekly challenges and one free reroll", async ({ page }) => {
   const errors = collectErrors(page);

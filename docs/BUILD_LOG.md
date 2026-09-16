@@ -1,5 +1,23 @@
 # Build log
 
+## G5: Guided onboarding
+
+Status: done.
+
+Built:
+
+- Field course in Practice Camp: eight stations in order (walk to a marker, vine hop, slide, wall jump, mantle, grapple swing, headshot, dagger swat), one line of text each, a floating marker, a counter, and a skip button. Moves are read from two ticks of player state, so only the current station's move counts. The swat station throws slow practice arrows that a well-timed swing knocks away. Camp gained a 1.8 m course crate for the mantle; at 1.3 m a plain jump cleared it and no mantle happened.
+- First launch: name, then the course with `course=first`, then a first match. Returning players go to the menu, which has a Field course button for replays. The old five-step camp tutorial is gone.
+- `tutorial_done` account column (migration 7), `POST /api/tutorial/done` granting 100 Ink once, limited to 5 calls a minute per account; the profile reports `tutorialDone`. The course end card shows the reward or that it was already collected.
+- Tips for a device's first 5 matches: one line naming an available move unused for 40 s, at most one per 45 s, each once per match; a settings toggle turns them off.
+- F1 controls overlay listing every action with its current key; "Click the page to aim" while the mouse is not captured. Action labels and key names moved to `settings.ts` so the settings screen and the overlay share them; mouse buttons now read "Left mouse" and "Right mouse".
+- Browser tests that start on the menu now begin as returning players (`returningPlayer` in `tests/e2e/helpers.ts`), because a fresh browser opens the first-launch name prompt.
+- Funnel log lines: `menuOpened` from the client through `POST /api/funnel` (only that event, rate limited), `tutorialDone`, `firstMatch` and `secondMatch` from the server.
+
+Verified: `npm run check` (276 tests, new tip scheduler and course signal tests, server tests for the one-time grant, its rate limit and the funnel lines, and a Postgres wire test), full Playwright suite (43 tests) with the new `onboarding.spec.ts` walking the course in order through test hooks (screenshots in `test-results/qa/g5/`), `npm run smoke`, `npm run build:portals`. The station moves were checked in the camp simulation from each marker. Break it: dropping the `tutorial_done = false` condition pays the reward twice and fails the grant test.
+
+Left: a human run of the whole course for timing (the design aims at 90 seconds); tips have no browser test because they wait 40 s by design.
+
 ## G4: Quiver and dagger swat
 
 Status: done.

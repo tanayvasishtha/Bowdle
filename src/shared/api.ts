@@ -10,6 +10,7 @@ export type Profile = {
   streakDays: number;
   career: { matches: number; wins: number; kills: number; headshots: number; bestStreak: number; longestShotM: number };
   nextUnlock?: import("./cosmetics.ts").LevelReward;
+  tutorialDone?: boolean;
 };
 
 export type LeaderboardRow = { rank: number; name: string; kills: number; wins: number; matches: number; level: number };

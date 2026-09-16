@@ -1,5 +1,11 @@
 // Every gameplay number lives here.
 export const RETENTION_XP = { finish: 100, kill: 50, assist: 25, headshot: 25, longShot: 25, ropeCut: 25, swat: 25, win: 200, medal: 25, maxMedals: 4 } as const;
+/** Onboarding (v2): the field course reward, its rate limit, and in-match tips for new players. */
+export const ONBOARDING = { courseInk: 100, courseCallsPerMinute: 5, tipIntervalMs: 45_000, tipMatches: 5, tipIdleMs: 40_000, funnelPerHour: 60,
+  /** The practice arrows the swat station throws: from a fixed spot down the range, slow enough to read. */
+  swatDrill: { everyMs: 2600, speed: 22, from: [0, 1.6, -18] as readonly [number, number, number], lifeMs: 3000, missM: 0.6 },
+} as const;
+export const FUNNEL_EVENTS = ["menuOpened", "tutorialDone", "firstMatch", "secondMatch"] as const;
 export const MEDAL_LIMITS = { mvp: 5, unstoppable: 6, onARoll: 3, headhunter: 3, eagleEye: 45, teamPlayer: 4, untouchable: 3 } as const;
 export const XP_PER_LEVEL_STEP = 500;
 export const MAX_LEVEL = 100;

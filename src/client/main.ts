@@ -16,6 +16,7 @@ import { platform } from "./platform/sdk.ts";
 import { fetchLocker } from "./account.ts";
 import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
+import { attachControlsHelp } from "./ui/controls.ts";
 import { attachUiSounds } from "./audio/uiSounds.ts";
 import { isPartyCode, normalizePartyCode } from "../shared/party.ts";
 import { startLocker, type LockerTestHooks } from "./ui/locker.ts";
@@ -32,6 +33,8 @@ declare global {
       killFeed?(): string;
       cloudCount?(): number;
       grappleActive?(): boolean;
+      courseState?(): import("./game/PracticeSession.ts").CourseState;
+      courseSignal?(signal: import("./game/course.ts").CourseSignal): void;
       grappleReeling?(): boolean;
       ropeSnaps?(): number;
       showRopeCut?(message: import("../net/messages.ts").RopeCutMessage): void;
@@ -74,6 +77,7 @@ else if (params.get("scene") === "online") {
   void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party).then((session) => {
     loading.remove();
     attachPauseMenu(app, sampler, party);
+    attachControlsHelp(app, renderer.canvas);
     session.start();
     if (params.has("test")) window.__bowdleTest = {
       snapshot: () => renderer.snapshot(),
@@ -110,7 +114,9 @@ else if (params.get("scene") === "online") {
   const map = params.get("scene") === "kit" ? kitMap : params.get("scene") === "props" ? propsGalleryMap : isCamp ? campMap : mapId ? mapById(mapId) ?? defaultMatchMap : defaultMatchMap;
   const renderer = new Renderer(app, params.has("debug"), map, isCamp ? campTargets : undefined);
   const sampler = new InputSampler(renderer.canvas, isCamp ? 0 : map.spawns.sun[0]?.yaw ?? -Math.PI / 2);
-  const session = isCamp ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);
+  const courseMode = params.get("course") === "first" ? "first" : params.has("course") ? "replay" : "auto";
+  const session = isCamp ? new PracticeSession(renderer, sampler, app, courseMode) : new OfflineSession(renderer, sampler, map);
+  if (isCamp) attachControlsHelp(app, renderer.canvas);
   if (isCamp) attachPauseMenu(app, sampler);
   if (session instanceof PracticeSession) void fetchLocker().then((locker) => { if (locker) session.setLoadout(locker.loadout); });
   session.start();
@@ -118,7 +124,7 @@ else if (params.get("scene") === "online") {
     snapshot: () => renderer.snapshot(),
     stats: () => renderer.stats(),
     cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
-    ...(session instanceof PracticeSession ? { fireAt: (targetId: string, drawMs: number) => session.fireAt(targetId, drawMs) } : {}),
+    ...(session instanceof PracticeSession ? { fireAt: (targetId: string, drawMs: number) => session.fireAt(targetId, drawMs), courseState: () => session.courseState(), courseSignal: (signal) => session.courseSignal(signal) } : {}),
   };
 } else if (params.get("scene") === "locker") {
   startLocker(app);

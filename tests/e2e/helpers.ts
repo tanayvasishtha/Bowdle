@@ -14,3 +14,14 @@ export function collectErrors(page: Page): string[] {
   });
   return errors;
 }
+
+/**
+ * Starts the page as a returning player so the first-launch flow (name, then field course) stays out of the way.
+ * With keepCourse the course is still unfinished, so Practice Camp starts it; a saved name skips the first-launch prompt instead.
+ */
+export async function returningPlayer(page: Page, keepCourse = false): Promise<void> {
+  await page.addInitScript((keep) => {
+    if (keep) { if (!localStorage.getItem("bowdle.name")) localStorage.setItem("bowdle.name", "Returning"); }
+    else localStorage.setItem("bowdle.course.done", "yes");
+  }, keepCourse);
+}

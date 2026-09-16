@@ -8,13 +8,13 @@ import { DEFAULT_LOADOUT, LEVEL_TRACK, cosmeticById, cosmeticBySku, nextUnlock, 
 import type { MatchStats } from "../../shared/matchStats.ts";
 import { createMatchStats } from "../../shared/matchStats.ts";
 import { DAILY_POOL, WEEKLY_POOL, challengeReward, dailyChallenges, weeklyChallenges, periodKeys, resetTimes, progressFrom, type ChallengeChange, type Challenges, type ChallengeState } from "../../shared/challenges.ts";
-import { PLAY_STREAK, UTC_DAY_MS } from "../../shared/constants.ts";
+import { PLAY_STREAK, UTC_DAY_MS, ONBOARDING } from "../../shared/constants.ts";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
 export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean; stats?: MatchStats; medals?: readonly string[]; mapId?: string };
 export type GrantedReward = MatchReward & { accountId: string; before: LevelProgress; after: LevelProgress; challenges: ChallengeChange[]; streakDays: number; unlocked: string[] };
 
-type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null; streak_days: number; last_play_day: string; first_win_day: string; reroll_day: string; total_matches: number; total_wins: number; total_kills: number; total_headshots: number; best_streak: number; longest_shot_m: number };
+type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null; streak_days: number; last_play_day: string; first_win_day: string; reroll_day: string; total_matches: number; total_wins: number; total_kills: number; total_headshots: number; best_streak: number; longest_shot_m: number; tutorial_done: boolean };
 type ChallengeRow = { period_key: string; challenge_id: string; progress: number; done: boolean; maps: string };
 
 async function challengeRows(query: SqlQuery, accountId: string, now: Date): Promise<ChallengeRow[]> {
@@ -114,6 +114,7 @@ export class GameDatabase {
       streakDays: account.streak_days,
       career: { matches: account.total_matches, wins: account.total_wins, kills: account.total_kills, headshots: account.total_headshots, bestStreak: account.best_streak, longestShotM: account.longest_shot_m },
       nextUnlock: nextUnlock(levelProgress(account.xp).level),
+      tutorialDone: account.tutorial_done,
     };
   }
 
@@ -176,7 +177,9 @@ export class GameDatabase {
         const levels = await grantLevelRewards(query, line.accountId, beforeProgress.level, afterProgress.level);
         reward.breakdown.push(...levels.breakdown); reward.ink += levels.breakdown.reduce((sum, row) => sum + row.ink, 0);
         await query("UPDATE match_rewards SET xp = $1, ink = $2, created_at = $3 WHERE match_id = $4 AND account_id = $5", [reward.xp, reward.ink, now, matchId, line.accountId]);
-        await query("UPDATE accounts SET total_matches = total_matches + 1, total_wins = total_wins + $1, total_kills = total_kills + $2, total_headshots = total_headshots + $3, best_streak = GREATEST(best_streak, $4), longest_shot_m = GREATEST(longest_shot_m, $5) WHERE id = $6", [stats.won ? 1 : 0, stats.kills, stats.headshots, stats.bestStreak, stats.longestShotM, line.accountId]);
+        const totals = await query<{ total_matches: number }>("UPDATE accounts SET total_matches = total_matches + 1, total_wins = total_wins + $1, total_kills = total_kills + $2, total_headshots = total_headshots + $3, best_streak = GREATEST(best_streak, $4), longest_shot_m = GREATEST(longest_shot_m, $5) WHERE id = $6 RETURNING total_matches", [stats.won ? 1 : 0, stats.kills, stats.headshots, stats.bestStreak, stats.longestShotM, line.accountId]);
+        const played = totals[0]?.total_matches ?? 0;
+        if (played === 1 || played === 2) console.log(JSON.stringify({ event: played === 1 ? "firstMatch" : "secondMatch", accountId: line.accountId }));
         granted.push({ accountId: line.accountId, ...reward, before: beforeProgress, after: afterProgress, challenges: changes, streakDays, unlocked: levels.unlocked });
       }
       return granted;
@@ -239,6 +242,17 @@ export class GameDatabase {
     const secret = randomBytes(TOKEN_BYTES).toString("base64url");
     await this.sql.query("INSERT INTO account_tokens (secret_hash, account_id) VALUES ($1, $2)", [hashSecret(secret), accountId]);
     return `${accountId}.${secret}`;
+  }
+
+  /** Marks the field course done and grants its Ink the first time only. */
+  async completeTutorial(accountId: string): Promise<{ granted: boolean; ink: number } | undefined> {
+    const updated = await this.sql.query<{ ink: number }>("UPDATE accounts SET tutorial_done = true, ink = ink + $1 WHERE id = $2 AND tutorial_done = false RETURNING ink", [ONBOARDING.courseInk, accountId]);
+    if (updated[0]) {
+      console.log(JSON.stringify({ event: "tutorialDone", accountId }));
+      return { granted: true, ink: updated[0].ink };
+    }
+    const current = await this.sql.query<{ ink: number }>("SELECT ink FROM accounts WHERE id = $1", [accountId]);
+    return current[0] ? { granted: false, ink: current[0].ink } : undefined;
   }
 
   async grantInk(accountId: string, amount: number): Promise<void> {

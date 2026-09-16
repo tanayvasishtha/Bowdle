@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, returningPlayer } from "./helpers.ts";
+
+test.beforeEach(({ page }) => returningPlayer(page));
 
 test("a new explorer gets an account, a profile and the leaderboard", async ({ page }) => {
   const errors = collectErrors(page);

@@ -37,6 +37,7 @@ export class MatchHud {
   private readonly sequence: PostMatchSequence;
   private readonly ticker = document.createElement("div");
   private readonly streakLine = document.createElement("div");
+  private readonly tipLine = document.createElement("div");
   private endedStreak = 0;
   private summaryLine: HTMLElement | undefined;
   private summaryMvp = "";
@@ -64,7 +65,9 @@ export class MatchHud {
     this.sequence = new PostMatchSequence(this.endPanel, this.medalList, this.rewardLine);
     this.ticker.className = "bowdle-xp-ticker"; this.ticker.dataset.testid = "xp-ticker";
     this.streakLine.className = "bowdle-streak"; this.streakLine.dataset.testid = "kill-streak";
-    this.root.append(this.ticker, this.streakLine);
+    this.root.append(this.ticker, this.streakLine, this.tipLine);
+    this.tipLine.dataset.testid = "tip";
+    this.tipLine.style.cssText = "position:absolute;top:96px;left:50%;transform:translateX(-50%);padding:4px 14px;background:#efe3c6dd;border:2px dashed #4a3527;font:20px 'Gochi Hand';display:none";
     style.textContent += `.bowdle-xp-ticker{position:absolute;right:${L.tickerRightPx}px;bottom:${L.tickerBottomPx}px;font-size:${L.bodyPx}px;text-align:right}.bowdle-xp-ticker>div{animation:xp-ticker-fade ${L.tickerFadeMs}ms forwards}.bowdle-streak{position:absolute;left:${L.streakLeftPx}px;bottom:${L.streakBottomPx}px;font-size:${L.bodyPx}px;color:#d2531f}.bowdle-end{min-width:0;width:min(${L.panelWidthVw}vw,${L.panelWidthPx}px)}.bowdle-end p,.bowdle-end li{font-size:${L.bodyPx}px;margin:${L.gapPx}px}.bowdle-medals{display:flex;justify-content:center;gap:${L.gapPx}px;flex-wrap:wrap;list-style:none;padding:0}.bowdle-medals li{border-bottom:solid #e3b23c}.postmatch-xp{height:${L.bodyPx}px;background:#fffaf0;border:solid #4a3527;overflow:hidden}.postmatch-xp>div{height:100%;background:#e3b23c;transition:width ${L.transitionMs}ms linear}.postmatch-level-up{color:#d2531f;animation:postmatch-flash ${L.xpMs}ms}.bowdle-end article{display:inline-flex;align-items:center;border:solid #e3b23c;margin:${L.gapPx}px;padding:${L.gapPx}px}.bowdle-end progress{display:block;margin:auto}.bowdle-end [hidden]{display:none!important}@keyframes xp-ticker-fade{from{opacity:1}to{opacity:0}}@keyframes postmatch-flash{from{opacity:0}to{opacity:1}}`;
     window.addEventListener("keydown", (event) => { if (event.code === loadSettings().keys.scoreboard) { event.preventDefault(); this.scoreboard.style.display = "block"; } });
     style.textContent += `.bowdle-xp-ticker>div{animation-duration:${L.transitionMs}ms;animation-delay:${L.tickerFadeMs}ms}.bowdle-medals li{animation:postmatch-flash ${L.transitionMs}ms}`;
@@ -165,6 +168,12 @@ export class MatchHud {
     if (result.banner) this.banner(result.banner);
   }
   tickerLine(text: string): void { const row = document.createElement("div"); row.textContent = text; this.ticker.append(row); while (this.ticker.childElementCount > KILL_FEEDBACK.tickerLines) this.ticker.firstElementChild?.remove(); }
+  /** A new-player hint that fades after a few seconds. */
+  tip(text: string): void {
+    this.tipLine.textContent = text;
+    this.tipLine.style.display = "block";
+    this.tipLine.animate([{ opacity: 0 }, { opacity: 1, offset: 0.08 }, { opacity: 1, offset: 0.85 }, { opacity: 0 }], { duration: 6000 }).finished.then(() => { this.tipLine.style.display = "none"; }, () => undefined);
+  }
   resetFeedback(): void { this.streakLine.textContent = ""; this.ticker.replaceChildren(); this.endedStreak = 0; }
   banner(text: string): void { for (const animation of this.moment.getAnimations()) animation.cancel(); this.moment.textContent = text; this.moment.animate([{ opacity: 0, transform: "translateX(-50%) scale(.7) rotate(-5deg)" }, { opacity: 1, transform: "translateX(-50%) scale(1.08) rotate(2deg)" }, { opacity: 0 }], { duration: L.bannerMs }); }
   setReplay(active: boolean): void { this.center.style.visibility = active ? "hidden" : "visible"; }

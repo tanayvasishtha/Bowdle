@@ -39,6 +39,8 @@ import type { InputSampler } from "./InputSampler.ts";
 import { COURSE_REACH_M, CourseGuide, courseDone, emptySnapshot, moveSignals, snapshotOf, type CourseResult, type CourseSignal } from "./course.ts";
 import { completeTutorial, ensureAccount } from "../account.ts";
 import { loadName } from "../settings.ts";
+import { music } from "../audio/music.ts";
+import { musicIntensity } from "../audio/spatial.ts";
 import { stabProgress } from "../render/characters/motion.ts";
 
 type TargetState = CampTarget & { x: number; hp: number; alive: boolean; lastDamageAtMs: number; respawnAtMs: number };
@@ -111,6 +113,7 @@ export class PracticeSession {
   }
 
   start(): void {
+    music().setIntensity(musicIntensity("practice", false, Number.POSITIVE_INFINITY));
     platform().loaded();
     platform().setPlaying(true);
     requestAnimationFrame((time) => this.frame(time));

@@ -45,6 +45,7 @@ Two teams: **Sun** (team 0, orange) and **Moon** (team 1, indigo). Warm sepia wo
 | Esc | Menu, releases mouse |
 | F3 | Debug overlay (dev builds only) |
 | F1 | Controls overlay with the current keys |
+| M | Music on or off |
 
 ## Onboarding (v2)
 
@@ -54,6 +55,15 @@ Two teams: **Sun** (team 0, orange) and **Moon** (team 1, indigo). Warm sepia wo
 - **Tips:** during a player's first 5 matches on a device, a tip line names a move that is available but unused for 40 s (reel, vine hop, dodge, scatter, slide), at most one every 45 s and each once per match. Settings can turn tips off.
 - **Help:** F1 lists every control. While the mouse is not captured, "Click the page to aim" shows in the middle of the screen.
 - **Funnel:** the client reports `menuOpened` through `POST /api/funnel` (only that event, 60 per hour per address); the server logs `tutorialDone`, `firstMatch` and `secondMatch` itself.
+
+## Audio (v2)
+
+All sound is generated in the browser; there are no recorded files. One audio context feeds a master bus and three buses under it (music, effects, ambience), each with a settings slider; ad breaks suspend it. Numbers are in `AUDIO_MIX` in `src/client/render/look.ts`.
+
+- **Music:** three layers (a filtered pad, kick and shaker percussion, a pentatonic melody) mixed by one intensity: 0 in the menu (pad only, quietly), 0.4 in practice and while exploring (pad and some percussion), 1 when an enemy within 35 m is on screen or the player was hit in the last 4 s (all layers). Layers crossfade over 1.5 s. M switches the music on and off and the choice is saved.
+- **Enemy footsteps:** within 18 m, one step every 2 m walking or 2.8 m running (6 m/s and up), panned around the listener. Walking steps play at 45 % of running ones, fading with distance; crouched, slow, airborne and zip-riding enemies make none.
+- **Other players:** a grapple or zip start within 30 m plays at its position, and so does the first sight of an enemy arrow.
+- **Sound indicators** (setting, off by default): an ink arc near the screen edge toward each enemy footstep, nearby enemy shot and starting boulder roll.
 
 ## Units and conventions
 

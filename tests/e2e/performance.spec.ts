@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, onlineUrl } from "./helpers.ts";
 
 test("first frame and launch map stay inside browser budgets", async ({ page }) => {
-  const errors = collectErrors(page); await page.goto("/?scene=online&test&map=sun-temple");
+  const errors = collectErrors(page); await page.goto(onlineUrl("map=sun-temple"));
   await page.waitForFunction(() => "__bowdleTest" in window);
   const firstFrameMs = await page.evaluate(() => performance.now());
   const stats = await page.evaluate(() => (window as unknown as { __bowdleTest: { stats(): { drawCalls: number; triangles: number; renderScale: number } } }).__bowdleTest.stats());

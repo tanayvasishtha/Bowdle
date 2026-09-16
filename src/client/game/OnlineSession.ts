@@ -33,7 +33,13 @@ import { KillFeedbackTracker } from "../../shared/killFeedback.ts";
 import { isInWater } from "../../shared/sim/volumes.ts";
 import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
 import { createMotion } from "../render/characters/pose.ts";
-import { ROPE_LOOK } from "../render/look.ts";
+import { AUDIO_MIX, ROPE_LOOK } from "../render/look.ts";
+import { music } from "../audio/music.ts";
+import { busTarget } from "../audio/bus.ts";
+import { cueAngle, footstepGain, musicIntensity, strideLength } from "../audio/spatial.ts";
+import { SoundCues, type CueKind } from "../ui/soundCues.ts";
+import { boulderPosition } from "../../shared/sim/hazards.ts";
+import type { GameSettings } from "../settings.ts";
 
 export type RenderedPlayer = { id: string; team: number; x: number; y: number; z: number; grapple?: [number, number, number] };
 type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "scatter" | "tether" | "grapple" | "ink" };
@@ -81,6 +87,9 @@ export class OnlineSession {
     });
     this.replay = new ReplayDirector(renderer.canvas.parentElement!);
     this.quiver = new QuiverStrip(renderer.canvas.parentElement!);
+    this.cues = new SoundCues(renderer.canvas.parentElement!);
+    this.indicators = loadSettings().soundIndicators;
+    window.addEventListener("bowdle-settings", (event) => { this.indicators = (event as CustomEvent<GameSettings>).detail.soundIndicators; });
     this.cameraRig.onMove = (kind) => this.sounds.play(kind);
     this.sessionId = room.sessionId;
     this.input = room.input<PlayerInput>({ mode: "reliable", type: PlayerInput });
@@ -117,7 +126,7 @@ export class OnlineSession {
     room.onMessage<SwatMessage>("swat", (payload) => { const parsed = SwatMessage.safeParse(payload); if (parsed.success) this.onSwat(parsed.data); });
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.onHitConfirm(parsed.data); });
-    room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) { this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); this.cameraRig.hurt(parsed.data.damage); } });
+    room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) { this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); this.lastDamageAtMs = performance.now(); this.cameraRig.hurt(parsed.data.damage); } });
     room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
@@ -125,11 +134,11 @@ export class OnlineSession {
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
-  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string): Promise<OnlineSession> {
+  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string): Promise<OnlineSession> {
     const endpoint = import.meta.env.VITE_SERVER_URL || location.origin;
     const room = party
       ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party }, MatchState)
-      : await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, token: loadToken(), test: testing, testMapId }, MatchState);
+      : await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}) }, MatchState);
     if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {
@@ -198,8 +207,10 @@ export class OnlineSession {
     this.renderer.setDebugMovement(this.me.state);
     const serverNow = this.room.clock.serverNow();
     const capture = this.replay.beginCapture(timeMs);
+    this.enemyInView = false;
     for (const [id, player] of this.room.state.players) {
       this.names.set(id, player.name);
+      if (id !== this.sessionId) this.listenTo(id, player, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"));
       this.renderer.setPlayerPosition(
         id,
         player.team,
@@ -217,6 +228,10 @@ export class OnlineSession {
       if (capture) this.replay.player(id, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"), this.predict.value(player, "yaw"));
     }
     this.renderArrows(timeMs, capture);
+    this.hearHazards();
+    const camera = this.renderer.camera.position;
+    this.sounds.setListener(camera.x, camera.y, camera.z, this.me.state.yaw);
+    music().setIntensity(musicIntensity("match", this.enemyInView, performance.now() - this.lastDamageAtMs));
     this.renderer.setLocalTeam(this.me.state.team);
     this.renderer.setLocalBowSkin(this.me.state.bowSkin);
     this.renderer.setLocalArrowKind(ARROW_SLOTS[this.me.state.arrowSlot] ?? "arrow");
@@ -244,6 +259,7 @@ export class OnlineSession {
       if (!source) continue;
       if (!render) {
         const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
+        this.hearShot(source);
         render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
       }
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
@@ -266,6 +282,70 @@ export class OnlineSession {
   /** Tethers as zip lines, so prediction rides them like the server does. */
   private tetherZips: ZipLine[] = [];
   private tipsOn = false;
+  private readonly cues: SoundCues;
+  private indicators = false;
+  private lastDamageAtMs = Number.NEGATIVE_INFINITY;
+  private enemyInView = false;
+  private readonly heard = new Map<string, { x: number; z: number; stride: number; grapple: boolean; zip: string }>();
+  private readonly hazardPhases = new Map<string, string>();
+  private readonly boulderPoint = { x: 0, y: 0, z: 0 };
+
+  private cue(kind: CueKind, x: number, z: number): void {
+    if (!this.indicators) return;
+    const me = this.me.state;
+    this.cues.show(kind, cueAngle(me.x, me.z, me.yaw, x, z));
+  }
+
+  /** Enemy footsteps, and grapple and zip starts from other players, heard from where they happen. */
+  private listenTo(id: string, player: PlayerState, x: number, y: number, z: number): void {
+    const me = this.me.state;
+    let memo = this.heard.get(id);
+    if (!memo) { memo = { x, z, stride: 0, grapple: player.grappleActive, zip: player.zipId }; this.heard.set(id, memo); return; }
+    const moved = Math.hypot(x - memo.x, z - memo.z);
+    memo.x = x; memo.z = z;
+    const distance = Math.hypot(x - me.x, y - me.y, z - me.z);
+    if (player.alive && player.team !== me.team) {
+      if (distance < AUDIO_MIX.enemyViewM && this.renderer.screenPoint(x, y + 1, z)) this.enemyInView = true;
+      const speed = Math.hypot(player.vx, player.vz);
+      const loudness = player.grounded && !player.zipId ? footstepGain(distance, speed, player.crouched) : 0;
+      if (loudness > 0 && moved < 5) {
+        memo.stride += moved;
+        if (memo.stride >= strideLength(speed)) { memo.stride = 0; this.sounds.playAt("footstep", x, y, z, loudness); this.cue("footstep", x, z); }
+      } else memo.stride = 0;
+    }
+    const near = Math.max(0, 1 - distance / AUDIO_MIX.shotCueRangeM);
+    if (player.grappleActive && !memo.grapple) this.sounds.playAt("reel", x, y + 1, z, near);
+    if (player.zipId && !memo.zip) this.sounds.playAt("zip", x, y + 1, z, near);
+    memo.grapple = player.grappleActive; memo.zip = player.zipId;
+  }
+
+  /** The first sight of an enemy arrow: a shot sound and cue when it is close. */
+  private hearShot(arrow: LocalArrow | ArrowState): void {
+    const me = this.me.state;
+    if (arrow.owner === this.sessionId || arrow.team === me.team || (arrow.kind !== "arrow" && arrow.kind !== "scatter" && arrow.kind !== "tether")) return;
+    const distance = Math.hypot(arrow.x - me.x, arrow.z - me.z);
+    if (distance > AUDIO_MIX.shotCueRangeM) return;
+    this.sounds.playAt("twang", arrow.x, arrow.y, arrow.z, 1 - distance / AUDIO_MIX.shotCueRangeM);
+    this.cue("shot", arrow.x, arrow.z);
+  }
+
+  private hearHazards(): void {
+    for (const [id, hazard] of this.room.state.hazards) {
+      const before = this.hazardPhases.get(id);
+      this.hazardPhases.set(id, hazard.phase);
+      if (hazard.phase !== "roll" || before === "roll") continue;
+      const boulder = this.map.boulders.find((entry) => entry.id === id);
+      if (!boulder) continue;
+      boulderPosition(boulder, hazard.t, hazard.direction, this.boulderPoint);
+      this.cue("boulder", this.boulderPoint.x, this.boulderPoint.z);
+    }
+  }
+
+  /** Test hooks for audio. */
+  audioState(): { musicBus: number; layers: { pad: number; percussion: number; melody: number }; cues: number } {
+    return { musicBus: busTarget("music"), layers: music().mix(), cues: this.cues.shown };
+  }
+  showCue(kind: CueKind, x: number, z: number): void { this.cue(kind, x, z); }
   private tips: TipScheduler | null = null;
   private readonly tipBefore = emptySnapshot();
   private readonly tipAvailable: TipId[] = [];

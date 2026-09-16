@@ -1,4 +1,5 @@
 import { DEFAULT_FOV, MASTER_VOLUME, MAX_FOV, MIN_FOV, MOUSE_SENSITIVITY } from "../shared/constants.ts";
+import { AUDIO_MIX } from "./render/look.ts";
 export { nameError } from "../shared/name.ts";
 
 export const ACTION_LABELS = {
@@ -32,6 +33,13 @@ export type GameSettings = {
   damageNumbers: boolean;
   /** Short hints about unused moves during the first matches. */
   tips: boolean;
+  musicVolume: number;
+  effectsVolume: number;
+  ambienceVolume: number;
+  /** Music on or off; M toggles it. */
+  music: boolean;
+  /** Screen-edge marks for footsteps, shots and boulders. */
+  soundIndicators: boolean;
   keys: KeyBindings;
 };
 
@@ -45,7 +53,11 @@ const STORAGE_KEY = "bowdle.settings.v1";
 const NAME_KEY = "bowdle.name";
 
 export function defaultSettings(): GameSettings {
-  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, keys: { ...DEFAULT_KEYS } };
+  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, keys: { ...DEFAULT_KEYS } };
+}
+
+function unit(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback;
 }
 
 export function loadSettings(): GameSettings {
@@ -63,6 +75,11 @@ export function loadSettings(): GameSettings {
       reduceMotion: parsed.reduceMotion ?? defaults.reduceMotion,
       damageNumbers: parsed.damageNumbers ?? defaults.damageNumbers,
       tips: parsed.tips ?? defaults.tips,
+      musicVolume: unit(parsed.musicVolume, defaults.musicVolume),
+      effectsVolume: unit(parsed.effectsVolume, defaults.effectsVolume),
+      ambienceVolume: unit(parsed.ambienceVolume, defaults.ambienceVolume),
+      music: parsed.music ?? defaults.music,
+      soundIndicators: parsed.soundIndicators ?? defaults.soundIndicators,
       keys: { ...DEFAULT_KEYS, ...parsed.keys },
     };
   } catch { return defaults; }

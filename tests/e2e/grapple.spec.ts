@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, onlineUrl } from "./helpers.ts";
 
 type GrappleApi = {
   sessionId: string;
@@ -14,10 +14,10 @@ const call = <T>(page: Page, name: Hook): Promise<T> =>
 
 test("the grapple reels while held, swings when let go, and snaps when cut", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=online&test&map=canopy");
+  await page.goto(onlineUrl("map=canopy"));
   await page.waitForFunction(() => "__bowdleTest" in window);
   const peer = await page.context().newPage();
-  await peer.goto("/?scene=online&test&map=canopy");
+  await peer.goto(onlineUrl("map=canopy"));
   await peer.waitForFunction(() => "__bowdleTest" in window);
   await page.bringToFront();
   await page.locator("#game-canvas").click();

@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, onlineUrl } from "./helpers.ts";
 
 test("an online join renders every launch map within budget", async ({ page }) => {
   for (const mapId of ["sun-temple", "canopy", "lost-river"]) {
     const errors = collectErrors(page);
-    await page.goto(`/?scene=online&test&map=${mapId}`);
+    await page.goto(onlineUrl(`map=${mapId}`));
     const canvas = page.locator("#game-canvas");
     await expect(canvas).toHaveAttribute("data-map-id", mapId);
     await page.waitForFunction(() => "__bowdleTest" in window);

@@ -2,11 +2,11 @@ import { expect, test } from "@playwright/test";
 import { createMatchStats } from "../../src/shared/matchStats.ts";
 import { matchReward } from "../../src/shared/progression.ts";
 import type { MatchStatsMessage, RewardMessage } from "../../src/net/messages.ts";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, onlineUrl } from "./helpers.ts";
 
 test("the end screen lists medals and an exact reward breakdown", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=online&test&map=canopy");
+  await page.goto(onlineUrl("map=canopy"));
   await page.waitForFunction(() => "__bowdleTest" in window);
   const stats = { ...createMatchStats(), kills: 3, headshots: 3, longShots: 1, longestShotM: 45, won: true };
   const medals: MatchStatsMessage["medals"] = ["headhunter", "eagleEye"];

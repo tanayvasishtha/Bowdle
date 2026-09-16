@@ -232,7 +232,7 @@ export class Renderer {
   }
 
   private applySettings(settings: GameSettings): void {
-    this.settings = settings; this.camera.fov = settings.fov; this.camera.updateProjectionMatrix(); this.composite.setBoil(settings.boil); this.ambience.setVolume(settings.masterVolume);
+    this.settings = settings; this.camera.fov = settings.fov; this.camera.updateProjectionMatrix(); this.composite.setBoil(settings.boil);
     for (const symbol of this.playerSymbols.values()) symbol.element.style.display = settings.colorblindSymbols ? "block" : "none";
   }
 

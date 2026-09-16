@@ -1,6 +1,4 @@
-import { registerAudioContext } from "./bus.ts";
-import { MASTER_VOLUME } from "../../shared/constants.ts";
-import { loadSettings } from "../settings.ts";
+import { audioBuses } from "./bus.ts";
 import { MULTIKILL_CHIME } from "../render/look.ts";
 
 import { HIT_PITCH_PER_DAMAGE, RECIPES, type RecipeName, type Voice } from "./recipes.ts";
@@ -19,11 +17,10 @@ export class SoundEffects {
 
   private ensureContext(): void {
     if (this.context) return;
-    this.context = new AudioContext();
-    registerAudioContext(this.context);
+    const buses = audioBuses(); if (!buses) return;
+    this.context = buses.context;
     this.master = this.context.createGain();
-    this.master.gain.value = MASTER_VOLUME;
-    this.master.connect(this.context.destination);
+    this.master.connect(buses.effects);
     this.noise = this.context.createBuffer(1, this.context.sampleRate, this.context.sampleRate);
     const channel = this.noise.getChannelData(0);
     let seed = 0x51f15e;
@@ -33,7 +30,7 @@ export class SoundEffects {
     }
   }
 
-  private voice(context: AudioContext, master: GainNode, voice: Voice, now: number, pitch: number): void {
+  private voice(context: AudioContext, master: AudioNode, voice: Voice, now: number, pitch: number): void {
     const start = now + voice.delay, end = start + voice.duration;
     const gain = context.createGain();
     gain.gain.setValueAtTime(voice.gain, start);
@@ -56,13 +53,41 @@ export class SoundEffects {
     source.connect(filter).connect(gain); source.start(start); source.stop(end + 0.02);
   }
 
+  /** Moves the ear to the camera. Yaw 0 faces -z. */
+  setListener(x: number, y: number, z: number, yaw: number): void {
+    const context = this.context; if (!context) return;
+    const listener = context.listener, forwardX = -Math.sin(yaw), forwardZ = -Math.cos(yaw);
+    if (listener.positionX) {
+      const now = context.currentTime;
+      listener.positionX.setValueAtTime(x, now); listener.positionY.setValueAtTime(y, now); listener.positionZ.setValueAtTime(z, now);
+      listener.forwardX.setValueAtTime(forwardX, now); listener.forwardY.setValueAtTime(0, now); listener.forwardZ.setValueAtTime(forwardZ, now);
+      listener.upX.setValueAtTime(0, now); listener.upY.setValueAtTime(1, now); listener.upZ.setValueAtTime(0, now);
+    } else {
+      listener.setPosition(x, y, z); listener.setOrientation(forwardX, 0, forwardZ, 0, 1, 0);
+    }
+  }
+
+  /** A recipe sound at a world position, panned around the listener. The caller decides the loudness. */
+  playAt(name: RecipeName, x: number, y: number, z: number, loudness: number): void {
+    this.ensureContext();
+    const context = this.context, master = this.master;
+    if (!context || !master || loudness <= 0) return;
+    const panner = context.createPanner();
+    panner.panningModel = "HRTF"; panner.distanceModel = "linear"; panner.rolloffFactor = 0; panner.refDistance = 1; panner.maxDistance = 10_000;
+    panner.positionX.value = x; panner.positionY.value = y; panner.positionZ.value = z;
+    const level = context.createGain(); level.gain.value = loudness;
+    level.connect(panner).connect(master);
+    const now = context.currentTime;
+    for (const voice of RECIPES[name]) this.voice(context, level, voice, now, 0);
+    window.setTimeout(() => { level.disconnect(); panner.disconnect(); }, 1500);
+  }
+
   /** `amount` is damage for "hit"; other sounds ignore it. */
   play(name: SoundName, amount = 0): void {
     this.ensureContext();
     const context = this.context;
     const master = this.master;
     if (!context || !master) return;
-    master.gain.value = loadSettings().masterVolume;
     const now = context.currentTime;
     if (name in RECIPES) {
       const pitch = name === "hit" ? amount * HIT_PITCH_PER_DAMAGE : 0;

@@ -1,5 +1,22 @@
 # Build log
 
+## G6: Music and directional audio
+
+Status: done.
+
+Built:
+
+- One shared audio context with master, music, effects and ambience buses (`src/client/audio/bus.ts`). Effects and ambience moved onto it from their own contexts; the ambience now stops its own sources when a map changes instead of closing a context. Settings gained music, effects and ambience sliders, a music switch and a sound indicators switch; the ad-break suspension still covers everything.
+- Generated music (`src/client/audio/music.ts`): a filtered pad with a four-chord cycle, kick and shaker percussion, and a seeded pentatonic melody, scheduled ahead on the audio clock. Layer gains follow one intensity (menu 0, practice and exploring 0.4, a fight 1) with 1.5 s crossfades. M switches music and saves the choice.
+- Directional sound: enemy footsteps within 18 m through an HRTF panner (walking at 45 %, silent when crouched, slow, airborne or zipping), grapple and zip starts from other players, and the first sight of an enemy arrow. The listener follows the camera.
+- Sound indicators: ink arcs near the screen edge for enemy footsteps, nearby enemy shots and boulder rolls.
+- Online browser tests each get their own test room (`onlineUrl` in `tests/e2e/helpers.ts`, matched through a new `testRoom` join option). Test rooms were matched by map only, so a test could join a room an earlier test left behind; the grapple tests flaked on that.
+- Pure helpers in `src/client/audio/spatial.ts` for intensity, layer mix, footstep loudness, stride length and cue direction.
+
+Verified: `npm run check` (281 tests, new `spatial.test.ts`), full Playwright suite (44 tests) with the new `audio.spec.ts` (M changes the music bus target; an enemy shot aimed at the player shows a shot cue; screenshot in `test-results/qa/g6/`), `npm run smoke`, `npm run build:portals`. Break it: footsteps for crouched enemies fail the loudness test.
+
+Left: a headphone listen for panning and the music mix; the browser tests cannot hear audio, so they check bus targets and cues only.
+
 ## G5: Guided onboarding
 
 Status: done.

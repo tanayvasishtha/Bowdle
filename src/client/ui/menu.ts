@@ -1,6 +1,8 @@
 import { MAX_FOV, MIN_FOV } from "../../shared/constants.ts";
 import { consumeSignInFragment, ensureAccount, reportFunnel } from "../account.ts";
 import { courseDone } from "../game/course.ts";
+import { music } from "../audio/music.ts";
+import { musicIntensity } from "../audio/spatial.ts";
 import { ACTION_LABELS, ACTIONS, keyLabel, loadName, loadSettings, nameError, saveName, saveSettings, type Action, type GameSettings } from "../settings.ts";
 import { showLeaderboard, showProfile } from "./profile.ts";
 import { platform } from "../platform/sdk.ts";
@@ -29,6 +31,11 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     <label><input data-setting="colorblindSymbols" type="checkbox" ${settings.colorblindSymbols ? "checked" : ""}> Team symbols</label>
     <label><input data-setting="reduceMotion" type="checkbox" ${settings.reduceMotion ? "checked" : ""}> Reduce motion</label>
     <label><input data-setting="damageNumbers" type="checkbox" ${settings.damageNumbers ? "checked" : ""}> Damage numbers</label>
+    <label>Music <input data-setting="musicVolume" type="range" min="0" max="1" step="0.05" value="${settings.musicVolume}"></label>
+    <label>Effects <input data-setting="effectsVolume" type="range" min="0" max="1" step="0.05" value="${settings.effectsVolume}"></label>
+    <label>Ambience <input data-setting="ambienceVolume" type="range" min="0" max="1" step="0.05" value="${settings.ambienceVolume}"></label>
+    <label><input data-setting="music" type="checkbox" ${settings.music ? "checked" : ""}> Music (M)</label>
+    <label><input data-setting="soundIndicators" type="checkbox" ${settings.soundIndicators ? "checked" : ""}> Sound indicators</label>
     <label><input data-setting="tips" type="checkbox" ${settings.tips ? "checked" : ""}> Tips for new players</label>
     <h3>Bindings</h3><div class="bowdle-bindings"></div><button data-action="done">Done</button>`;
   const bindings = panel.querySelector<HTMLDivElement>(".bowdle-bindings")!;
@@ -50,7 +57,7 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
   const update = (): void => {
     const number = (name: string): number => Number(panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.value);
     const checked = (name: string): boolean => panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.checked;
-    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
+    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), musicVolume: number("musicVolume"), effectsVolume: number("effectsVolume"), ambienceVolume: number("ambienceVolume"), music: checked("music"), soundIndicators: checked("soundIndicators"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
     panel.querySelector("output")!.textContent = String(settings.fov); saveSettings(settings);
   };
   panel.addEventListener("input", update);
@@ -65,6 +72,7 @@ export function showMainMenu(container: HTMLElement): void {
   container.append(menu);
   platform().loaded();
   reportFunnel("menuOpened");
+  music().setIntensity(musicIntensity("menu", false, Number.POSITIVE_INFINITY));
   const signIn = consumeSignInFragment();
   if (signIn.linked || signIn.failed) {
     const toast = document.createElement("div"); toast.className = "bowdle-toast";

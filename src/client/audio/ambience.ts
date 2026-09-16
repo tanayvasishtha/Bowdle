@@ -1,5 +1,5 @@
-import { registerAudioContext } from "./bus.ts";
-import { MASTER_VOLUME, ZIP_SPEED } from "../../shared/constants.ts";
+import { audioBuses } from "./bus.ts";
+import { ZIP_SPEED } from "../../shared/constants.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { mulberry32, type SeededRng } from "../../shared/math/rng.ts";
 
@@ -17,7 +17,8 @@ export class Ambience {
   private zipTone: OscillatorNode | null = null;
   private noise: AudioBuffer | null = null;
   private disposed = false;
-  private volume = MASTER_VOLUME;
+  /** Everything this ambience started, stopped again on dispose because the audio context is shared. */
+  private readonly running: AudioScheduledSourceNode[] = [];
   private readonly startOnPointer = (): void => { this.start(); };
 
   constructor(map: MapData) {
@@ -28,7 +29,8 @@ export class Ambience {
   dispose(): void {
     this.disposed = true;
     window.removeEventListener("pointerdown", this.startOnPointer);
-    if (this.context) void this.context.close();
+    for (const source of this.running) { try { source.stop(); } catch { /* already stopped */ } }
+    this.master?.disconnect();
   }
 
   updateListener(x: number, z: number): void {
@@ -55,8 +57,6 @@ export class Ambience {
     this.zipTone.frequency.setTargetAtTime(180 + fraction * 520, this.context.currentTime, 0.04);
   }
 
-  setVolume(volume: number): void { this.volume = volume; if (this.master) this.master.gain.setTargetAtTime(volume, this.context!.currentTime, 0.04); }
-
   leverClunk(): void {
     if (!this.context || !this.master || !this.noise) return;
     const source = this.context.createBufferSource(), filter = this.context.createBiquadFilter(), gain = this.context.createGain(), now = this.context.currentTime;
@@ -66,21 +66,22 @@ export class Ambience {
 
   private start(): void {
     if (this.context || this.disposed) return;
-    const context = new AudioContext(); registerAudioContext(context); this.context = context; this.master = context.createGain(); this.master.gain.value = this.volume; this.master.connect(context.destination);
+    const buses = audioBuses(); if (!buses) return;
+    const context = buses.context; this.context = context; this.master = context.createGain(); this.master.connect(buses.ambience);
     this.noise = context.createBuffer(1, context.sampleRate * AUDIO.noiseSeconds, context.sampleRate); const samples = this.noise.getChannelData(0);
     let seed = this.map.look.stainSeed ^ 0x4f1bbcdc; for (let index = 0; index < samples.length; index += 1) { seed = Math.imul(seed ^ seed >>> 15, 1 | seed); samples[index] = (seed >>> 0) / 2147483648 - 1; }
     const jungle = this.loopNoise("bandpass", 3800), jungleGain = context.createGain(); jungleGain.gain.value = AUDIO.jungleGain; jungle.connect(jungleGain).connect(this.master);
-    const tremolo = context.createOscillator(), tremoloDepth = context.createGain(); tremolo.frequency.value = 0.12; tremoloDepth.gain.value = AUDIO.jungleGain * 0.35; tremolo.connect(tremoloDepth).connect(jungleGain.gain); tremolo.start();
+    const tremolo = context.createOscillator(), tremoloDepth = context.createGain(); tremolo.frequency.value = 0.12; tremoloDepth.gain.value = AUDIO.jungleGain * 0.35; tremolo.connect(tremoloDepth).connect(jungleGain.gain); tremolo.start(); this.running.push(tremolo);
     const wind = this.loopNoise("lowpass", 520), windGain = context.createGain(); windGain.gain.value = AUDIO.windGain; wind.connect(windGain).connect(this.master);
     this.water = context.createGain(); this.water.gain.value = 0; this.loopNoise("lowpass", 900).connect(this.water).connect(this.master);
     this.rumble = context.createGain(); this.rumble.gain.value = 0; this.loopNoise("lowpass", 110).connect(this.rumble).connect(this.master);
     this.roll = context.createGain(); this.roll.gain.value = 0; this.loopNoise("bandpass", 280).connect(this.roll).connect(this.master);
-    this.zip = context.createGain(); this.zip.gain.value = 0; this.zipTone = context.createOscillator(); this.zipTone.type = "triangle"; this.zipTone.connect(this.zip).connect(this.master); this.zipTone.start();
+    this.zip = context.createGain(); this.zip.gain.value = 0; this.zipTone = context.createOscillator(); this.zipTone.type = "triangle"; this.zipTone.connect(this.zip).connect(this.master); this.zipTone.start(); this.running.push(this.zipTone);
     this.scheduleBird();
   }
 
   private loopNoise(type: BiquadFilterType, frequency: number): BiquadFilterNode {
-    const source = this.context!.createBufferSource(), filter = this.context!.createBiquadFilter(); source.buffer = this.noise; source.loop = true; filter.type = type; filter.frequency.value = frequency; source.connect(filter); source.start(); return filter;
+    const source = this.context!.createBufferSource(), filter = this.context!.createBiquadFilter(); source.buffer = this.noise; source.loop = true; filter.type = type; filter.frequency.value = frequency; source.connect(filter); source.start(); this.running.push(source); return filter;
   }
 
   private scheduleBird(): void {

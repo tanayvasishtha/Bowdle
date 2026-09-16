@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, onlineUrl } from "./helpers.ts";
 
 type TestApi = { players(): Array<{ id: string; x: number; y: number; z: number }>; sessionId: string; aimAt(id: string): void; drawMs(): number; killFeed(): string };
 type AbilityTestApi = { aimAtGrapple(minDistance?: number): void; grappleActive(): boolean; cloudCount(): number };
@@ -11,7 +11,7 @@ test("two online players see shared movement", async ({ browser }) => {
   const pageB = await contextB.newPage();
   const errorsA = collectErrors(pageA);
   const errorsB = collectErrors(pageB);
-  await Promise.all([pageA.goto("/?scene=online&test&map=lost-river"), pageB.goto("/?scene=online&test&map=lost-river")]);
+  await Promise.all([pageA.goto(onlineUrl("map=lost-river")), pageB.goto(onlineUrl("map=lost-river"))]);
   await Promise.all([
     pageA.waitForFunction(() => "__bowdleTest" in window),
     pageB.waitForFunction(() => "__bowdleTest" in window),
@@ -63,11 +63,11 @@ test("a solo online player gets a full match", async ({ page }) => {
 
 test("grapple and ink cloud are visible online", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=online&test&map=lost-river");
+  await page.goto(onlineUrl("map=lost-river"));
   await page.waitForFunction(() => "__bowdleTest" in window);
   const peer = await page.context().newPage();
   const peerErrors = collectErrors(peer);
-  await peer.goto("/?scene=online&test&map=lost-river");
+  await peer.goto(onlineUrl("map=lost-river"));
   await peer.waitForFunction(() => "__bowdleTest" in window);
   await expect.poll(async () => page.locator(".bowdle-timer").textContent(), { timeout: 8_000 }).not.toContain("DRAW IN");
   await page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.aimAtGrapple(8));

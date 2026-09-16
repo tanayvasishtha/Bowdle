@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, onlineUrl } from "./helpers.ts";
 
 type Feel = { fov: number; offsetY: number; offsetX: number; rollDeg: number; hurt: number; streaks: number };
 type FeelApi = {
@@ -14,7 +14,7 @@ const feel = (page: Page): Promise<Feel> => page.evaluate(() => (window as unkno
 async function openMatch(page: Page, reduceMotion: boolean): Promise<void> {
   await page.goto("/");
   await page.evaluate((reduce) => localStorage.setItem("bowdle.settings.v1", JSON.stringify({ reduceMotion: reduce, fov: 90 })), reduceMotion);
-  await page.goto("/?scene=online&test&map=canopy");
+  await page.goto(onlineUrl("map=canopy"));
   await page.waitForFunction(() => "__bowdleTest" in window);
   await page.locator("#game-canvas").click();
 }
@@ -67,7 +67,7 @@ test("reduce motion keeps the camera still", async ({ page }) => {
 test("a hit shows a damage number over the target", async ({ browser }) => {
   const contextA = await browser.newContext(), contextB = await browser.newContext();
   const pageA = await contextA.newPage(), pageB = await contextB.newPage();
-  await Promise.all([pageA.goto("/?scene=online&test&map=lost-river"), pageB.goto("/?scene=online&test&map=lost-river")]);
+  await Promise.all([pageA.goto(onlineUrl("map=lost-river")), pageB.goto(onlineUrl("map=lost-river"))]);
   await Promise.all([pageA.waitForFunction(() => "__bowdleTest" in window), pageB.waitForFunction(() => "__bowdleTest" in window)]);
   const idB = await pageB.evaluate(() => (window as unknown as { __bowdleTest: FeelApi }).__bowdleTest.sessionId);
   await pageA.waitForFunction((id) => (window as unknown as { __bowdleTest: FeelApi }).__bowdleTest.players().some((player) => player.id === id), idB);

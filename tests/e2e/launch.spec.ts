@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, onlineUrl } from "./helpers.ts";
 
 test("the end screen saves a clip and links a share on X", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=online&test&map=canopy");
+  await page.goto(onlineUrl("map=canopy"));
   await page.waitForFunction(() => "__bowdleTest" in window);
   await page.waitForTimeout(2500);
   await page.evaluate(() => (window as unknown as { __bowdleTest: { showEndScreen(): void } }).__bowdleTest.showEndScreen());

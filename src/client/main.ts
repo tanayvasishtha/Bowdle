@@ -17,6 +17,7 @@ import { fetchLocker } from "./account.ts";
 import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
 import { attachControlsHelp } from "./ui/controls.ts";
+import { installAudioMix } from "./audio/mixer.ts";
 import { attachUiSounds } from "./audio/uiSounds.ts";
 import { isPartyCode, normalizePartyCode } from "../shared/party.ts";
 import { startLocker, type LockerTestHooks } from "./ui/locker.ts";
@@ -39,6 +40,8 @@ declare global {
       ropeSnaps?(): number;
       showRopeCut?(message: import("../net/messages.ts").RopeCutMessage): void;
       showSwat?(message: import("../net/messages.ts").SwatMessage): void;
+      audioState?(): { musicBus: number; layers: { pad: number; percussion: number; melody: number }; cues: number };
+      showCue?(kind: "footstep" | "shot" | "boulder", x: number, z: number): void;
       quiver?(): { slot: string; charges: number; tetherCooldownMs: number; tethers: number };
       aimAtGrapple?(minDistance?: number): void;
       stats?(): { drawCalls: number; triangles: number; renderScale: number };
@@ -60,6 +63,7 @@ if (!app) throw new Error("Missing #app element");
 const params = new URLSearchParams(location.search);
 // Starts the portal SDK (a no-op on the web build) before anything else loads.
 platform();
+installAudioMix();
 installMenuStyles(app);
 attachUiSounds();
 const touchOnly = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)").matches;
@@ -74,7 +78,7 @@ else if (params.get("scene") === "online") {
   const requestedParty = normalizePartyCode(params.get("party") ?? "");
   const party = isPartyCode(requestedParty) ? requestedParty : undefined;
   if (party) loading.querySelector("p")!.textContent = `Joining party ${party}.`;
-  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party).then((session) => {
+  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined).then((session) => {
     loading.remove();
     attachPauseMenu(app, sampler, party);
     attachControlsHelp(app, renderer.canvas);
@@ -92,6 +96,8 @@ else if (params.get("scene") === "online") {
       ropeSnaps: () => renderer.snapCount(),
       showRopeCut: (message) => session.showRopeCut(message),
       showSwat: (message) => session.showSwat(message),
+      audioState: () => session.audioState(),
+      showCue: (kind, x, z) => session.showCue(kind, x, z),
       quiver: () => session.quiverState(),
       aimAtGrapple: (minDistance) => session.aimAtGrapple(minDistance),
       stats: () => renderer.stats(),

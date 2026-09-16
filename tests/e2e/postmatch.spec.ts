@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { KillMessage, MatchStatsMessage, RewardMessage } from "../../src/net/messages.ts";
 import { createMatchStats } from "../../src/shared/matchStats.ts";
 import { matchReward } from "../../src/shared/progression.ts";
-import { collectErrors, returningPlayer } from "./helpers.ts";
+import { collectErrors, returningPlayer, onlineUrl } from "./helpers.ts";
 
 type Hooks = { sessionId: string; showEndScreen(): void; showMatchRewards(stats: MatchStatsMessage, reward: RewardMessage): void; showKill(message: KillMessage, atMs: number): void };
 
@@ -18,7 +18,7 @@ test("post-match sequence finishes, shows rewards and unlocks, and click skips",
   const token = await page.evaluate(() => localStorage.getItem("bowdle.token"));
   const seed = await page.request.post("/api/dev/grant-xp", { headers: { Authorization: `Bearer ${token}` }, data: { xp: 1500 } });
   expect(seed.status()).toBe(200);
-  await page.goto("/?scene=online&test&map=canopy"); await page.waitForFunction(() => "__bowdleTest" in window);
+  await page.goto(onlineUrl("map=canopy")); await page.waitForFunction(() => "__bowdleTest" in window);
   const stats = { ...createMatchStats(), kills: 3, headshots: 3, longShots: 1, longestShotM: 45, bestStreak: 3, won: true };
   const medals: MatchStatsMessage["medals"] = ["headhunter", "eagleEye"];
   const base = matchReward(stats, medals);
@@ -53,7 +53,7 @@ test("post-match sequence finishes, shows rewards and unlocks, and click skips",
 
 test("two local kill messages one second apart show DOUBLE TAG and a bounded ticker", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=online&test&map=canopy"); await page.waitForFunction(() => "__bowdleTest" in window);
+  await page.goto(onlineUrl("map=canopy")); await page.waitForFunction(() => "__bowdleTest" in window);
   await page.evaluate(() => {
     const hook = (window as unknown as { __bowdleTest: Hooks }).__bowdleTest;
     const kill: KillMessage = { killer: hook.sessionId, victim: "fixture", weapon: "arrow", headshot: true, distance: 45 };
@@ -69,7 +69,7 @@ test("two local kill messages one second apart show DOUBLE TAG and a bounded tic
 
 test("New match leaves the old room and opens a fresh public match", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=online&test&map=canopy"); await page.waitForFunction(() => "__bowdleTest" in window);
+  await page.goto(onlineUrl("map=canopy")); await page.waitForFunction(() => "__bowdleTest" in window);
   await page.evaluate(() => (window as unknown as { __bowdleTest: Hooks }).__bowdleTest.showEndScreen());
   await page.locator(".bowdle-end h2").click();
   await page.getByRole("button", { name: "New match", exact: true }).click();

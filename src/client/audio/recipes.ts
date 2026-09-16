@@ -3,7 +3,7 @@ export type ToneVoice = { kind: "tone"; wave: OscillatorType; from: number; to: 
 export type NoiseVoice = { kind: "noise"; filter: BiquadFilterType; from: number; to: number; delay: number; duration: number; gain: number };
 export type Voice = ToneVoice | NoiseVoice;
 
-export type RecipeName = "hit" | "kill" | "dodge" | "doubleJump" | "wallJump" | "mantle" | "reel" | "ropeSnap" | "click" | "hover";
+export type RecipeName = "hit" | "kill" | "dodge" | "doubleJump" | "wallJump" | "mantle" | "reel" | "ropeSnap" | "click" | "hover" | "footstep" | "zip" | "twang";
 
 const tone = (wave: OscillatorType, from: number, to: number, duration: number, gain: number, delay = 0): ToneVoice => ({ kind: "tone", wave, from, to, delay, duration, gain });
 const noise = (filter: BiquadFilterType, from: number, to: number, duration: number, gain: number, delay = 0): NoiseVoice => ({ kind: "noise", filter, from, to, delay, duration, gain });
@@ -17,6 +17,9 @@ export const RECIPES: Record<RecipeName, readonly Voice[]> = {
   mantle: [noise("bandpass", 900, 500, 0.2, 0.1)],
   reel: [tone("sawtooth", 180, 260, 0.25, 0.04)],
   ropeSnap: [noise("highpass", 2500, 2500, 0.12, 0.2), tone("square", 1200, 200, 0.15, 0.06)],
+  footstep: [noise("lowpass", 520, 260, 0.07, 0.22), tone("sine", 90, 60, 0.05, 0.08)],
+  zip: [noise("bandpass", 1400, 3200, 0.35, 0.08), tone("triangle", 300, 700, 0.35, 0.04)],
+  twang: [tone("triangle", 520, 260, 0.12, 0.08), noise("bandpass", 900, 600, 0.08, 0.06)],
   click: [tone("square", 1400, 1400, 0.03, 0.04)],
   hover: [tone("sine", 900, 900, 0.02, 0.02)],
 };

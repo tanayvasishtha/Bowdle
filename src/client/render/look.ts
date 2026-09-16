@@ -51,4 +51,13 @@ export const COMPOSITE_FEEL = { streakRays: 48, streakWidth: 0.08, streakDensity
 /** Grapple rope: sag while swinging, straight while reeling, and the two pieces that fall after a cut. */
 export const ROPE_LOOK = { radius: 0.025, points: 13, wobble: 0.07, swingSag: 0.3, slackSagPerM: 0.5, maxSag: 1.4, snapMs: 550, snapFall: 9, cutHideMs: 300, handOffset: [0.3, -0.32, -0.55] } as const;
 
+/** Audio mix (v2): bus ramps, music layers and intensity, enemy footsteps and screen-edge sound cues. */
+export const AUDIO_MIX = {
+  busRampS: 0.05, crossfadeS: 1.5, exploreIntensity: 0.4, combatAfterDamageMs: 4000, padFloor: 0.35,
+  bpm: 92, padGain: 0.05, kickGain: 0.22, shakerGain: 0.05, melodyGain: 0.06, melodyChance: 0.55,
+  footstepRangeM: 18, footstepMinSpeed: 1, footstepRunSpeed: 6, footstepWalkGain: 0.45, walkStrideM: 2, runStrideM: 2.8,
+  enemyViewM: 35, shotCueRangeM: 30, cueMs: 900, cueRadius: 0.38,
+  defaultMusic: 0.5, defaultEffects: 1, defaultAmbience: 1,
+} as const;
+
 export const HIT_FEEL = { damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;

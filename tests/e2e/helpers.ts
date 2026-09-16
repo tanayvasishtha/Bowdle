@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { test, type Page } from "@playwright/test";
 
 // Font requests fail without internet (Codex cloud). That is expected and harmless.
 const IGNORED_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com"];
@@ -24,4 +24,13 @@ export async function returningPlayer(page: Page, keepCourse = false): Promise<v
     if (keep) { if (!localStorage.getItem("bowdle.name")) localStorage.setItem("bowdle.name", "Returning"); }
     else localStorage.setItem("bowdle.course.done", "yes");
   }, keepCourse);
+}
+
+/**
+ * An online test scene in a room of its own. Test rooms are matched by map, so without a key a test could join a room
+ * an earlier test left behind. Pages of the same test share the key and meet in one room.
+ */
+export function onlineUrl(query: string): string {
+  const info = test.info();
+  return `/?scene=online&test&${query}&room=${encodeURIComponent(`${info.testId}-${info.repeatEachIndex}-${info.retry}`)}`;
 }

@@ -16,6 +16,7 @@ import { platform } from "./platform/sdk.ts";
 import { fetchLocker } from "./account.ts";
 import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
+import { attachUiSounds } from "./audio/uiSounds.ts";
 import { isPartyCode, normalizePartyCode } from "../shared/party.ts";
 import { startLocker, type LockerTestHooks } from "./ui/locker.ts";
 
@@ -37,6 +38,9 @@ declare global {
       locker?: LockerTestHooks;
       showEndScreen?(): void;
       showKill?(message: import("../net/messages.ts").KillMessage, atMs: number): void;
+      showHitConfirm?(message: import("../net/messages.ts").HitConfirmMessage): void;
+      cameraFeel?(): { fov: number; offsetY: number; offsetX: number; rollDeg: number; hurt: number; streaks: number };
+      forceFeel?(hurt: number, streaks: number): void;
       showMatchRewards?(stats: import("../net/messages.ts").MatchStatsMessage, reward: import("../net/messages.ts").RewardMessage): void;
     };
   }
@@ -49,6 +53,7 @@ const params = new URLSearchParams(location.search);
 // Starts the portal SDK (a no-op on the web build) before anything else loads.
 platform();
 installMenuStyles(app);
+attachUiSounds();
 const touchOnly = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)").matches;
 if (touchOnly) showDesktopOnly(app);
 else if (params.get("scene") === "online") {
@@ -78,6 +83,9 @@ else if (params.get("scene") === "online") {
       stats: () => renderer.stats(),
       showEndScreen: () => session.showEndScreen(),
       showKill: (message, atMs) => session.showKill(message, atMs),
+      showHitConfirm: (message) => session.showHitConfirm(message),
+      cameraFeel: () => session.cameraFeel(),
+      forceFeel: (hurt, streaks) => renderer.forceFeel(hurt, streaks),
       showMatchRewards: (stats, reward) => session.showMatchRewards(stats, reward),
     };
   }).catch((error: unknown) => {

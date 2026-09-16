@@ -58,6 +58,8 @@ export class CompositePass {
         stainSeed: { value: 0 },
         horizon: { value: 0.5 },
         cameraYaw: { value: 0 },
+        hurt: { value: 0 },
+        streaks: { value: 0 },
       },
       vertexShader: compositeVertexShader,
       fragmentShader: compositeFragmentShader,
@@ -72,6 +74,12 @@ export class CompositePass {
   setBoil(enabled: boolean): void { this.boil = enabled; }
 
   /** Places the horizon band: screen height of the true horizon for this pitch, as a fraction from the bottom. */
+  /** Hurt vignette and speed streak strengths, 0 to 1. */
+  setFeel(hurt: number, streaks: number): void {
+    this.material.uniforms.hurt!.value = hurt;
+    this.material.uniforms.streaks!.value = streaks;
+  }
+
   setView(pitch: number, yaw: number, fovDegrees: number): void {
     const halfFov = (fovDegrees * Math.PI) / 360;
     this.material.uniforms.horizon!.value = 0.5 - (0.5 * Math.tan(pitch)) / Math.tan(halfFov);

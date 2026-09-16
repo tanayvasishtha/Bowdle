@@ -8,6 +8,6 @@ describe("composite shader", () => {
   });
 
   it("draws the horizon band, birds and weighted silhouettes", () => {
-    for (const name of ["uniform float horizon", "uniform float cameraYaw", "nearCrown", "bird", "depthEdge"]) expect(compositeFragmentShader).toContain(name);
+    for (const name of ["uniform float horizon", "uniform float cameraYaw", "uniform float hurt", "uniform float streaks", "nearCrown", "bird", "depthEdge"]) expect(compositeFragmentShader).toContain(name);
   });
 });

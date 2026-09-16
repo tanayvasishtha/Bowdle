@@ -12,6 +12,9 @@ export type GameSettings = {
   boil: boolean;
   floatingNotes: boolean;
   colorblindSymbols: boolean;
+  /** Turns off head bob, roll, shake, speed streaks and FOV kicks. */
+  reduceMotion: boolean;
+  damageNumbers: boolean;
   keys: KeyBindings;
 };
 
@@ -25,7 +28,7 @@ const STORAGE_KEY = "bowdle.settings.v1";
 const NAME_KEY = "bowdle.name";
 
 export function defaultSettings(): GameSettings {
-  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, keys: { ...DEFAULT_KEYS } };
+  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, keys: { ...DEFAULT_KEYS } };
 }
 
 export function loadSettings(): GameSettings {
@@ -40,6 +43,8 @@ export function loadSettings(): GameSettings {
       boil: parsed.boil ?? defaults.boil,
       floatingNotes: parsed.floatingNotes ?? defaults.floatingNotes,
       colorblindSymbols: parsed.colorblindSymbols ?? defaults.colorblindSymbols,
+      reduceMotion: parsed.reduceMotion ?? defaults.reduceMotion,
+      damageNumbers: parsed.damageNumbers ?? defaults.damageNumbers,
       keys: { ...DEFAULT_KEYS, ...parsed.keys },
     };
   } catch { return defaults; }

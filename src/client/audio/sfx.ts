@@ -3,7 +3,10 @@ import { MASTER_VOLUME } from "../../shared/constants.ts";
 import { loadSettings } from "../settings.ts";
 import { MULTIKILL_CHIME } from "../render/look.ts";
 
-type SoundName = "draw" | "release" | "wood" | "body" | "headshot" | "dagger" | "paper" | "multikill";
+import { HIT_PITCH_PER_DAMAGE, RECIPES, type RecipeName, type Voice } from "./recipes.ts";
+
+export type SoundName = "draw" | "release" | "wood" | "body" | "headshot" | "dagger" | "paper" | "multikill" | RecipeName;
+const MIN_GAIN = 0.001;
 
 export class SoundEffects {
   private context: AudioContext | null = null;
@@ -30,13 +33,42 @@ export class SoundEffects {
     }
   }
 
-  play(name: SoundName): void {
+  private voice(context: AudioContext, master: GainNode, voice: Voice, now: number, pitch: number): void {
+    const start = now + voice.delay, end = start + voice.duration;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(voice.gain, start);
+    gain.gain.exponentialRampToValueAtTime(MIN_GAIN, end);
+    gain.connect(master);
+    if (voice.kind === "tone") {
+      const oscillator = context.createOscillator();
+      oscillator.type = voice.wave;
+      oscillator.frequency.setValueAtTime(voice.from + pitch, start);
+      oscillator.frequency.exponentialRampToValueAtTime(voice.to + pitch, end);
+      oscillator.connect(gain); oscillator.start(start); oscillator.stop(end + 0.02);
+      return;
+    }
+    const source = context.createBufferSource();
+    source.buffer = this.noise;
+    const filter = context.createBiquadFilter();
+    filter.type = voice.filter;
+    filter.frequency.setValueAtTime(voice.from, start);
+    filter.frequency.exponentialRampToValueAtTime(voice.to, end);
+    source.connect(filter).connect(gain); source.start(start); source.stop(end + 0.02);
+  }
+
+  /** `amount` is damage for "hit"; other sounds ignore it. */
+  play(name: SoundName, amount = 0): void {
     this.ensureContext();
     const context = this.context;
     const master = this.master;
     if (!context || !master) return;
     master.gain.value = loadSettings().masterVolume;
     const now = context.currentTime;
+    if (name in RECIPES) {
+      const pitch = name === "hit" ? amount * HIT_PITCH_PER_DAMAGE : 0;
+      for (const voice of RECIPES[name as RecipeName]) this.voice(context, master, voice, now, pitch);
+      return;
+    }
     if (name === "multikill") {
       for (let note = 0; note < MULTIKILL_CHIME.notes.length; note += 1) {
         const start = now + note * MULTIKILL_CHIME.stepS;

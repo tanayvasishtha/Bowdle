@@ -32,3 +32,20 @@ export const DYNAMIC_RESOLUTION = { frameBudgetMs: 20, sampleWindowMs: 2000, ste
 export const HUD_END_MAX_HEIGHT_VH = 90;
 export const RETENTION_LOOK = { countSteps: 30, percent: 100, medalStartMs: 400, medalStepMs: 120, breakdownMs: 700, xpMs: 650, challengeMs: 500, footerMs: 250, tickerFadeMs: 2500, transitionMs: 180, bannerMs: 1800, panelWidthVw: 88, panelWidthPx: 760, bodyPx: 18, gapPx: 8, tickerBottomPx: 28, tickerRightPx: 24, streakLeftPx: 280, streakBottomPx: 48 } as const;
 export const MULTIKILL_CHIME = { notes: [523.25, 659.25, 783.99], stepS: 0.08, decayS: 0.16, tailS: 0.2, peak: 0.12, floor: 0.001 } as const;
+
+/** Camera feel (V2-DESIGN.md section 2). Distances in metres, angles in degrees, rates per second. */
+export const CAMERA_FEEL = {
+  speedFovStart: 8, speedFovPerMps: 1.2, speedFovMax: 8, fovEase: 6,
+  bobVertical: 0.03, bobLateral: 0.018, bobBaseHz: 1.8, bobHzPerMps: 0.12, bobScaleSpeed: 8, bobScaleMax: 1.2, bobEase: 8,
+  strafeRollDeg: 1.2, slideRollDeg: -4, rollEase: 9,
+  dipPerMps: 0.012, dipMax: 0.18, dipRecoverMs: 220,
+  kickJump: 3, kickDoubleJump: 2, kickDodge: 4, kickSlide: 2.5, kickDecayMs: 250,
+  shakeMax: 0.8, shakeDecay: 7, shakeHardLandingMps: 12, shakeLandingPerMps: 0.05, shakeHurtScale: 1, shakeAmplitudeDeg: 1.1, shakeHz: 23,
+  hurtMs: 400, hurtAlpha: 0.6,
+  streakStartMps: 13, streakFullMps: 20, streakAlpha: 0.35,
+} as const;
+
+/** Screen-space shapes for the hurt vignette and speed streaks. */
+export const COMPOSITE_FEEL = { streakRays: 48, streakWidth: 0.08, streakDensity: 0.55, streakFlickerHz: 6, streakInner: 0.38, streakOuter: 0.75, hurtInner: 0.32, hurtOuter: 0.85 } as const;
+
+export const HIT_FEEL = { damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;

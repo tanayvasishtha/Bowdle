@@ -1,4 +1,4 @@
-import { JOURNAL_LOOK as L } from "../look.ts";
+import { COMPOSITE_FEEL as F, JOURNAL_LOOK as L } from "../look.ts";
 
 export const compositeVertexShader = /* glsl */ `
   out vec2 vUv;
@@ -19,6 +19,8 @@ export const compositeFragmentShader = /* glsl */ `
   uniform float stainSeed;
   uniform float horizon;
   uniform float cameraYaw;
+  uniform float hurt;
+  uniform float streaks;
   in vec2 vUv;
   out vec4 outColor;
 
@@ -147,6 +149,18 @@ export const compositeFragmentShader = /* glsl */ `
     vec2 p = gl_FragCoord.xy / devicePixelRatio / renderScale; vec3 background = journalBackground(p);
     float frame = floor(time * ${L.boilHz}.0); vec2 boil = (hash2(floor(p / 3.0) + frame) - 0.5) * ${L.boilCssPx}.0;
     vec4 world = compose(worldColor, worldDepth, vUv, p, boil, background); vec4 viewmodel = compose(viewColor, viewDepth, vUv, p, boil, background);
-    vec3 color = world.a > 0.0 ? world.rgb : background; if (viewmodel.a > 0.0) color = viewmodel.rgb; outColor = vec4(color, 1.0);
+    vec3 color = world.a > 0.0 ? world.rgb : background; if (viewmodel.a > 0.0) color = viewmodel.rgb;
+    // Screen-edge distance with the aspect ratio removed, 0 at the centre.
+    vec2 centred = (vUv - 0.5) * vec2(resolution.x / resolution.y, 1.0);
+    float edge = length(centred);
+    if (streaks > 0.0) {
+      // Speed streaks: thin sepia rays near the edges that flicker along with the boil.
+      float angle = atan(centred.y, centred.x) / 6.2831853 * ${F.streakRays}.0;
+      float ray = 1.0 - smoothstep(0.0, ${F.streakWidth}, abs(fract(angle) - 0.5));
+      float lit = step(${F.streakDensity}, hash(vec2(floor(angle), floor(time * ${F.streakFlickerHz}.0))));
+      color = mix(color, SEPIA, streaks * ray * lit * smoothstep(${F.streakInner}, ${F.streakOuter}, edge));
+    }
+    if (hurt > 0.0) color = mix(color, SEPIA, hurt * smoothstep(${F.hurtInner}, ${F.hurtOuter}, edge));
+    outColor = vec4(color, 1.0);
   }
 `;

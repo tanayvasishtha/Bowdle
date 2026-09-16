@@ -104,8 +104,8 @@ export class OnlineSession {
     callbacks.onAdd("inkClouds", (cloud, id) => this.renderer.setInkCloud(id, cloud.x, cloud.y, cloud.z, cloud.radius));
     callbacks.onRemove("inkClouds", (_cloud, id) => this.renderer.removeInkCloud(id));
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
-    room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.hud.hit(parsed.data.headshot); });
-    room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); });
+    room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.onHitConfirm(parsed.data); });
+    room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) { this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); this.cameraRig.hurt(parsed.data.damage); } });
     room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
@@ -180,6 +180,7 @@ export class OnlineSession {
       this.input.send();
     }
     this.cameraRig.update(this.renderer.camera, this.me.state, this.me.state, 1, elapsed);
+    this.renderer.setFeel(this.cameraRig.output.hurt, this.cameraRig.output.streaks);
     this.renderer.setDebugMovement(this.me.state);
     const serverNow = this.room.clock.serverNow();
     const capture = this.replay.beginCapture(timeMs);
@@ -244,6 +245,23 @@ export class OnlineSession {
     return this.lookScratch;
   }
 
+  private onHitConfirm(message: HitConfirmMessage): void {
+    this.hud.hit(message.headshot);
+    this.sounds.play("hit", message.damage);
+    const target = this.room.state.players.get(message.target);
+    if (!target) return;
+    const point = this.renderer.screenPoint(target.x, target.y + (message.headshot ? headCenterY(target) - target.y : target.height * 0.6), target.z);
+    if (point) this.hud.damageNumber(point.x, point.y, message.damage, message.headshot);
+  }
+
+  /** Test hook: what the camera feel is doing right now. */
+  cameraFeel(): { fov: number; offsetY: number; offsetX: number; rollDeg: number; hurt: number; streaks: number } {
+    const out = this.cameraRig.output;
+    return { fov: this.cameraRig.currentFov, offsetY: out.offsetY, offsetX: out.offsetX, rollDeg: out.rollDeg, hurt: out.hurt, streaks: out.streaks };
+  }
+
+  showHitConfirm(message: HitConfirmMessage): void { this.onHitConfirm(HitConfirmMessage.parse(message)); }
+
   private onKill(message: KillMessage, atMs = performance.now()): void {
     this.hud.kill(message, this.names); const victim = this.room.state.players.get(message.victim); const killer = this.room.state.players.get(message.killer);
     if (message.killer === this.sessionId && message.weapon === "arrow") this.bestShot = Math.max(this.bestShot, message.distance);
@@ -258,6 +276,7 @@ export class OnlineSession {
     else if (message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
     else if (message.distance >= LONG_SHOT_M) { this.hud.banner("LONG SHOT!"); happyTime("longShot"); }
     if (message.killer === this.sessionId) {
+      this.hud.killConfirm(message.headshot); this.sounds.play("kill");
       const feedback = this.feedback.kill({ atMs, headshot: message.headshot, distance: message.distance, weapon: message.weapon });
       this.hud.feedback(feedback); if (feedback.multikill) this.sounds.play("multikill"); if (feedback.unstoppable) happyTime("unstoppable");
     }

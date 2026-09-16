@@ -1,7 +1,7 @@
 import { lockPointer } from "../game/pointerLock.ts";
 import type { MatchState } from "../../net/schema.ts";
 import type { KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage } from "../../net/messages.ts";
-import { HUD_END_MAX_HEIGHT_VH, RETENTION_LOOK as L } from "../render/look.ts";
+import { HIT_FEEL as HIT, HUD_END_MAX_HEIGHT_VH, RETENTION_LOOK as L } from "../render/look.ts";
 import { GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS, KILL_FEEDBACK, MEDAL_LIMITS } from "../../shared/constants.ts";
 import type { KillFeedback } from "../../shared/killFeedback.ts";
 import { PostMatchSequence } from "./PostMatchSequence.ts";
@@ -50,7 +50,7 @@ export class MatchHud {
     this.root.innerHTML = `<div class="bowdle-score"></div><div class="bowdle-timer"></div><div class="bowdle-feed" data-testid="kill-feed"></div><div class="bowdle-marker">✕</div><div class="bowdle-damage"></div><div class="bowdle-scoreboard"></div><div class="bowdle-center"></div><div class="bowdle-moment"></div><div class="bowdle-abilities" data-testid="ability-cooldowns"></div><div class="bowdle-end"></div>`;
     this.root.style.cssText = "position:absolute;inset:0;pointer-events:none;color:#4a3527;font-family:'Gochi Hand',cursive;text-shadow:1px 1px #efe3c6";
     const style = document.createElement("style");
-    style.textContent = `.bowdle-score{position:absolute;top:18px;left:50%;transform:translateX(-50%);font:36px 'Permanent Marker';letter-spacing:8px}.bowdle-timer{position:absolute;top:62px;left:50%;transform:translateX(-50%);font-size:22px}.bowdle-feed{position:absolute;right:24px;top:28px;text-align:right;font-size:22px}.bowdle-feed div{margin:5px;padding:4px 9px;background:#efe3c6cc;border-bottom:2px solid #4a3527}.bowdle-marker{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:46px;color:#d2531f;opacity:0}.bowdle-damage{position:absolute;left:50%;top:50%;width:220px;height:220px;margin:-110px;border:12px solid transparent;border-top-color:#d2531f;border-radius:50%;opacity:0}.bowdle-scoreboard{display:none;position:absolute;left:50%;top:16%;transform:translateX(-50%);min-width:520px;padding:22px;background:#efe3c6ee;border:4px solid #4a3527;font-size:22px;white-space:pre}.bowdle-center{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center;font:42px 'Permanent Marker';white-space:pre}.bowdle-moment{position:absolute;left:50%;top:22%;transform:translateX(-50%) rotate(-2deg);font:52px 'Permanent Marker';color:#d2531f;opacity:0}.bowdle-abilities{position:absolute;left:24px;bottom:24px;display:flex;gap:12px;font:22px 'Permanent Marker'}.bowdle-ability{width:112px;padding:9px;background:#efe3c6dd;border:3px solid #4a3527;transform:rotate(-1deg)}.bowdle-ability.ready{border-color:#e3b23c;color:#d2531f}.bowdle-end{display:none;position:absolute;left:50%;top:48%;transform:translate(-50%,-50%) rotate(-1deg);min-width:420px;padding:24px;background:#efe3c6f5;border:5px solid #4a3527;text-align:center;pointer-events:auto}.bowdle-end h2{font:46px 'Permanent Marker';margin:0}.bowdle-end p{font-size:24px}.bowdle-end button{margin:7px;padding:8px 18px;border:3px solid #4a3527;background:#fffaf0;color:#4a3527;font:22px 'Gochi Hand';cursor:pointer}.bowdle-end-extras a{display:inline-block;margin:7px;padding:8px 18px;border:3px solid #4a3527;background:#fffaf0;color:#4a3527;font:22px 'Gochi Hand';text-decoration:none}.bowdle-end .play-again{display:block;margin:20px auto 4px;font:30px 'Permanent Marker';background:#e3b23c}`;
+    style.textContent = `.bowdle-score{position:absolute;top:18px;left:50%;transform:translateX(-50%);font:36px 'Permanent Marker';letter-spacing:8px}.bowdle-timer{position:absolute;top:62px;left:50%;transform:translateX(-50%);font-size:22px}.bowdle-feed{position:absolute;right:24px;top:28px;text-align:right;font-size:22px}.bowdle-feed div{margin:5px;padding:4px 9px;background:#efe3c6cc;border-bottom:2px solid #4a3527}.bowdle-marker{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:46px;color:#d2531f;opacity:0}.bowdle-marker.kill{font-size:64px;color:#4a3527}.bowdle-marker.kill.head{color:#e3b23c}.bowdle-dmg{position:absolute;font:26px 'Permanent Marker';color:#4a3527;pointer-events:none;-webkit-text-stroke:1px #efe3c6;opacity:0}.bowdle-dmg.head{color:#e3b23c;font-size:32px}.bowdle-damage{position:absolute;left:50%;top:50%;width:220px;height:220px;margin:-110px;border:12px solid transparent;border-top-color:#d2531f;border-radius:50%;opacity:0}.bowdle-scoreboard{display:none;position:absolute;left:50%;top:16%;transform:translateX(-50%);min-width:520px;padding:22px;background:#efe3c6ee;border:4px solid #4a3527;font-size:22px;white-space:pre}.bowdle-center{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center;font:42px 'Permanent Marker';white-space:pre}.bowdle-moment{position:absolute;left:50%;top:22%;transform:translateX(-50%) rotate(-2deg);font:52px 'Permanent Marker';color:#d2531f;opacity:0}.bowdle-abilities{position:absolute;left:24px;bottom:24px;display:flex;gap:12px;font:22px 'Permanent Marker'}.bowdle-ability{width:112px;padding:9px;background:#efe3c6dd;border:3px solid #4a3527;transform:rotate(-1deg)}.bowdle-ability.ready{border-color:#e3b23c;color:#d2531f}.bowdle-end{display:none;position:absolute;left:50%;top:48%;transform:translate(-50%,-50%) rotate(-1deg);min-width:420px;padding:24px;background:#efe3c6f5;border:5px solid #4a3527;text-align:center;pointer-events:auto}.bowdle-end h2{font:46px 'Permanent Marker';margin:0}.bowdle-end p{font-size:24px}.bowdle-end button{margin:7px;padding:8px 18px;border:3px solid #4a3527;background:#fffaf0;color:#4a3527;font:22px 'Gochi Hand';cursor:pointer}.bowdle-end-extras a{display:inline-block;margin:7px;padding:8px 18px;border:3px solid #4a3527;background:#fffaf0;color:#4a3527;font:22px 'Gochi Hand';text-decoration:none}.bowdle-end .play-again{display:block;margin:20px auto 4px;font:30px 'Permanent Marker';background:#e3b23c}`;
     container.append(style, this.root);
     this.score = this.root.querySelector(".bowdle-score")!; this.timer = this.root.querySelector(".bowdle-timer")!;
     this.feed = this.root.querySelector(".bowdle-feed")!; this.marker = this.root.querySelector(".bowdle-marker")!;
@@ -87,7 +87,27 @@ export class MatchHud {
     this.center.textContent = me && !me.alive ? `INKED!\n${this.endedStreak >= MEDAL_LIMITS.onARoll ? `Streak ended at ${this.endedStreak}\n` : ""}Back in ${Math.ceil(Math.max(0, me.respawnAtMs - serverNow) / 1000)}` : "";
   }
 
-  hit(headshot: boolean): void { this.marker.textContent = headshot ? "HEADSHOT!" : "✕"; this.flash(this.marker); }
+  hit(headshot: boolean): void { this.marker.textContent = headshot ? "HEADSHOT!" : "✕"; this.marker.classList.remove("kill"); this.flash(this.marker); }
+
+  /** A number that rises from where the arrow landed, gold for headshots. */
+  damageNumber(x: number, y: number, damage: number, headshot: boolean): void {
+    if (!loadSettings().damageNumbers) return;
+    const number = document.createElement("div");
+    number.className = headshot ? "bowdle-dmg head" : "bowdle-dmg";
+    number.dataset.testid = "damage-number";
+    number.textContent = String(Math.round(damage));
+    number.style.left = `${x + HIT.damageNumberOffsetX}px`; number.style.top = `${y + HIT.damageNumberOffsetY}px`;
+    this.root.append(number);
+    number.animate([{ transform: "translate(-50%,-50%)", opacity: 1 }, { transform: `translate(-50%,calc(-50% - ${HIT.damageNumberRisePx}px))`, opacity: 0 }], { duration: HIT.damageNumberMs, easing: "ease-out" }).finished.then(() => number.remove(), () => number.remove());
+  }
+
+  /** The crosshair flashes a bold mark on a kill, gold for a headshot kill. */
+  killConfirm(headshot: boolean): void {
+    this.marker.textContent = "✕";
+    this.marker.classList.add("kill");
+    this.marker.classList.toggle("head", headshot);
+    this.marker.animate([{ opacity: 1, transform: "translate(-50%,-50%) scale(1.5)" }, { opacity: 0, transform: "translate(-50%,-50%) scale(1)" }], { duration: HIT.killConfirmMs });
+  }
   damaged(fromX: number, fromZ: number): void { this.damage.style.transform = `translate(-50%,-50%) rotate(${Math.atan2(fromZ, fromX)}rad)`; this.flash(this.damage); }
   kill(message: KillMessage, names: ReadonlyMap<string, string>): void {
     const row = document.createElement("div"); row.textContent = `${names.get(message.killer) ?? message.killer}  ${message.weapon === "arrow" ? "➳" : message.weapon === "boulder" ? "●" : "🗡"}  ${names.get(message.victim) ?? message.victim}${message.headshot ? "  HEADSHOT" : ""}`;

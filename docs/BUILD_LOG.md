@@ -1,5 +1,22 @@
 # Build log
 
+## G1: Camera and hit feel
+
+Status: done.
+
+Built:
+
+- `src/client/game/cameraFeel.ts` (pure, unit tested): speed FOV, head bob, strafe and slide roll, landing dip, FOV kicks (jump, double jump, dodge, slide), capped shake from hard landings and hits, hurt vignette strength and speed streak strength. Reduce motion zeroes every motion effect and keeps the hurt tint.
+- `CameraRig` drives it from the simulated body, so Practice, offline and online sessions all get it. A jump is any sudden upward push, so slow frames cannot skip the kick.
+- Fixed: the camera ignored the player's FOV setting in every session and always used 90; the setting is now the base, with aim zoom and kicks on top.
+- Composite pass: sepia hurt vignette and flickering ink speed streaks above 13 m/s.
+- Floating damage numbers from hit confirms (gold for headshots, offset from the crosshair), kill confirm mark, hit tick whose pitch rises with damage, kill confirm chime.
+- Generated sound recipes (`src/client/audio/recipes.ts`): hit, kill, dodge, double jump, wall jump, mantle, rope reel, rope snap, UI click and hover. Menus click and hover everywhere.
+- Settings: Reduce motion and Damage numbers.
+- Doc tables list V2-DESIGN.md and RUNBOOK-V2.md (done with v1.1.0).
+
+Verified: `npm run check`, full Playwright suite, `npm run smoke`, `npm run build:portals`. Break it: ignoring reduce motion fails the camera feel test. The server tick budget test failed once in the full run while the ChatGPT desktop app held most of the CPU, then passed three times alone. Screenshots in `test-results/qa/g1`.
+
 ## R6 and v1.1.0: Retention report and release
 
 Status: done.

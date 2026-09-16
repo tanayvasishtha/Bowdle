@@ -46,6 +46,7 @@ const up = new Vector3(0, 1, 0);
 const arrowDirection = new Vector3();
 const symbolWorld = new Vector3();
 const viewDirection = new Vector3();
+const projectScratch = new Vector3();
 const ropePoints = 9;
 
 function mapMeshes(map: MapData): Mesh[] {
@@ -156,6 +157,7 @@ export class Renderer {
   readonly camera = new PerspectiveCamera(74, 1, 0.1, 250);
   private readonly renderer: WebGLRenderer;
   private readonly composite = new CompositePass();
+  private forcedFeel: { hurt: number; streaks: number } | undefined;
   private readonly worldScene = new Scene();
   private readonly container: HTMLElement;
   private mapGroup = new Group();
@@ -294,6 +296,22 @@ export class Renderer {
     this.sliding = player.sliding;
   }
   setTestCamera(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void { this.cameraOverride = { x, y, z, lookX, lookY, lookZ }; }
+
+  /** Hurt vignette and speed streaks for this frame. A forced value (test hook) wins. */
+  setFeel(hurt: number, streaks: number): void {
+    const forced = this.forcedFeel;
+    this.composite.setFeel(forced ? forced.hurt : hurt, forced ? forced.streaks : streaks);
+  }
+
+  forceFeel(hurt: number, streaks: number): void { this.forcedFeel = { hurt, streaks }; this.composite.setFeel(hurt, streaks); }
+
+  /** CSS pixel position of a world point, or undefined when it is behind the camera. */
+  screenPoint(x: number, y: number, z: number): { x: number; y: number } | undefined {
+    projectScratch.set(x, y, z).project(this.camera);
+    if (projectScratch.z > 1) return undefined;
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: (projectScratch.x * 0.5 + 0.5) * rect.width, y: (-projectScratch.y * 0.5 + 0.5) * rect.height };
+  }
 
   setDrawFraction(fraction: number): void { this.viewmodel.setDrawFraction(fraction); }
   setViewmodelVisible(visible: boolean): void { this.viewmodel.visible = visible; }

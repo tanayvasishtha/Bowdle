@@ -12,6 +12,7 @@ import { sunTempleMap } from "../shared/maps/sunTemple.ts";
 import { canopyMap } from "../shared/maps/canopy.ts";
 import { defaultMatchMap, mapById } from "../shared/maps/registry.ts";
 import { loadName } from "./settings.ts";
+import { platform } from "./platform/sdk.ts";
 import { fetchLocker } from "./account.ts";
 import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
@@ -33,6 +34,7 @@ declare global {
       stats?(): { drawCalls: number; triangles: number; renderScale: number };
       cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
       locker?: LockerTestHooks;
+      showEndScreen?(): void;
     };
   }
 }
@@ -41,6 +43,8 @@ const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing #app element");
 
 const params = new URLSearchParams(location.search);
+// Starts the portal SDK (a no-op on the web build) before anything else loads.
+platform();
 installMenuStyles(app);
 const touchOnly = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)").matches;
 if (touchOnly) showDesktopOnly(app);
@@ -66,6 +70,7 @@ else if (params.get("scene") === "online") {
       grappleActive: () => session.grappleActive(),
       aimAtGrapple: () => session.aimAtGrapple(),
       stats: () => renderer.stats(),
+      showEndScreen: () => session.showEndScreen(),
     };
   }).catch((error: unknown) => {
     const reason = error instanceof Error ? error.message : "Connection failed";

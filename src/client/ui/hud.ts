@@ -7,6 +7,13 @@ import { loadSettings } from "../settings.ts";
 
 type EndStats = { kills: number; deaths: number; bestShot: number };
 
+export type HudActions = {
+  /** Runs before the end screen closes, for example a portal ad break. */
+  playAgain?: () => Promise<void>;
+  saveClip?: () => Promise<boolean>;
+  shareUrl?: (text: string) => string;
+};
+
 export class MatchHud {
   private readonly root: HTMLDivElement;
   private readonly score: HTMLDivElement;
@@ -21,14 +28,18 @@ export class MatchHud {
   private readonly endPanel: HTMLDivElement;
   private readonly rewardLine = Object.assign(document.createElement("p"), { className: "bowdle-rewards" });
   private readonly onVote: (mapId: string) => void;
+  private readonly actions: HudActions;
+  /** Test hook: keeps the end screen open outside the end phase. */
+  endPinned = false;
 
-  constructor(container: HTMLElement, onVote: (mapId: string) => void) {
+  constructor(container: HTMLElement, onVote: (mapId: string) => void, actions: HudActions = {}) {
     this.onVote = onVote;
+    this.actions = actions;
     this.root = document.createElement("div");
     this.root.innerHTML = `<div class="bowdle-score"></div><div class="bowdle-timer"></div><div class="bowdle-feed" data-testid="kill-feed"></div><div class="bowdle-marker">✕</div><div class="bowdle-damage"></div><div class="bowdle-scoreboard"></div><div class="bowdle-center"></div><div class="bowdle-moment"></div><div class="bowdle-abilities" data-testid="ability-cooldowns"></div><div class="bowdle-end"></div>`;
     this.root.style.cssText = "position:absolute;inset:0;pointer-events:none;color:#4a3527;font-family:'Gochi Hand',cursive;text-shadow:1px 1px #efe3c6";
     const style = document.createElement("style");
-    style.textContent = `.bowdle-score{position:absolute;top:18px;left:50%;transform:translateX(-50%);font:36px 'Permanent Marker';letter-spacing:8px}.bowdle-timer{position:absolute;top:62px;left:50%;transform:translateX(-50%);font-size:22px}.bowdle-feed{position:absolute;right:24px;top:28px;text-align:right;font-size:22px}.bowdle-feed div{margin:5px;padding:4px 9px;background:#efe3c6cc;border-bottom:2px solid #4a3527}.bowdle-marker{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:46px;color:#d2531f;opacity:0}.bowdle-damage{position:absolute;left:50%;top:50%;width:220px;height:220px;margin:-110px;border:12px solid transparent;border-top-color:#d2531f;border-radius:50%;opacity:0}.bowdle-scoreboard{display:none;position:absolute;left:50%;top:16%;transform:translateX(-50%);min-width:520px;padding:22px;background:#efe3c6ee;border:4px solid #4a3527;font-size:22px;white-space:pre}.bowdle-center{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center;font:42px 'Permanent Marker';white-space:pre}.bowdle-moment{position:absolute;left:50%;top:22%;transform:translateX(-50%) rotate(-2deg);font:52px 'Permanent Marker';color:#d2531f;opacity:0}.bowdle-abilities{position:absolute;left:24px;bottom:24px;display:flex;gap:12px;font:22px 'Permanent Marker'}.bowdle-ability{width:112px;padding:9px;background:#efe3c6dd;border:3px solid #4a3527;transform:rotate(-1deg)}.bowdle-ability.ready{border-color:#e3b23c;color:#d2531f}.bowdle-end{display:none;position:absolute;left:50%;top:48%;transform:translate(-50%,-50%) rotate(-1deg);min-width:420px;padding:24px;background:#efe3c6f5;border:5px solid #4a3527;text-align:center;pointer-events:auto}.bowdle-end h2{font:46px 'Permanent Marker';margin:0}.bowdle-end p{font-size:24px}.bowdle-end button{margin:7px;padding:8px 18px;border:3px solid #4a3527;background:#fffaf0;color:#4a3527;font:22px 'Gochi Hand';cursor:pointer}.bowdle-end .play-again{display:block;margin:20px auto 4px;font:30px 'Permanent Marker';background:#e3b23c}`;
+    style.textContent = `.bowdle-score{position:absolute;top:18px;left:50%;transform:translateX(-50%);font:36px 'Permanent Marker';letter-spacing:8px}.bowdle-timer{position:absolute;top:62px;left:50%;transform:translateX(-50%);font-size:22px}.bowdle-feed{position:absolute;right:24px;top:28px;text-align:right;font-size:22px}.bowdle-feed div{margin:5px;padding:4px 9px;background:#efe3c6cc;border-bottom:2px solid #4a3527}.bowdle-marker{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:46px;color:#d2531f;opacity:0}.bowdle-damage{position:absolute;left:50%;top:50%;width:220px;height:220px;margin:-110px;border:12px solid transparent;border-top-color:#d2531f;border-radius:50%;opacity:0}.bowdle-scoreboard{display:none;position:absolute;left:50%;top:16%;transform:translateX(-50%);min-width:520px;padding:22px;background:#efe3c6ee;border:4px solid #4a3527;font-size:22px;white-space:pre}.bowdle-center{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center;font:42px 'Permanent Marker';white-space:pre}.bowdle-moment{position:absolute;left:50%;top:22%;transform:translateX(-50%) rotate(-2deg);font:52px 'Permanent Marker';color:#d2531f;opacity:0}.bowdle-abilities{position:absolute;left:24px;bottom:24px;display:flex;gap:12px;font:22px 'Permanent Marker'}.bowdle-ability{width:112px;padding:9px;background:#efe3c6dd;border:3px solid #4a3527;transform:rotate(-1deg)}.bowdle-ability.ready{border-color:#e3b23c;color:#d2531f}.bowdle-end{display:none;position:absolute;left:50%;top:48%;transform:translate(-50%,-50%) rotate(-1deg);min-width:420px;padding:24px;background:#efe3c6f5;border:5px solid #4a3527;text-align:center;pointer-events:auto}.bowdle-end h2{font:46px 'Permanent Marker';margin:0}.bowdle-end p{font-size:24px}.bowdle-end button{margin:7px;padding:8px 18px;border:3px solid #4a3527;background:#fffaf0;color:#4a3527;font:22px 'Gochi Hand';cursor:pointer}.bowdle-end-extras a{display:inline-block;margin:7px;padding:8px 18px;border:3px solid #4a3527;background:#fffaf0;color:#4a3527;font:22px 'Gochi Hand';text-decoration:none}.bowdle-end .play-again{display:block;margin:20px auto 4px;font:30px 'Permanent Marker';background:#e3b23c}`;
     container.append(style, this.root);
     this.score = this.root.querySelector(".bowdle-score")!; this.timer = this.root.querySelector(".bowdle-timer")!;
     this.feed = this.root.querySelector(".bowdle-feed")!; this.marker = this.root.querySelector(".bowdle-marker")!;
@@ -49,7 +60,7 @@ export class MatchHud {
     this.scoreboard.textContent = board;
     const me = state.players.get(sessionId);
     if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS)}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}`;
-    if (state.phase === "end") return;
+    if (state.phase === "end" || this.endPinned) return;
     this.endPanel.style.display = "none";
     this.center.textContent = me && !me.alive ? `INKED!\nBack in ${Math.ceil(Math.max(0, me.respawnAtMs - serverNow) / 1000)}` : "";
   }
@@ -68,7 +79,27 @@ export class MatchHud {
     this.rewardLine.textContent = ""; this.rewardLine.dataset.testid = "rewards";
     this.endPanel.append(title, summary, this.rewardLine, vote);
     for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); this.endPanel.append(button); }
-    const again = document.createElement("button"); again.className = "play-again"; again.textContent = "Play again"; again.addEventListener("click", () => { this.endPanel.style.display = "none"; lockPointer(document.querySelector<HTMLCanvasElement>("#game-canvas")); }); this.endPanel.append(again);
+    const extras = document.createElement("div"); extras.className = "bowdle-end-extras";
+    if (this.actions.saveClip) {
+      const save = document.createElement("button"); save.textContent = "Save clip"; save.dataset.action = "save-clip";
+      save.addEventListener("click", async () => { save.disabled = true; save.textContent = "Saving…"; const saved = await this.actions.saveClip!(); save.textContent = saved ? "Clip saved" : "No clip yet"; save.disabled = false; });
+      extras.append(save);
+    }
+    if (this.actions.shareUrl) {
+      const share = document.createElement("a"); share.textContent = "Share on X"; share.dataset.action = "share"; share.target = "_blank"; share.rel = "noopener";
+      share.href = this.actions.shareUrl(message.winner === "draw" ? `Drew a Bowdle match with ${stats.kills} kills.` : `${stats.kills} kills and a ${Math.round(stats.bestShot)} m best shot in Bowdle.`);
+      extras.append(share);
+    }
+    if (extras.childElementCount > 0) this.endPanel.append(extras);
+    const again = document.createElement("button"); again.className = "play-again"; again.textContent = "Play again";
+    again.addEventListener("click", async () => {
+      again.disabled = true;
+      await this.actions.playAgain?.();
+      again.disabled = false;
+      this.endPinned = false;
+      this.endPanel.style.display = "none"; lockPointer(document.querySelector<HTMLCanvasElement>("#game-canvas"));
+    });
+    this.endPanel.append(again);
   }
   /** Rewards arrive just after the end screen, once the server has stored them. */
   rewards(reward: RewardMessage): void {

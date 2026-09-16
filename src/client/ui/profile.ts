@@ -1,6 +1,7 @@
 import type { Profile, Provider } from "../../shared/api.ts";
 import { deleteAccount, enabledProviders, ensureAccount, fetchLeaderboard, fetchProfile, renameAccount, startProviderSignIn } from "../account.ts";
 import { loadName, nameError, saveName } from "../settings.ts";
+import { portalPolicy } from "../platform/platform.ts";
 
 const PROVIDER_LABELS: Record<Provider, string> = { discord: "Discord", google: "Google" };
 
@@ -35,7 +36,7 @@ export async function showProfile(container: HTMLElement, onClose: () => void): 
     return;
   }
   const providers = await enabledProviders();
-  const unlinked = providers.filter((provider) => !profile.linked.includes(provider));
+  const unlinked = !portalPolicy().providerSignIn ? [] : providers.filter((provider) => !profile.linked.includes(provider));
   section.innerHTML = `<h2>${escapeHtml(profile.name)}</h2>
     ${progressBar(profile)}
     <p class="bowdle-ink" data-testid="ink">${profile.ink} Ink</p>

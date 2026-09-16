@@ -14,6 +14,10 @@ import { MatchHud } from "../ui/hud.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { happyTime } from "../platform/web.ts";
 import { loadToken } from "../account.ts";
+import { setAudioSuspended } from "../audio/bus.ts";
+import { portalPolicy } from "../platform/platform.ts";
+import { platform } from "../platform/sdk.ts";
+import { ClipRecorder, clipsSupported, downloadBlob, shareOnXUrl } from "./clips.ts";
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { ReplayDirector } from "./ReplayDirector.ts";
@@ -31,6 +35,7 @@ export class OnlineSession {
   readonly sessionId: string;
   private readonly renderer: Renderer;
   private readonly sampler: InputSampler;
+  private readonly clips: ClipRecorder | undefined;
   private readonly room;
   private readonly input;
   private readonly predict;
@@ -56,7 +61,13 @@ export class OnlineSession {
     this.room = room;
     this.map = mapById(room.state.mapId) ?? defaultMatchMap;
     this.renderer.setMap(this.map);
-    this.hud = new MatchHud(renderer.canvas.parentElement!, (mapId) => this.room.send("mapVote", { mapId }));
+    this.clips = clipsSupported() ? new ClipRecorder(renderer.canvas) : undefined;
+    const policy = portalPolicy();
+    this.hud = new MatchHud(renderer.canvas.parentElement!, (mapId) => this.room.send("mapVote", { mapId }), {
+      playAgain: () => this.playAgain(),
+      saveClip: this.clips ? () => this.saveClip() : undefined,
+      shareUrl: policy.externalLinks ? (text) => shareOnXUrl(text) : undefined,
+    });
     this.replay = new ReplayDirector(renderer.canvas.parentElement!);
     this.sessionId = room.sessionId;
     this.input = room.input<PlayerInput>({ mode: "reliable", type: PlayerInput });
@@ -91,7 +102,7 @@ export class OnlineSession {
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.hud.hit(parsed.data.headshot); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); });
-    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (parsed.success && me) this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot }, matchMaps); });
+    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot }, matchMaps); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
@@ -113,7 +124,31 @@ export class OnlineSession {
   }
 
   start(): void {
+    this.clips?.start();
+    platform().loaded();
+    platform().setPlaying(true);
     requestAnimationFrame((time) => this.frame(time));
+  }
+
+  /** Portals show an ad between matches; audio and input stay off for its whole length. */
+  private async playAgain(): Promise<void> {
+    if (portalPolicy().ads) {
+      await platform().adBreak((paused) => { this.sampler.setPaused(paused); setAudioSuspended(paused); });
+    }
+    platform().setPlaying(true);
+  }
+
+  /** Test hook: shows the end screen with the current scoreboard. */
+  showEndScreen(): void {
+    this.hud.endPinned = true;
+    this.hud.end({ winner: "draw", mvp: this.sessionId }, this.names, { kills: this.me.state.kills, deaths: this.me.state.deaths, bestShot: this.bestShot }, matchMaps);
+  }
+
+  private async saveClip(): Promise<boolean> {
+    const blob = await this.clips?.save().catch(() => undefined);
+    if (!blob) return false;
+    downloadBlob(blob, `bowdle-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.webm`);
+    return true;
   }
 
   private frame(timeMs: number): void {

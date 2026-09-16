@@ -1,3 +1,4 @@
+import { registerAudioContext } from "./bus.ts";
 import { MASTER_VOLUME } from "../../shared/constants.ts";
 import { loadSettings } from "../settings.ts";
 
@@ -15,6 +16,7 @@ export class SoundEffects {
   private ensureContext(): void {
     if (this.context) return;
     this.context = new AudioContext();
+    registerAudioContext(this.context);
     this.master = this.context.createGain();
     this.master.gain.value = MASTER_VOLUME;
     this.master.connect(this.context.destination);

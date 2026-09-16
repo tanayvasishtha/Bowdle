@@ -2,13 +2,14 @@ import { lockPointer } from "../game/pointerLock.ts";
 import type { InputSampler } from "../game/InputSampler.ts";
 import { loadSettings } from "../settings.ts";
 import { showSettings } from "./menu.ts";
+import { platform } from "../platform/sdk.ts";
 
 export function attachPauseMenu(container: HTMLElement, sampler: InputSampler): void {
   const panel = document.createElement("section"); panel.className = "bowdle-panel bowdle-pause"; panel.style.display = "none";
   panel.innerHTML = `<h2>Field Notes</h2><button data-action="resume">Resume</button><button data-action="settings">Settings</button><button data-action="leave">Leave match</button>`;
   container.append(panel);
   const setOpen = (open: boolean): void => {
-    panel.style.display = open ? "grid" : "none"; sampler.setPaused(open);
+    panel.style.display = open ? "grid" : "none"; sampler.setPaused(open); platform().setPlaying(!open);
     if (open) document.exitPointerLock(); else lockPointer(document.querySelector<HTMLCanvasElement>("#game-canvas"));
   };
   panel.querySelector("[data-action=resume]")!.addEventListener("click", () => setOpen(false));

@@ -61,6 +61,14 @@ Open the HTTPS URL on two different networks, join a match from both, move and f
 
 Record the deployed commit and tag in the release notes. To roll back, open **Events**, select the last known-good deploy, and choose **Rollback**. Render redeploys that immutable image. Recheck `/health`, the root page, and a two-player match. Do not force-push or move release tags to simulate a rollback.
 
+## Portal builds (Poki and CrazyGames)
+
+1. `npm run build:portals` builds `dist/poki` and `dist/crazygames` and checks them. Both use relative asset paths and talk to `https://bowdle.io`; set `VITE_SERVER_URL` before building to point them elsewhere.
+2. Zip the contents of the folder (not the folder itself) and upload it in the portal's developer dashboard.
+3. Portal builds load the portal SDK, report loading and gameplay, show a midgame ad before "Play again" with audio and input paused, and hide purchases, Discord and Google sign-in, and Share on X.
+4. The game server answers cross-origin API calls (Colyseus sends the CORS headers), so no extra setup is needed on bowdle.io.
+5. Test locally with each portal's own testing tool before submitting; the SDK falls back to no-ops when its script cannot load.
+
 ## Production checks
 
 - First visible frame is under 3 seconds on the target laptop and network.

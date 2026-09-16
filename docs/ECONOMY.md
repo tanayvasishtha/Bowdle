@@ -90,11 +90,11 @@ Build flag `VITE_PLATFORM`: `web` (default), `poki`, `crazygames`.
 
 | Rule | web (bowdle.io) | Poki | CrazyGames |
 |---|---|---|---|
-| Paid shop | Yes | Never. Poki allows no in-app purchases | Hidden unless `VITE_CG_IAP=1`. Their IAP is invite-only and must use CrazyGames' own Xsolla setup |
+| Paid shop | Yes | Never. Poki allows no in-app purchases | Not in v1. Their IAP is invite-only and would need CrazyGames' own Xsolla token (`SDK.user.getXsollaUserToken()`) |
 | Ink shop | Yes | Yes | Yes |
 | Ads | None | `commercialBreak` between matches only | Midgame ads between matches only |
-| Links to other sites | Allowed | None except privacy and terms | None except privacy and terms |
-| Accounts | Our auth | Guest only | Guest only unless integrated with their account system |
+| Links to other sites | Allowed (Share on X) | None except privacy and terms | None except privacy and terms |
+| Accounts | Guest plus Discord or Google | Guest only (sign-in redirects hidden) | Guest only (sign-in redirects hidden) |
 
 ### Poki SDK (verified)
 
@@ -106,7 +106,7 @@ Build flag `VITE_PLATFORM`: `web` (default), `poki`, `crazygames`.
 ### CrazyGames SDK
 
 - Uses gameplay signals (loading start and stop, gameplay start and stop, happy time) and midgame ads.
-- Read `https://docs.crazygames.com/sdk/intro/` and `https://docs.crazygames.com/sdk/game/` before building. Take exact function names from those pages.
+- Built in `src/client/platform/sdk.ts`: `SDK.init()`, `SDK.game.loadingStart/loadingStop/gameplayStart/gameplayStop/happytime`, and `SDK.ad.requestAd("midgame", { adStarted, adFinished, adError })`. An `environment` of `disabled` means no SDK.
 
 ## Compliance checklist
 

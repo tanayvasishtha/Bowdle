@@ -1,3 +1,4 @@
+import { platform } from "../platform/sdk.ts";
 import type { Group } from "three";
 import {
   ARROW_GRAVITY,
@@ -87,6 +88,8 @@ export class PracticeSession {
   }
 
   start(): void {
+    platform().loaded();
+    platform().setPlaying(true);
     requestAnimationFrame((time) => this.frame(time));
   }
 

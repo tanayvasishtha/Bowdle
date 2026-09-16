@@ -28,6 +28,8 @@ report("GET / serves the built client", page.ok && html.includes("<title>Bowdle<
 const guest = await fetch(`${base}/api/auth/guest`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Smoke" }) });
 const guestBody = await guest.json() as { token?: string };
 report("POST /api/auth/guest", guest.status === 201 && typeof guestBody.token === "string");
+const preflight = await fetch(`${base}/api/profile`, { method: "OPTIONS", headers: { Origin: "https://games.poki.com", "Access-Control-Request-Method": "GET" } });
+report("API allows portal origins", preflight.status === 204 && ["*", "https://games.poki.com"].includes(preflight.headers.get("access-control-allow-origin") ?? "") && (preflight.headers.get("access-control-allow-headers") ?? "").includes("Authorization"));
 const profile = await fetch(`${base}/api/profile`, { headers: { Authorization: `Bearer ${guestBody.token}` } });
 report("GET /api/profile", profile.ok);
 await fetch(`${base}/api/profile`, { method: "DELETE", headers: { Authorization: `Bearer ${guestBody.token}` } });

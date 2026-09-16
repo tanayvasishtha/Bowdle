@@ -1,5 +1,22 @@
 # Build log
 
+## M12: Portals and launch features
+
+Status: done.
+
+Built:
+
+- Platform layer in `src/client/platform`: one SDK interface with web (no-op), Poki and CrazyGames implementations. Scripts load at boot with a timeout; a blocked or failing SDK falls back to no-ops. Gameplay start and stop are reported only on real changes (match start, pause menu, match end) and in the order they happen. Loading finished is reported once.
+- Ad breaks before "Play again" on portal builds. Every AudioContext is suspended and input is paused for the whole ad, then restored.
+- Portal policy: portal builds hide purchases, Discord and Google sign-in, and Share on X. The web build shows no ads.
+- `npm run build:poki`, `npm run build:crazygames` and `npm run build:portals` (builds both and checks relative asset paths, legal pages, the game server URL and the SDK script).
+- Save clip on the end screen: two overlapping MediaRecorder segments keep 8 to 16 seconds of the game view ready; the file downloads as WebM and recording continues.
+- Share on X link on the end screen (web build only).
+- Privacy notice and terms of play at `/privacy.html` and `/terms.html`, linked from the menu on every build.
+- Fixed a matchmaking flake: test rooms are now also filtered by map, so a leftover test room on another map is never joined.
+
+Verified: `npm run check`, full Playwright suite (launch spec added: clip download, share link, legal pages), `npm run build:portals`, and `npm run smoke` (portal-origin CORS preflight included). Real portal ads can only be checked inside each portal's test tool.
+
 ## M11: Cosmetics and shop
 
 Status: done.

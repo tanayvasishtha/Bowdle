@@ -1,5 +1,8 @@
+import { platform } from "./sdk.ts";
+
 export type HappyMoment = "headshot" | "longShot" | "robinHood";
 
+/** Big moments tell the portal the player is having fun (CrazyGames happytime). */
 export function happyTime(_moment: HappyMoment): void {
-  // Platform integrations attach here in the publishing milestone.
+  platform().happyTime();
 }

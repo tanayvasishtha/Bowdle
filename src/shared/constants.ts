@@ -144,3 +144,4 @@ export const BOULDER_SPAWN_CLEARANCE = 6;
 export const PROP_HIDE_DISTANCE = 90;
 export const BOT_STUCK_MS = 2500;
 export const BOT_STUCK_MOVE_M = 0.03;
+export const SERVER_METRICS_MS = 10000;

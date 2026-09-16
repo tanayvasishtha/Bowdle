@@ -26,7 +26,7 @@ declare global {
       cloudCount?(): number;
       grappleActive?(): boolean;
       aimAtGrapple?(): void;
-      stats?(): { drawCalls: number; triangles: number };
+      stats?(): { drawCalls: number; triangles: number; renderScale: number };
       cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
     };
   }

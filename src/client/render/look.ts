@@ -9,3 +9,5 @@ export const JOURNAL_LOOK = {
   sunShaftCount: 4, sunShaftLighten: 0.12,
   hitMarkerMs: 900,
 } as const;
+
+export const DYNAMIC_RESOLUTION = { frameBudgetMs: 20, sampleWindowMs: 2000, step: 0.1, minScale: 0.6 } as const;

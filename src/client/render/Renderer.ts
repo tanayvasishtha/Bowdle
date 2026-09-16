@@ -34,6 +34,7 @@ import { rampHeightAt } from "../../shared/maps/ramps.ts";
 import { PropsRenderer } from "./props/PropsRenderer.ts";
 import { Ambience } from "../audio/ambience.ts";
 import { loadSettings, type GameSettings } from "../settings.ts";
+import { DynamicResolution } from "./dynamicResolution.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
@@ -188,6 +189,7 @@ export class Renderer {
   private sliding = false;
   private cameraOverride: { x: number; y: number; z: number; lookX: number; lookY: number; lookZ: number } | null = null;
   private settings = loadSettings();
+  private readonly dynamicResolution = new DynamicResolution();
 
   constructor(container: HTMLElement, debug: boolean, map: MapData = defaultMatchMap, practice: readonly CampTarget[] = []) {
     this.container = container;
@@ -285,7 +287,7 @@ export class Renderer {
     this.viewCamera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.viewCamera.updateProjectionMatrix();
-    this.composite.resize(width, height, dpr);
+    this.composite.resize(width, height, dpr, this.dynamicResolution.scale);
   }
 
   setDebugMovement(player: PlayerSim): void {
@@ -416,7 +418,9 @@ export class Renderer {
   unpinPlayer(id: string): void { const player = this.players.get(id); if (player) player.rotation.z = 0; }
 
   render(timeMs = performance.now()): void {
+    const frameMs = Math.max(0, timeMs - this.previousTime);
     this.previousTime = timeMs;
+    if (this.dynamicResolution.sample(frameMs)) this.resize();
     if (this.cameraOverride) { const view = this.cameraOverride; this.camera.position.set(view.x, view.y, view.z); this.camera.lookAt(view.lookX, view.lookY, view.lookZ); }
     this.props.update(this.camera, timeMs);
     this.ambience.updateListener(this.camera.position.x, this.camera.position.z);
@@ -477,7 +481,7 @@ export class Renderer {
     return counts;
   }
 
-  stats(): { drawCalls: number; triangles: number } {
-    this.render(performance.now()); return { drawCalls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles };
+  stats(): { drawCalls: number; triangles: number; renderScale: number } {
+    this.render(performance.now()); return { drawCalls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles, renderScale: this.dynamicResolution.scale };
   }
 }

@@ -43,6 +43,7 @@ import { BotController } from "../bots/BotController.ts";
 import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
 import { nameError } from "../../shared/name.ts";
+import { serverMetrics } from "../metrics.ts";
 
 type JoinOptions = { name?: string; test?: boolean; mapId?: string; testMapId?: string };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage };
@@ -80,6 +81,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private testMode = false;
   private readonly bots = new Map<string, BotController>();
   private readonly mapVotes = new Map<string, string>();
+  private reportedPlayers = 0;
 
   onCreate(options: JoinOptions): void {
     const selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
@@ -90,6 +92,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.rewindState = this.allowRewindState({ maxRewindMs: MAX_REWIND_MS });
     this.rewindState.attachAll(this.state.players, { fields: ["x", "y", "z", "height", "yaw"], mode: "snapshot" });
     this.fillBots();
+    this.reportedPlayers = this.state.players.size; serverMetrics.roomOpened(this.reportedPlayers);
     this.onMessage("setName", SetNameMessage, (client, message) => {
       const player = this.state.players.get(client.sessionId);
       if (player && !nameError(message.name)) player.name = message.name;
@@ -99,6 +102,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   simulateTick(context: RoomStepContext, nowMs: number): void {
+    const tickStarted = performance.now();
+    try {
     this.simulationNowMs = nowMs;
     this.pending.clear();
     for (const [sessionId, player] of this.state.players) if (!player.isBot) this.pending.set(sessionId, this.inputs.get(sessionId));
@@ -133,6 +138,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       if (player.alive) stepRegen(player, nowMs, context.dt);
       else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values()));
     }
+    } finally { serverMetrics.tick(performance.now() - tickStarted); }
   }
 
   private applyEvents(sessionId: string, player: PlayerState, events: ReturnType<typeof stepPlayer>): void {
@@ -361,6 +367,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       player.y = 0; player.z = TEST_DUEL_LANE_Z; player.yaw = team === 0 ? -Math.PI / 2 : Math.PI / 2;
     }
     this.state.players.set(client.sessionId, player);
+    this.reportPlayers();
     if (this.testMode && sun + moon + 1 >= TEAM_COUNT) this.lock();
   }
 
@@ -371,5 +378,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   onLeave(client: GameClient): void {
     const player = this.state.players.get(client.sessionId); this.state.players.delete(client.sessionId);
     if (player && !this.testMode) this.addBot(player.team, player);
+    this.reportPlayers();
   }
+
+  onDispose(): void { serverMetrics.roomClosed(this.reportedPlayers); this.reportedPlayers = 0; }
+
+  private reportPlayers(): void { const count = this.state.players.size; serverMetrics.playerDelta(count - this.reportedPlayers); this.reportedPlayers = count; }
 }

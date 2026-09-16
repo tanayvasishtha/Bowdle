@@ -12,3 +12,7 @@ export type Profile = {
 export type LeaderboardRow = { rank: number; name: string; kills: number; wins: number; matches: number; level: number };
 export type Leaderboard = { season: string; rows: LeaderboardRow[] };
 export type GuestSession = { token: string; profile: Profile };
+
+export type Locker = { ink: number; owned: string[]; loadout: import("./cosmetics.ts").Loadout };
+export type ShopConfig = { paid: boolean; sandbox: boolean };
+export type BuyResult = { ok: true; locker: Locker } | { ok: false; reason: "unknown_item" | "not_for_ink" | "owned" | "poor" };

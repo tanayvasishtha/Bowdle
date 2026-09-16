@@ -11,80 +11,48 @@ Milestones M10 (accounts, progression) and M11 (cosmetics, shop). Nothing here e
 
 ## Currency: Ink
 
-Earned by playing. Cannot be bought.
+Earned by playing. Cannot be bought. Values live in `src/shared/progression.ts`.
 
-| Event | Ink |
-|---|---|
-| Finish a match | 20 |
-| Each kill | 2 |
-| Win | 15 |
-| First win of the day | 50 |
+| Event | Ink | XP |
+|---|---|---|
+| Finish a match | 10 | 100 |
+| Win | 10 | 200 |
+| Each kill | 1 (up to 10) | 50 |
+| Each assist | 0 | 25 |
+
+Level n takes 500 x n XP to clear, up to level 100. Rewards are granted once per match id, only to signed-in players still in the room at the end.
 
 Paid items are bought directly with money. Nothing converts money into Ink.
 
-## Item slots
+## Catalog (`src/shared/cosmetics.ts`)
 
-| Slot | Examples |
-|---|---|
-| `bowSkin` | Stripes, stars, flames, gold ink |
-| `arrowTrail` | Dashes, sparkles, rainbow highlighter |
-| `outfit` | Cap, crown, wizard hat, scarf |
-| `killEffect` | Splat shape and color |
+Four categories, one free default plus six items each: 24 items, 16 for Ink and 8 paid.
 
-## Pricing
+| Category | Loadout slot | What changes | Draw cost |
+|---|---|---|---|
+| `bow` | `bowSkin` | Limb paint, grip paint (first person), tip ornament | Shares a draw call with any part of the same paint |
+| `trail` | `arrowTrail` | Ribbon style (dots, dashes, zigzag, ribbon) and paint | One ribbon mesh per arrow |
+| `outfit` | `outfit` | Headgear, accessory, hat and trim paint | Rig parts are merged by paint |
+| `effect` | `killEffect` | Burst shape and paint, shown on every kill by the owner | One instanced mesh for 0.9 s |
+
+Rules the catalog test enforces: ids are `<category>.<name>` and never change, SKUs are unique lowercase slugs, Ink prices are at least 100, and no item uses a team color. Shirts and sleeves stay the crew color whatever the outfit.
 
 | Tier | Price |
 |---|---|
-| Common | 300 Ink |
-| Rare | 900 Ink |
-| Premium | $1.99 to $4.99 |
-| Bundle (fixed contents, listed up front) | $7.99 |
-| Starter pack, once per account | $2.99 for 3 premium items |
+| Ink items | 250 to 700 Ink |
+| Paid bows and trails, effects | $1.99 to $2.99 |
+| Paid outfits | $4.99 |
 
-## Catalog (`src/shared/cosmetics.ts`)
+## Accounts and database (M10)
 
-```ts
-export type CosmeticSlot = "bowSkin" | "arrowTrail" | "outfit" | "killEffect";
+Built without `@colyseus/auth` or an ORM; the model is small.
 
-export type Cosmetic = {
-  id: string;                     // stable forever, e.g. "bow.flames"
-  slot: CosmeticSlot;
-  name: string;
-  rarity: "common" | "rare" | "premium";
-  price: { ink: number } | { sku: string };   // sku matches the Xsolla item SKU
-  render: Record<string, string | number | boolean>;  // params the client renderer reads
-};
-```
-
-Every player owns a default item in each slot. The renderer must handle every `render` param in the catalog, and a unit test checks that each catalog entry uses only known params.
-
-## Accounts (M10)
-
-Package: `@colyseus/auth`. Read its type definitions before use.
-
-- First visit: `client.auth.signInAnonymously()`. The SDK stores the token.
-- "Save your progress": link Discord or Google with `client.auth.signInWithProvider(...)`.
-- Rooms verify the token in `onAuth` with `JWT.verify` and load the user.
-- Anonymous players can earn Ink and equip Ink items. **Buying with money requires a linked account.**
-- Account deletion endpoint that removes the user and their data.
-
-## Database (M10)
-
-Package: `@colyseus/database` (`GameDatabase` on Drizzle ORM). Read its type definitions before use.
-
-- Dialect `pglite` for dev and tests (no Docker needed). Dialect `pg` in production with `DATABASE_URL`.
-- Tables:
-
-| Table | Columns |
-|---|---|
-| users | from the auth user store |
-| wallets | `userId`, `ink` |
-| entitlements | `userId`, `itemId`, `source` (`ink`, `purchase`, `event`), `orderId` (unique, nullable), `createdAt`, `revokedAt` |
-| loadouts | `userId`, `bowSkin`, `arrowTrail`, `outfit`, `killEffect` |
-| match_results | `userId`, `matchId`, `kills`, `deaths`, `xp`, `ink`, `won`, `createdAt` |
-
-- Ink changes and entitlement grants happen inside one transaction.
-- On join, the server loads the loadout, drops any item the user does not own, and writes the result into `PlayerState`.
+- Guest accounts are created on first Play, Profile or Locker visit. Tokens are `<account id>.<secret>`, one per device, stored only as SHA-256 hashes (`account_tokens`).
+- Discord and Google sign-in link to the current account or sign in on a new device. A provider is offered only when its client id, secret and `PUBLIC_URL` are set.
+- Tables: `accounts` (name, xp, ink, provider ids, loadout columns), `account_tokens`, `match_rewards` (primary key match id + account), `season_stats`, `inventory` (source `ink` or `xsolla`, order id), `orders`.
+- PGlite in dev and tests, Postgres through postgres.js when `DATABASE_URL` is set. Migrations are numbered in `src/server/db/migrations.ts`.
+- Ink spending and grants run in one transaction. Deleting an account removes every row tied to it.
+- On join, the room loads the stored loadout and writes it into `PlayerState`. What the client sends is ignored, and loadouts are re-checked against the inventory on every read.
 
 ## Purchases with Xsolla (M11)
 
@@ -92,24 +60,29 @@ Dodo Payments cannot be used: its merchant policy prohibits video games and in-g
 
 ### Flow
 
-1. Client asks `POST /shop/token` with `{ sku }`. Requires a linked account.
-2. Server requests a payment token from Xsolla: `POST https://store.xsolla.com/api/v3/project/{XSOLLA_PROJECT_ID}/admin/payment/token`, Basic auth `XSOLLA_MERCHANT_ID:XSOLLA_API_KEY`, body with the user (id, name, email, country), `items: [{ sku, quantity: 1 }]`, and sandbox mode outside production.
-3. Client opens Pay Station with the token: `https://secure.xsolla.com/paystation4/?token=...` (sandbox: `https://sandbox-secure.xsolla.com/paystation4/?token=...`).
-4. When Pay Station closes, the client asks the server for its inventory. The client never grants anything itself.
+1. The locker calls `POST /api/shop/checkout` with `{ sku }`. The account must have Discord or Google linked (403 `link_required` otherwise), because a guest token lives in one browser.
+2. The server requests a token: `POST https://store.xsolla.com/api/v3/project/{XSOLLA_PROJECT_ID}/admin/payment/token`, Basic auth `XSOLLA_MERCHANT_ID:XSOLLA_API_KEY`, body `{ user: { id: { value: accountId }, name: { value } }, purchase: { items: [{ sku, quantity: 1 }] }, sandbox }`. The response is `201 { token, order_id }`; the order is stored as `created`.
+3. The client opens Pay Station in a new tab: `https://secure.xsolla.com/paystation4/?token=...` (sandbox: `https://sandbox-secure.xsolla.com/paystation4/?token=...`) and polls `GET /api/locker` until the item appears. The client never grants anything.
 
-### Webhook `POST /webhooks/xsolla`
+### Webhook `POST /api/xsolla/webhook`
 
-- Read the **raw body** before any JSON parsing.
-- Expected header: `Authorization: Signature <sha1 hex of rawBody + XSOLLA_WEBHOOK_SECRET_KEY>`. Compare with `crypto.timingSafeEqual`. Mismatch: reject.
-- `user_validation`: confirm the user exists.
-- `order_paid`: grant the items. Idempotent by order id: a repeated webhook grants nothing new. Respond `204` within 3 seconds.
-- `order_canceled`: set `revokedAt` on those entitlements.
-- Tests use fixture payloads signed with a test secret: valid signature, invalid signature, duplicate `order_paid`, cancel after paid.
-- Before building this, confirm current payload shapes in Xsolla's webhook docs and save sample payloads as fixtures in `tests/server/fixtures/xsolla/`.
+- The route reads the raw body before JSON parsing.
+- `Authorization: Signature <sha1 hex of rawBody + XSOLLA_WEBHOOK_SECRET_KEY>`, compared with `timingSafeEqual`. A mismatch returns 400 `INVALID_SIGNATURE`.
+- `user_validation`: 204 if the account exists, else 400 `INVALID_USER`.
+- `order_paid`: grants the items for `user.external_id`. Idempotent by `order.id`. Unknown SKUs return 400 `INVALID_PARAMETER`.
+- `order_canceled`: removes what that order granted; an equipped item falls back to the default.
+- Other notification types get 204 so Xsolla stops retrying.
+- Covered by `tests/server/shop.test.ts` with signed payloads: valid and invalid signature, duplicate `order_paid`, cancel after paid, unknown user and SKU.
+
+### Setup Tanay does in the Xsolla Publisher Account
+
+- Create virtual items with exactly these SKUs: `bow-gilded-relic`, `bow-night-canopy`, `trail-gold-leaf`, `trail-shadow-vine`, `outfit-canopy-shaman`, `outfit-golden-idol`, `effect-blue-morpho`, `effect-relic-rubble`, priced as in the catalog.
+- Set the webhook URL to `https://bowdle.io/api/xsolla/webhook` and enable user validation, order paid and order canceled.
+- Run a sandbox purchase with `XSOLLA_SANDBOX=1` before switching it off.
 
 ### Environment variables
 
-`JWT_SECRET`, `SESSION_SECRET`, `DATABASE_URL`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `XSOLLA_MERCHANT_ID`, `XSOLLA_PROJECT_ID`, `XSOLLA_API_KEY`, `XSOLLA_WEBHOOK_SECRET_KEY`.
+`DATABASE_URL`, `PUBLIC_URL`, `TRUST_PROXY`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `XSOLLA_MERCHANT_ID`, `XSOLLA_PROJECT_ID`, `XSOLLA_API_KEY`, `XSOLLA_WEBHOOK_SECRET_KEY`, `XSOLLA_SANDBOX`. The paid shop stays off unless the four Xsolla ids and keys are all set.
 
 ## Platforms
 

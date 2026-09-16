@@ -26,6 +26,8 @@ import type { CampTarget } from "../../shared/maps/camp.ts";
 import { defaultMatchMap } from "../../shared/maps/registry.ts";
 import { BODY_RADIUS, BOULDER_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
 import { mulberry32 } from "../../shared/math/rng.ts";
+import { ArrowTrailMesh, KillBurst } from "./effects.ts";
+import { killEffect } from "../../shared/cosmetics.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
 import { InkMaterial } from "./InkMaterial.ts";
@@ -35,7 +37,7 @@ import { PropsRenderer } from "./props/PropsRenderer.ts";
 import { Ambience } from "../audio/ambience.ts";
 import { loadSettings, type GameSettings } from "../settings.ts";
 import { DynamicResolution } from "./dynamicResolution.ts";
-import { CharacterRig, type CharacterKind } from "./characters/CharacterRig.ts";
+import { CharacterRig, characterLookKey, type CharacterLook, type CharacterKind } from "./characters/CharacterRig.ts";
 import type { CharacterMotion } from "./characters/pose.ts";
 import { Viewmodel } from "./characters/Viewmodel.ts";
 
@@ -163,6 +165,8 @@ export class Renderer {
   private readonly targets = new Map<string, CharacterRig>();
   private readonly players = new Map<string, CharacterRig>();
   private readonly showcase: CharacterRig[] = [];
+  private readonly trails = new Map<Group, ArrowTrailMesh>();
+  private readonly bursts: KillBurst[] = [];
   private readonly playerSymbols = new Map<string, { element: HTMLDivElement; team: number }>();
   private readonly ropes = new Map<string, Line>();
   private readonly clouds = new Map<string, Group>();
@@ -294,18 +298,30 @@ export class Renderer {
   setDrawFraction(fraction: number): void { this.viewmodel.setDrawFraction(fraction); }
   setViewmodelVisible(visible: boolean): void { this.viewmodel.visible = visible; }
   setLocalTeam(team: number): void { this.viewmodel.setTeam(team); }
+  setLocalBowSkin(bowId: string): void { this.viewmodel.setBowSkin(bowId); }
   setMeleeSwing(progress: number): void { this.viewmodel.setStab(progress); }
 
   setPlayerMotion(id: string, motion: CharacterMotion): void { this.players.get(id)?.setMotion(motion); }
 
   /** A posed character that is not a player, for the character lineup scene. */
-  addShowcase(kind: CharacterKind, x: number, y: number, z: number, yaw: number, motion: CharacterMotion): void {
-    const rig = new CharacterRig(kind, this.showcase.length * 0.37);
+  addShowcase(kind: CharacterKind, x: number, y: number, z: number, yaw: number, motion: CharacterMotion, look: CharacterLook = {}): CharacterRig {
+    const rig = new CharacterRig(kind, this.showcase.length * 0.37, look);
     rig.position.set(x, y, z);
     rig.rotation.y = yaw;
     rig.setMotion(motion);
     this.showcase.push(rig);
     this.worldScene.add(rig);
+    return rig;
+  }
+
+  /** Swaps a showcase rig for one wearing a different look, keeping its place and pose. */
+  restyleShowcase(rig: CharacterRig, kind: CharacterKind, look: CharacterLook): CharacterRig {
+    const index = this.showcase.indexOf(rig);
+    if (index < 0) return rig;
+    const next = new CharacterRig(kind, index * 0.37, look);
+    next.position.copy(rig.position); next.rotation.copy(rig.rotation); next.setMotion(rig.motion);
+    this.worldScene.remove(rig); this.worldScene.add(next); this.showcase[index] = next;
+    return next;
   }
 
   setTargetPosition(id: string, x: number, y: number, z: number, visible: boolean): void {
@@ -315,9 +331,13 @@ export class Renderer {
     target.visible = visible;
   }
 
-  spawnArrowVisual(arrow: ArrowSim, kind: "arrow" | "grapple" | "ink" = "arrow"): Group {
+  spawnArrowVisual(arrow: ArrowSim, kind: "arrow" | "grapple" | "ink" = "arrow", trailId = ""): Group {
     const visual = createArrowVisual(kind);
     this.worldScene.add(visual);
+    if (kind === "arrow" && trailId) {
+      const trail = new ArrowTrailMesh(trailId);
+      if (trail.enabled) { this.trails.set(visual, trail); this.worldScene.add(trail.mesh); } else trail.dispose();
+    }
     this.updateArrowVisual(visual, arrow);
     return visual;
   }
@@ -326,16 +346,42 @@ export class Renderer {
     visual.position.set(arrow.x, arrow.y, arrow.z);
     arrowDirection.set(arrow.vx, arrow.vy, arrow.vz).normalize();
     visual.quaternion.setFromUnitVectors(up, arrowDirection);
+    this.trails.get(visual)?.push(arrow.x, arrow.y, arrow.z);
   }
 
   removeVisual(visual: Group): void {
     this.worldScene.remove(visual);
+    const trail = this.trails.get(visual);
+    if (trail) { this.worldScene.remove(trail.mesh); trail.dispose(); this.trails.delete(visual); }
   }
 
-  setPlayerPosition(id: string, team: number, x: number, y: number, z: number, yaw: number, visible = true): void {
+  effectCounts(): { trails: number; trailPoints: number; bursts: number } {
+    let trailPoints = 0;
+    for (const trail of this.trails.values()) trailPoints += trail.pointCount;
+    return { trails: this.trails.size, trailPoints, bursts: this.bursts.length };
+  }
+
+  /** Plays a bought kill effect. Returns false for the default effect, which the caller draws as an ink splat. */
+  spawnKillEffect(effectId: string, team: number, x: number, y: number, z: number, seed: number, nowMs = performance.now()): boolean {
+    if (killEffect(effectId).shape === "splat") return false;
+    const burst = new KillBurst(effectId, team, x, y + EYE_STAND - 0.3, z, nowMs, seed);
+    this.bursts.push(burst); this.worldScene.add(burst.mesh);
+    return true;
+  }
+
+  setPlayerPosition(id: string, team: number, x: number, y: number, z: number, yaw: number, visible = true, look: CharacterLook = {}): void {
     let player = this.players.get(id);
+    const kind = team === 0 ? "sun" : "moon";
+    if (player && player.lookKey !== characterLookKey(kind, look)) {
+      const motion = player.motion;
+      this.worldScene.remove(player);
+      player = new CharacterRig(kind, phaseFor(id), look);
+      player.setMotion(motion);
+      this.players.set(id, player);
+      this.worldScene.add(player);
+    }
     if (!player) {
-      player = new CharacterRig(team === 0 ? "sun" : "moon", phaseFor(id));
+      player = new CharacterRig(kind, phaseFor(id), look);
       this.players.set(id, player);
       this.worldScene.add(player);
       const element = document.createElement("div"); element.className = "bowdle-team-symbol"; element.textContent = team === 0 ? "●" : "▲"; element.style.cssText = `position:absolute;display:${this.settings.colorblindSymbols ? "block" : "none"};color:${team === 0 ? "#d2531f" : "#47418c"};font:30px sans-serif;-webkit-text-stroke:2px #efe3c6;pointer-events:none;transform:translate(-50%,-50%)`;
@@ -428,6 +474,10 @@ export class Renderer {
     for (const rig of this.players.values()) rig.update(seconds);
     for (const rig of this.targets.values()) rig.update(seconds);
     for (const rig of this.showcase) rig.update(seconds);
+    for (let index = this.bursts.length - 1; index >= 0; index -= 1) {
+      const burst = this.bursts[index]!;
+      if (!burst.update(timeMs)) { burst.dispose(this.worldScene); this.bursts.splice(index, 1); }
+    }
     this.ambience.updateListener(this.camera.position.x, this.camera.position.z);
     for (let index = 0; index < this.planes.length; index += 1) {
       const plane = this.planes[index]!;

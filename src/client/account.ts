@@ -1,4 +1,5 @@
-import type { GuestSession, Leaderboard, Profile, Provider } from "../shared/api.ts";
+import type { BuyResult, GuestSession, Leaderboard, Locker, Profile, Provider, ShopConfig } from "../shared/api.ts";
+import type { Loadout } from "../shared/cosmetics.ts";
 
 const TOKEN_KEY = "bowdle.token";
 
@@ -74,4 +75,39 @@ export async function enabledProviders(): Promise<Provider[]> {
 export async function startProviderSignIn(provider: Provider): Promise<void> {
   const result = await request<{ url?: string }>(`/auth/${provider}/start`, { method: "POST" });
   if (result?.url) location.assign(result.url);
+}
+
+export async function fetchLocker(): Promise<Locker | undefined> {
+  try { return loadToken() ? await request<Locker>("/locker") : undefined; } catch { return undefined; }
+}
+
+export async function saveLoadout(loadout: Partial<Loadout>): Promise<Loadout | undefined> {
+  try { return await request<Loadout>("/loadout", { method: "PUT", body: JSON.stringify(loadout) }); } catch { return undefined; }
+}
+
+/** Ink purchases answer 409 with a reason, so this reads the body for any status. */
+export async function buyWithInk(itemId: string): Promise<BuyResult | undefined> {
+  const token = loadToken();
+  if (!token) return undefined;
+  try {
+    const response = await fetch(`${apiBase()}/shop/ink`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ itemId }) });
+    return response.status === 200 || response.status === 409 ? await response.json() as BuyResult : undefined;
+  } catch { return undefined; }
+}
+
+export async function fetchShopConfig(): Promise<ShopConfig> {
+  try { return await request<ShopConfig>("/shop/config") ?? { paid: false, sandbox: false }; } catch { return { paid: false, sandbox: false }; }
+}
+
+export type CheckoutResult = { url: string } | { error: "link_required" | "failed" };
+
+export async function startCheckout(sku: string): Promise<CheckoutResult> {
+  const token = loadToken();
+  if (!token) return { error: "failed" };
+  try {
+    const response = await fetch(`${apiBase()}/shop/checkout`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ sku }) });
+    if (response.status === 403) return { error: "link_required" };
+    const body = response.ok ? await response.json() as { url?: string } : {};
+    return body.url ? { url: body.url } : { error: "failed" };
+  } catch { return { error: "failed" }; }
 }

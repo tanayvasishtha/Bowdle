@@ -60,7 +60,7 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
 export function showMainMenu(container: HTMLElement): void {
   installMenuStyles(container);
   const menu = document.createElement("main"); menu.className = "bowdle-menu";
-  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><button data-action="practice">Practice</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button>`;
+  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><button data-action="practice">Practice</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button>`;
   container.append(menu);
   const signIn = consumeSignInFragment();
   if (signIn.linked || signIn.failed) {
@@ -79,6 +79,7 @@ export function showMainMenu(container: HTMLElement): void {
   };
   menu.querySelector("[data-action=play]")!.addEventListener("click", play);
   menu.querySelector("[data-action=practice]")!.addEventListener("click", () => navigate("camp"));
+  menu.querySelector("[data-action=locker]")!.addEventListener("click", () => navigate("locker"));
   menu.querySelector("[data-action=profile]")!.addEventListener("click", () => { void showProfile(container, () => undefined); });
   menu.querySelector("[data-action=leaderboard]")!.addEventListener("click", () => { void showLeaderboard(container, () => undefined); });
   menu.querySelector("[data-action=settings]")!.addEventListener("click", () => showSettings(container, () => undefined));

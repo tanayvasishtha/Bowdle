@@ -68,6 +68,7 @@ export class PracticeSession {
   private accumulatorMs = 0;
   private lastFrameMs = performance.now();
   private simTimeMs = 0;
+  private trailId = "";
 
   constructor(renderer: Renderer, sampler: InputSampler, container: HTMLElement) {
     this.renderer = renderer;
@@ -87,6 +88,12 @@ export class PracticeSession {
 
   start(): void {
     requestAnimationFrame((time) => this.frame(time));
+  }
+
+  /** Shows the equipped bow and trail in practice too. */
+  setLoadout(loadout: { bow: string; trail: string }): void {
+    this.trailId = loadout.trail;
+    this.renderer.setLocalBowSkin(loadout.bow);
   }
 
   private updateTargets(): void {
@@ -166,7 +173,7 @@ export class PracticeSession {
 
   private fire(event: FireEvent): void {
     const arrow = spawnArrow(event, this.player.crouched);
-    this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow), stuckAtMs: 0, trail: new Float32Array(PRACTICE_TRAIL_POINTS * 3), trailCount: 0, captureStep: 0 });
+    this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow, "arrow", this.trailId), stuckAtMs: 0, trail: new Float32Array(PRACTICE_TRAIL_POINTS * 3), trailCount: 0, captureStep: 0 });
     this.sounds.play("release");
   }
 

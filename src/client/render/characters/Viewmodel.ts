@@ -1,4 +1,5 @@
-import { ConeGeometry, CylinderGeometry, Group, Mesh, QuadraticBezierCurve3, SphereGeometry, TubeGeometry, Vector3 } from "three";
+import { BoxGeometry, ConeGeometry, CylinderGeometry, Group, Mesh, OctahedronGeometry, QuadraticBezierCurve3, SphereGeometry, TubeGeometry, Vector3 } from "three";
+import { bowSkin } from "../../../shared/cosmetics.ts";
 import { InkMaterial } from "../InkMaterial.ts";
 import { MATERIAL_ID } from "../palette.ts";
 
@@ -24,6 +25,10 @@ function stretch(mesh: Mesh, from: Vector3, to: Vector3, radius: number): void {
 export class Viewmodel extends Group {
   private readonly bow = new Group();
   private readonly sleeveMaterial = new InkMaterial(MATERIAL_ID.teamSun);
+  private readonly limbMaterial = new InkMaterial(MATERIAL_ID.wood);
+  private readonly gripMaterial = new InkMaterial(MATERIAL_ID.rope);
+  private readonly ornament = new Group();
+  private bowSkinId = "bow.default";
   private readonly stringTop: Mesh;
   private readonly stringBottom: Mesh;
   private readonly rightHand: Mesh;
@@ -44,8 +49,8 @@ export class Viewmodel extends Group {
     const unit = new CylinderGeometry(1, 1, 1, 6);
 
     const curve = new QuadraticBezierCurve3(TIP_BOTTOM, new Vector3(0.5, 0, -0.15), TIP_TOP);
-    this.bow.add(new Mesh(new TubeGeometry(curve, 18, 0.022, 5, false), wood));
-    const grip = new Mesh(new CylinderGeometry(0.032, 0.032, 0.2, 7), rope);
+    this.bow.add(new Mesh(new TubeGeometry(curve, 18, 0.022, 5, false), this.limbMaterial), this.ornament);
+    const grip = new Mesh(new CylinderGeometry(0.032, 0.032, 0.2, 7), this.gripMaterial);
     grip.position.copy(GRIP);
     const leftHand = new Mesh(new SphereGeometry(0.075, 10, 7), skin);
     leftHand.position.copy(GRIP).add(new Vector3(0.02, -0.01, 0.03));
@@ -78,6 +83,28 @@ export class Viewmodel extends Group {
 
   setTeam(team: number): void {
     this.sleeveMaterial.uniforms.materialId!.value = team === 0 ? MATERIAL_ID.teamSun : MATERIAL_ID.teamMoon;
+  }
+
+  /** Repaints the first-person bow and swaps its tip ornaments for the chosen skin. */
+  setBowSkin(id: string): void {
+    const skin = bowSkin(id);
+    if (skin.id === this.bowSkinId) return;
+    this.bowSkinId = skin.id;
+    this.limbMaterial.uniforms.materialId!.value = MATERIAL_ID[skin.paint];
+    this.gripMaterial.uniforms.materialId!.value = MATERIAL_ID[skin.grip];
+    for (const child of [...this.ornament.children]) { this.ornament.remove(child); (child as Mesh).geometry.dispose(); }
+    const add = (mesh: Mesh, x: number, y: number, z: number, rz = 0): void => { mesh.position.set(x, y, z); mesh.rotation.z = rz; this.ornament.add(mesh); };
+    for (const sign of [1, -1]) {
+      const tip = sign > 0 ? TIP_TOP : TIP_BOTTOM;
+      switch (skin.ornament) {
+        case "leaves": add(new Mesh(new ConeGeometry(0.06, 0.18, 5).scale(1, 1, 0.35), this.limbMaterial), tip.x + 0.03, tip.y + sign * 0.06, tip.z, sign > 0 ? 0 : Math.PI); break;
+        case "prongs": add(new Mesh(new ConeGeometry(0.02, 0.16, 6), this.limbMaterial), tip.x + 0.05, tip.y + sign * 0.03, tip.z, sign * -0.8); add(new Mesh(new ConeGeometry(0.02, 0.16, 6), this.limbMaterial), tip.x - 0.04, tip.y + sign * 0.05, tip.z, sign * 0.6); break;
+        case "fins": add(new Mesh(new BoxGeometry(0.12, 0.14, 0.012), this.limbMaterial), tip.x + 0.05, tip.y - sign * 0.04, tip.z); break;
+        case "crystals": add(new Mesh(new OctahedronGeometry(0.05).scale(1, 1.8, 1), this.gripMaterial), tip.x, tip.y + sign * 0.08, tip.z); break;
+        case "sunDisc": if (sign > 0) add(new Mesh(new CylinderGeometry(0.1, 0.1, 0.02, 14).rotateZ(Math.PI / 2), this.gripMaterial), GRIP.x + 0.07, GRIP.y, GRIP.z); break;
+        case "none": break;
+      }
+    }
   }
 
   setDrawFraction(fraction: number): void {

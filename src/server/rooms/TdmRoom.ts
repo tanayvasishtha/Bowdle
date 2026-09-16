@@ -34,6 +34,7 @@ import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
 import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RobinHoodMessage } from "../../net/messages.ts";
 import { gameDatabase, type MatchResultLine } from "../db/GameDatabase.ts";
+import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
 import { spawnArrow, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
 import { chooseSpawn, respawnPlayer, scoreKill, updateMatchPhase } from "../../shared/sim/match.ts";
@@ -88,6 +89,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private matchSerial = 0;
   private rewardedSerial = -1;
   rewardsSettled: Promise<void> = Promise.resolve();
+  loadoutsApplied: Promise<void> = Promise.resolve();
 
   onCreate(options: JoinOptions): void {
     this.botSeedBase = Number.isFinite(options.testBotSeed) ? options.testBotSeed! : 0;
@@ -361,6 +363,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const id = `bot-${this.botSerial += 1}`; const spawn = chooseSpawn(this.map, team, this.state.players.values());
     const player = source ?? new PlayerState(); player.name = `Doodle ${this.botSerial}`; player.team = team; player.isBot = true;
     if (!source) respawnPlayer(player, spawn);
+    else { player.bowSkin = DEFAULT_LOADOUT.bow; player.arrowTrail = DEFAULT_LOADOUT.trail; player.outfit = DEFAULT_LOADOUT.outfit; player.killEffect = DEFAULT_LOADOUT.effect; }
     this.state.players.set(id, player); this.bots.set(id, new BotController(id, this.botSeedBase + this.botSerial));
   }
 
@@ -378,6 +381,20 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   replacePlayerWithBot(id: string): void {
     const player = this.state.players.get(id); if (!player || player.isBot) return;
     this.state.players.delete(id); this.addBot(player.team, player);
+  }
+
+  /** Cosmetics come from the database, never from the client, so nobody can wear an item they do not own. */
+  private async applyLoadout(sessionId: string, account: Promise<string | undefined>): Promise<void> {
+    try {
+      const accountId = await account;
+      if (!accountId) return;
+      const loadout = await (await gameDatabase()).loadout(accountId);
+      const player = this.state.players.get(sessionId);
+      if (!player || player.isBot) return;
+      player.bowSkin = loadout.bow; player.arrowTrail = loadout.trail; player.outfit = loadout.outfit; player.killEffect = loadout.effect;
+    } catch (error) {
+      console.error(JSON.stringify({ event: "loadoutError", message: error instanceof Error ? error.message : String(error) }));
+    }
   }
 
   onJoin(client: GameClient, options?: JoinOptions): void {
@@ -403,7 +420,12 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       player.y = 0; player.z = TEST_DUEL_LANE_Z; player.yaw = team === 0 ? -Math.PI / 2 : Math.PI / 2;
     }
     this.state.players.set(client.sessionId, player);
-    if (options?.token) this.accounts.set(client.sessionId, gameDatabase().then((db) => db.authenticate(options.token)).catch(() => undefined));
+    if (options?.token) {
+      const sessionId = client.sessionId;
+      const account = gameDatabase().then((db) => db.authenticate(options.token)).catch(() => undefined);
+      this.accounts.set(sessionId, account);
+      this.loadoutsApplied = this.loadoutsApplied.then(() => this.applyLoadout(sessionId, account));
+    }
     this.reportPlayers();
     if (this.testMode && sun + moon + 1 >= TEAM_COUNT) this.lock();
   }

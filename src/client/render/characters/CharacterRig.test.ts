@@ -2,7 +2,8 @@ import { Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { MELEE_COOLDOWN_MS } from "../../../shared/constants.ts";
 import { createPlayerSim } from "../../../shared/sim/movement.ts";
-import { CharacterRig } from "./CharacterRig.ts";
+import { BOW_SKINS, OUTFITS } from "../../../shared/cosmetics.ts";
+import { CharacterRig, characterLookKey } from "./CharacterRig.ts";
 import { motionFromSim, stabProgress } from "./motion.ts";
 import { createMotion, headCenter, type CharacterMotion } from "./pose.ts";
 
@@ -19,9 +20,23 @@ describe("CharacterRig", () => {
   it("builds every crew for a handful of draw calls", () => {
     for (const kind of ["sun", "moon", "dummy"] as const) {
       const rig = new CharacterRig(kind);
-      expect(rig.drawCalls, kind).toBeGreaterThanOrEqual(5);
-      expect(rig.drawCalls, kind).toBeLessThanOrEqual(7);
+      expect(rig.drawCalls, kind).toBeGreaterThanOrEqual(3);
+      expect(rig.drawCalls, kind).toBeLessThanOrEqual(8);
     }
+  });
+
+  it("wears every bow skin and outfit within the same draw call budget", () => {
+    const keys = new Set<string>();
+    for (const bow of BOW_SKINS) for (const gear of OUTFITS) for (const kind of ["sun", "moon"] as const) {
+      const rig = new CharacterRig(kind, 0, { bow: bow.id, outfit: gear.id });
+      expect(rig.drawCalls, `${kind} ${bow.id} ${gear.id}`).toBeLessThanOrEqual(8);
+      expect(rig.lookKey).toBe(characterLookKey(kind, { bow: bow.id, outfit: gear.id }));
+      keys.add(rig.lookKey);
+      const head = rig.headWorld(new Vector3());
+      expect(head.y).toBeCloseTo(headCenter(rig.pose).up, 3);
+    }
+    expect(keys.size).toBe(BOW_SKINS.length * OUTFITS.length * 2);
+    expect(new CharacterRig("sun", 0, { bow: "bogus", outfit: "outfit.idol.fake" }).lookKey).toBe(characterLookKey("sun", {}));
   });
 
   it("places the drawn head exactly where the pose math puts it", () => {

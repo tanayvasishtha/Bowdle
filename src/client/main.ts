@@ -12,8 +12,10 @@ import { sunTempleMap } from "../shared/maps/sunTemple.ts";
 import { canopyMap } from "../shared/maps/canopy.ts";
 import { defaultMatchMap, mapById } from "../shared/maps/registry.ts";
 import { loadName } from "./settings.ts";
+import { fetchLocker } from "./account.ts";
 import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
+import { startLocker, type LockerTestHooks } from "./ui/locker.ts";
 
 declare global {
   interface Window {
@@ -30,6 +32,7 @@ declare global {
       aimAtGrapple?(): void;
       stats?(): { drawCalls: number; triangles: number; renderScale: number };
       cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
+      locker?: LockerTestHooks;
     };
   }
 }
@@ -77,6 +80,7 @@ else if (params.get("scene") === "online") {
   const sampler = new InputSampler(renderer.canvas, isCamp ? 0 : map.spawns.sun[0]?.yaw ?? -Math.PI / 2);
   const session = isCamp ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);
   if (isCamp) attachPauseMenu(app, sampler);
+  if (session instanceof PracticeSession) void fetchLocker().then((locker) => { if (locker) session.setLoadout(locker.loadout); });
   session.start();
   if (params.has("test")) window.__bowdleTest = {
     snapshot: () => renderer.snapshot(),
@@ -84,6 +88,8 @@ else if (params.get("scene") === "online") {
     cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
     ...(session instanceof PracticeSession ? { fireAt: (targetId: string, drawMs: number) => session.fireAt(targetId, drawMs) } : {}),
   };
+} else if (params.get("scene") === "locker") {
+  startLocker(app);
 } else if (params.get("scene") === "characters") {
   const renderer = new Renderer(app, params.has("debug"), lineupMap);
   const lineup: readonly Partial<CharacterMotion>[] = [

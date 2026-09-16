@@ -6,10 +6,13 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { InkMaterial } from "../InkMaterial.ts";
 import { CHARACTER_LOOK as C } from "../look.ts";
 import { MATERIAL_ID } from "../palette.ts";
+import { bowSkin, outfit as outfitById, type BowSkin, type Outfit } from "../../../shared/cosmetics.ts";
 import { createMotion, createPose, poseInto, type ArmPose, type CharacterMotion, type LegPose, type Pose } from "./pose.ts";
 
 /** Sun and Moon crews share one silhouette and hitbox; only color and gear differ. */
 export type CharacterKind = "sun" | "moon" | "dummy";
+/** Cosmetic ids from the shared catalog. Unknown ids fall back to the defaults. */
+export type CharacterLook = { bow?: string; outfit?: string };
 
 const BONE_NAMES = [
   "hips", "spine", "head",
@@ -20,14 +23,14 @@ const BONE_NAMES = [
 type BoneName = (typeof BONE_NAMES)[number];
 type Bones = Record<BoneName, Bone>;
 
-const SLOTS = ["skin", "shirt", "trousers", "leather", "rope", "trim", "hat"] as const;
+const SLOTS = ["skin", "shirt", "trousers", "leather", "rope", "trim", "hat", "bow"] as const;
 type Slot = (typeof SLOTS)[number];
 type MaterialKey = keyof typeof MATERIAL_ID;
 
 const SLOT_MATERIALS: Record<CharacterKind, Record<Slot, MaterialKey>> = {
-  sun: { skin: "canvas", shirt: "teamSun", trousers: "earth", leather: "wood", rope: "rope", trim: "gold", hat: "stone" },
-  moon: { skin: "canvas", shirt: "teamMoon", trousers: "earth", leather: "wood", rope: "rope", trim: "gold", hat: "teamMoon" },
-  dummy: { skin: "rope", shirt: "canvas", trousers: "rope", leather: "wood", rope: "rope", trim: "wood", hat: "canvas" },
+  sun: { skin: "canvas", shirt: "teamSun", trousers: "earth", leather: "wood", rope: "rope", trim: "gold", hat: "stone", bow: "wood" },
+  moon: { skin: "canvas", shirt: "teamMoon", trousers: "earth", leather: "wood", rope: "rope", trim: "gold", hat: "teamMoon", bow: "wood" },
+  dummy: { skin: "rope", shirt: "canvas", trousers: "rope", leather: "wood", rope: "rope", trim: "wood", hat: "canvas", bow: "wood" },
 };
 
 type Part = { geometry: BufferGeometry; slot: Slot; bone: BoneName; nearBone?: { name: BoneName; point: Vector3; other: Vector3 } };
@@ -109,7 +112,7 @@ function limbParts(side: "left" | "right"): Part[] {
   ];
 }
 
-function bowParts(): Part[] {
+function bowParts(skin: BowSkin): Part[] {
   const tipTop = new Vector3(0, 0.02, -C.bowHalfLength);
   const tipBottom = new Vector3(0, 0.02, C.bowHalfLength);
   const nock = new Vector3(0, C.nockRest, 0);
@@ -117,7 +120,8 @@ function bowParts(): Part[] {
   const limbs = new TubeGeometry(curve, 14, 0.018, 5, false);
   limbs.deleteAttribute("uv");
   return [
-    { geometry: limbs, slot: "leather", bone: "bowGrip" },
+    { geometry: limbs, slot: "bow", bone: "bowGrip" },
+    ...bowOrnament(skin, tipTop, tipBottom),
     { geometry: cylinder(0.028, 0.028, 0.16, 0, -C.bowBelly * 0.5, 0, Math.PI / 2), slot: "rope", bone: "bowGrip" },
     { geometry: between(tipTop, nock, 0.006), slot: "rope", bone: "bowGrip", nearBone: { name: "nock", point: nock, other: tipTop } },
     { geometry: between(nock, tipBottom, 0.006), slot: "rope", bone: "bowGrip", nearBone: { name: "nock", point: nock, other: tipBottom } },
@@ -146,8 +150,9 @@ function bodyParts(): Part[] {
   ];
 }
 
-function gearParts(kind: CharacterKind): Part[] {
+function gearParts(kind: CharacterKind, look: Outfit): Part[] {
   const r = C.headRadius;
+  if (kind !== "dummy" && look.headgear !== "crew") return [...headgearParts(look), ...accessoryParts(look)];
   if (kind === "sun") {
     return [
       { geometry: dome(0.215, 0, r + 0.05, 0), slot: "hat", bone: "head" },
@@ -173,18 +178,114 @@ function gearParts(kind: CharacterKind): Part[] {
   return [{ geometry: ring(0.07, 0.02, 0, 0.47, 0, Math.PI / 2), slot: "rope", bone: "spine" }];
 }
 
-type Built = { geometry: BufferGeometry; slots: Slot[] };
-const builtByKind = new Map<CharacterKind, Built>();
-const materialsByKind = new Map<CharacterKind, InkMaterial[]>();
+/** Cosmetic headgear. Everything sits on the head bone and stays inside the head hitbox silhouette plus a brim. */
+function headgearParts(look: Outfit): Part[] {
+  const r = C.headRadius;
+  const top = r + 0.02;
+  switch (look.headgear) {
+    case "brim": return [
+      { geometry: dome(0.2, 0, top + 0.02, 0, 0.95), slot: "hat", bone: "head" },
+      { geometry: cylinder(0.36, 0.36, 0.02, 0, top + 0.03, 0), slot: "hat", bone: "head" },
+      { geometry: cylinder(0.205, 0.205, 0.04, 0, top + 0.06, 0), slot: "trim", bone: "head" },
+    ];
+    case "goggles": return [
+      { geometry: dome(0.2, 0, top, 0, 0.7), slot: "hat", bone: "head" },
+      { geometry: box(0.1, 0.02, 0.1, 0, top + 0.01, -0.2), slot: "hat", bone: "head" },
+      { geometry: ring(0.045, 0.014, -0.065, r + 0.08, -r + 0.01), slot: "trim", bone: "head" },
+      { geometry: ring(0.045, 0.014, 0.065, r + 0.08, -r + 0.01), slot: "trim", bone: "head" },
+    ];
+    case "bandana": return [
+      { geometry: dome(0.205, 0, top - 0.01, 0, 0.8), slot: "hat", bone: "head" },
+      { geometry: cone(0.04, 0.12, -0.04, r + 0.05, r + 0.04, Math.PI / 2 + 0.4), slot: "hat", bone: "head" },
+      { geometry: cone(0.04, 0.12, 0.04, r + 0.02, r + 0.05, Math.PI / 2 + 0.9), slot: "hat", bone: "head" },
+    ];
+    case "headdress": return [
+      { geometry: cylinder(0.205, 0.205, 0.06, 0, top + 0.04, 0), slot: "trim", bone: "head" },
+      ...[-0.5, -0.25, 0, 0.25, 0.5].map((angle): Part => ({
+        geometry: cone(0.035, 0.26, Math.sin(angle) * 0.16, top + 0.18 - Math.abs(angle) * 0.05, 0.05, 0, -angle * 0.9),
+        slot: "hat", bone: "head",
+      })),
+    ];
+    case "aviator": return [
+      { geometry: dome(0.215, 0, top - 0.02, 0, 1.05), slot: "hat", bone: "head" },
+      { geometry: box(0.03, 0.12, 0.08, -0.2, r - 0.02, 0), slot: "hat", bone: "head" },
+      { geometry: box(0.03, 0.12, 0.08, 0.2, r - 0.02, 0), slot: "hat", bone: "head" },
+      { geometry: ring(0.04, 0.013, -0.06, top + 0.17, -0.1, Math.PI / 2.6), slot: "trim", bone: "head" },
+      { geometry: ring(0.04, 0.013, 0.06, top + 0.17, -0.1, Math.PI / 2.6), slot: "trim", bone: "head" },
+    ];
+    case "crown": return [
+      { geometry: cylinder(0.2, 0.19, 0.1, 0, top + 0.08, 0), slot: "hat", bone: "head" },
+      ...[0, 1, 2, 3, 4, 5].map((index): Part => {
+        const angle = (index / 6) * Math.PI * 2;
+        return { geometry: cone(0.035, 0.1, Math.sin(angle) * 0.18, top + 0.18, Math.cos(angle) * 0.18), slot: "trim", bone: "head" };
+      }),
+    ];
+    case "crew": return [];
+  }
+}
 
-function buildGeometry(kind: CharacterKind): Built {
-  const cached = builtByKind.get(kind);
+function accessoryParts(look: Outfit): Part[] {
+  const r = C.headRadius;
+  switch (look.accessory) {
+    case "feather": return [{ geometry: cone(0.03, 0.3, 0.2, r + 0.22, 0.04, 0, -0.5), slot: "trim", bone: "head" }];
+    case "satchel": return [
+      { geometry: box(0.035, 0.62, 0.02, 0, 0.22, -0.12, 0, 0, 0.7), slot: "leather", bone: "spine" },
+      { geometry: box(0.2, 0.16, 0.08, -0.2, 0.0, 0.02), slot: "leather", bone: "spine" },
+      { geometry: box(0.21, 0.07, 0.085, -0.2, 0.06, 0.02), slot: "trim", bone: "spine" },
+    ];
+    case "pauldron": return [{ geometry: dome(0.11, 0, 0.0, 0, 0.8), slot: "trim", bone: "rightShoulder" }];
+    case "beads": return [
+      { geometry: ring(0.1, 0.02, 0, 0.42, -0.02, Math.PI / 2.3), slot: "trim", bone: "spine" },
+      { geometry: ball(0.04, 0, 0.33, -0.12), slot: "trim", bone: "spine" },
+    ];
+    case "scarf": return [
+      { geometry: ring(0.085, 0.035, 0, 0.43, 0, Math.PI / 2), slot: "trim", bone: "spine" },
+      { geometry: box(0.08, 0.34, 0.03, -0.06, 0.27, 0.15, 0.3, 0, -0.2), slot: "trim", bone: "spine" },
+    ];
+    case "mask": return [{ geometry: box(0.24, 0.16, 0.03, 0, r + 0.02, -r - 0.02), slot: "trim", bone: "head" }];
+    case "crew": return [];
+  }
+}
+
+/** Ornaments sit on the bow tips or under the grip and share the bow slot, so a skin never adds a draw call. */
+function bowOrnament(skin: BowSkin, tipTop: Vector3, tipBottom: Vector3): Part[] {
+  const tips = [tipTop, tipBottom];
+  const atTips = (make: (tip: Vector3, sign: number) => BufferGeometry): Part[] =>
+    tips.map((tip, index) => ({ geometry: make(tip, index === 0 ? -1 : 1), slot: "bow" as const, bone: "bowGrip" as const }));
+  switch (skin.ornament) {
+    case "leaves": return atTips((tip, sign) => place(new ConeGeometry(0.05, 0.14, 5), tip.x, tip.y, tip.z + sign * 0.04, sign * Math.PI / 2, 0, 0, 1, 1, 0.35));
+    case "prongs": return [
+      ...atTips((tip, sign) => cone(0.018, 0.14, 0.04, tip.y + 0.02, tip.z, sign * 0.4, -0.6)),
+      ...atTips((tip, sign) => cone(0.018, 0.14, -0.04, tip.y + 0.02, tip.z, sign * 0.4, 0.6)),
+    ];
+    case "sunDisc": return [{ geometry: cylinder(0.08, 0.08, 0.02, 0, -C.bowBelly - 0.06, 0, 0, 0, Math.PI / 2), slot: "bow", bone: "bowGrip" }];
+    case "fins": return atTips((tip, sign) => box(0.012, 0.1, 0.12, tip.x, tip.y - 0.03, tip.z - sign * 0.04));
+    case "crystals": return [
+      ...atTips((tip, sign) => cone(0.035, 0.08, tip.x, tip.y, tip.z + sign * 0.05, sign * Math.PI / 2)),
+      ...atTips((tip, sign) => cone(0.035, 0.08, tip.x, tip.y, tip.z + sign * 0.13, -sign * Math.PI / 2)),
+    ];
+    case "none": return [];
+  }
+}
+
+type Built = { geometry: BufferGeometry; paints: MaterialKey[] };
+const builtByKey = new Map<string, Built>();
+const inkByPaint = new Map<MaterialKey, InkMaterial>();
+
+function lookKey(kind: CharacterKind, skin: BowSkin, look: Outfit): string { return kind === "dummy" ? kind : `${kind}|${skin.id}|${look.id}`; }
+
+export function characterLookKey(kind: CharacterKind, look: CharacterLook): string { return lookKey(kind, bowSkin(look.bow ?? ""), outfitById(look.outfit ?? "")); }
+
+function buildGeometry(kind: CharacterKind, skin: BowSkin, look: Outfit): Built {
+  const key = lookKey(kind, skin, look);
+  const cached = builtByKey.get(key);
   if (cached) return cached;
   const bones = buildBones();
   bones.hips.updateMatrixWorld(true);
   const boneIndex = new Map<BoneName, number>(BONE_NAMES.map((name, index) => [name, index]));
-  const parts = [...bodyParts(), ...limbParts("left"), ...limbParts("right"), ...gearParts(kind), ...(kind === "dummy" ? [] : bowParts())];
-  const bySlot = new Map<Slot, BufferGeometry[]>();
+  const parts = [...bodyParts(), ...limbParts("left"), ...limbParts("right"), ...gearParts(kind, look), ...(kind === "dummy" ? [] : bowParts(skin))];
+  // Parts are grouped by the paint they resolve to, not by slot, so slots that share a paint share a draw call.
+  const byPaint = new Map<MaterialKey, BufferGeometry[]>();
   const local = new Vector3();
   for (const part of parts) {
     const positions = part.geometry.getAttribute("position");
@@ -202,29 +303,38 @@ function buildGeometry(kind: CharacterKind): Built {
     part.geometry.setAttribute("skinIndex", new BufferAttribute(skinIndex, 4));
     part.geometry.setAttribute("skinWeight", new BufferAttribute(skinWeight, 4));
     part.geometry.applyMatrix4(bones[part.bone].matrixWorld);
-    const list = bySlot.get(part.slot) ?? [];
+    const paint = slotMaterial(kind, part.slot, skin, look);
+    const list = byPaint.get(paint) ?? [];
     list.push(part.geometry);
-    bySlot.set(part.slot, list);
+    byPaint.set(paint, list);
   }
-  const slots = SLOTS.filter((slot) => bySlot.has(slot));
-  const perSlot = slots.map((slot) => {
-    const merged = mergeGeometries(bySlot.get(slot)!, false);
-    if (!merged) throw new Error(`Character geometry attributes differ in slot ${slot}`);
+  const paints = [...byPaint.keys()];
+  const perPaint = paints.map((paint) => {
+    const merged = mergeGeometries(byPaint.get(paint)!, false);
+    if (!merged) throw new Error(`Character geometry attributes differ for paint ${paint}`);
     return merged;
   });
-  const geometry = mergeGeometries(perSlot, true);
-  if (!geometry) throw new Error("Character slot geometries differ");
-  const built = { geometry, slots };
-  builtByKind.set(kind, built);
+  const geometry = mergeGeometries(perPaint, true);
+  if (!geometry) throw new Error("Character paint geometries differ");
+  const built = { geometry, paints };
+  builtByKey.set(key, built);
   return built;
 }
 
-function materialsFor(kind: CharacterKind, slots: readonly Slot[]): InkMaterial[] {
-  const cached = materialsByKind.get(kind);
-  if (cached) return cached;
-  const materials = slots.map((slot) => new InkMaterial(MATERIAL_ID[SLOT_MATERIALS[kind][slot]]));
-  materialsByKind.set(kind, materials);
-  return materials;
+function slotMaterial(kind: CharacterKind, slot: Slot, skin: BowSkin, look: Outfit): MaterialKey {
+  if (kind === "dummy") return SLOT_MATERIALS.dummy[slot];
+  if (slot === "bow") return skin.paint;
+  if (slot === "hat" && look.hat !== "crew") return look.hat;
+  if (slot === "trim" && look.trim !== "crew") return look.trim;
+  return SLOT_MATERIALS[kind][slot];
+}
+
+function materialsFor(paints: readonly MaterialKey[]): InkMaterial[] {
+  return paints.map((paint) => {
+    let material = inkByPaint.get(paint);
+    if (!material) { material = new InkMaterial(MATERIAL_ID[paint]); inkByPaint.set(paint, material); }
+    return material;
+  });
 }
 
 const HIDDEN_SCALE = 0.001;
@@ -232,19 +342,23 @@ const headLocal = new Vector3();
 
 export class CharacterRig extends Group {
   readonly kind: CharacterKind;
+  /** Changes when the bow skin or outfit changes; the renderer rebuilds the rig then. */
+  readonly lookKey: string;
   readonly motion: CharacterMotion = createMotion();
   readonly pose: Pose = createPose();
   private readonly bones: Bones;
   private readonly mesh: SkinnedMesh;
   private readonly phase: number;
 
-  constructor(kind: CharacterKind, phase = 0) {
+  constructor(kind: CharacterKind, phase = 0, look: CharacterLook = {}) {
     super();
     this.kind = kind;
     this.phase = phase;
-    const built = buildGeometry(kind);
+    const skin = bowSkin(look.bow ?? ""), gear = outfitById(look.outfit ?? "");
+    this.lookKey = lookKey(kind, skin, gear);
+    const built = buildGeometry(kind, skin, gear);
     this.bones = buildBones();
-    this.mesh = new SkinnedMesh(built.geometry, materialsFor(kind, built.slots));
+    this.mesh = new SkinnedMesh(built.geometry, materialsFor(built.paints));
     this.mesh.add(this.bones.hips);
     this.mesh.updateMatrixWorld(true);
     this.mesh.bind(new Skeleton(BONE_NAMES.map((name) => this.bones[name])));
@@ -253,7 +367,7 @@ export class CharacterRig extends Group {
     this.update(0);
   }
 
-  /** Draw calls this character costs: one per material slot. */
+  /** Draw calls this character costs: one per distinct paint. */
   get drawCalls(): number {
     return this.mesh.geometry.groups.length;
   }

@@ -3,7 +3,8 @@ import { levelProgress, matchReward, seasonId, type LevelProgress, type MatchRew
 import { nameError } from "../../shared/name.ts";
 import { migrate } from "./migrations.ts";
 import { openSql, type SqlClient } from "./sql.ts";
-import { PROVIDERS, type LeaderboardRow, type Profile, type Provider } from "../../shared/api.ts";
+import { PROVIDERS, type BuyResult, type LeaderboardRow, type Locker, type Profile, type Provider } from "../../shared/api.ts";
+import { DEFAULT_LOADOUT, cosmeticById, cosmeticBySku, sanitizeLoadout, type Loadout } from "../../shared/cosmetics.ts";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
 export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean };
@@ -137,6 +138,104 @@ export class GameDatabase {
     const secret = randomBytes(TOKEN_BYTES).toString("base64url");
     await this.sql.query("INSERT INTO account_tokens (secret_hash, account_id) VALUES ($1, $2)", [hashSecret(secret), accountId]);
     return `${accountId}.${secret}`;
+  }
+
+  async grantInk(accountId: string, amount: number): Promise<void> {
+    await this.sql.query("UPDATE accounts SET ink = ink + $1 WHERE id = $2", [Math.floor(amount), accountId]);
+  }
+
+  async accountExists(accountId: string): Promise<boolean> {
+    return (await this.sql.query("SELECT 1 FROM accounts WHERE id = $1", [accountId])).length === 1;
+  }
+
+  async locker(accountId: string): Promise<Locker | undefined> {
+    const account = (await this.sql.query<{ ink: number; loadout_bow: string; loadout_trail: string; loadout_outfit: string; loadout_effect: string }>(
+      "SELECT ink, loadout_bow, loadout_trail, loadout_outfit, loadout_effect FROM accounts WHERE id = $1", [accountId],
+    ))[0];
+    if (!account) return undefined;
+    const owned = (await this.sql.query<{ item_id: string }>("SELECT item_id FROM inventory WHERE account_id = $1 ORDER BY acquired_at", [accountId])).map((row) => row.item_id);
+    // Re-check on read too, so a refunded or retired item can never stay equipped.
+    const loadout = sanitizeLoadout({ bow: account.loadout_bow, trail: account.loadout_trail, outfit: account.loadout_outfit, effect: account.loadout_effect }, new Set(owned));
+    return { ink: account.ink, owned, loadout };
+  }
+
+  async loadout(accountId: string): Promise<Loadout> {
+    return (await this.locker(accountId))?.loadout ?? { ...DEFAULT_LOADOUT };
+  }
+
+  /** Equips only items the account owns; anything else falls back to that slot's default. */
+  async setLoadout(accountId: string, requested: Partial<Record<keyof Loadout, string>>): Promise<Loadout | undefined> {
+    const current = await this.locker(accountId);
+    if (!current) return undefined;
+    const loadout = sanitizeLoadout({ ...current.loadout, ...requested }, new Set(current.owned));
+    await this.sql.query(
+      "UPDATE accounts SET loadout_bow = $1, loadout_trail = $2, loadout_outfit = $3, loadout_effect = $4 WHERE id = $5",
+      [loadout.bow, loadout.trail, loadout.outfit, loadout.effect, accountId],
+    );
+    return loadout;
+  }
+
+  async buyWithInk(accountId: string, itemId: string): Promise<BuyResult> {
+    const item = cosmeticById(itemId);
+    if (!item) return { ok: false, reason: "unknown_item" };
+    if (!("ink" in item.price)) return { ok: false, reason: "not_for_ink" };
+    const cost = item.price.ink;
+    const outcome = await this.sql.transaction(async (query) => {
+      const inserted = await query(
+        "INSERT INTO inventory (account_id, item_id, source) SELECT id, $2, 'ink' FROM accounts WHERE id = $1 AND ink >= $3 ON CONFLICT DO NOTHING RETURNING item_id",
+        [accountId, item.id, cost],
+      );
+      if (inserted.length === 1) {
+        await query("UPDATE accounts SET ink = ink - $1 WHERE id = $2", [cost, accountId]);
+        return "bought" as const;
+      }
+      const owned = await query("SELECT 1 FROM inventory WHERE account_id = $1 AND item_id = $2", [accountId, item.id]);
+      return owned.length === 1 ? "owned" as const : "poor" as const;
+    });
+    if (outcome !== "bought") return { ok: false, reason: outcome };
+    return { ok: true, locker: (await this.locker(accountId))! };
+  }
+
+  async createOrder(orderId: string, accountId: string, sku: string): Promise<void> {
+    await this.sql.query("INSERT INTO orders (order_id, account_id, sku, status) VALUES ($1, $2, $3, 'created') ON CONFLICT (order_id) DO NOTHING", [orderId, accountId, sku]);
+  }
+
+  /**
+   * Grants the items of a paid order. Safe to call again for the same order: Xsolla retries webhooks.
+   * Returns the item ids newly granted.
+   */
+  async fulfillOrder(orderId: string, accountId: string, skus: readonly string[]): Promise<string[]> {
+    const items = skus.map((sku) => cosmeticBySku(sku)).filter((item) => item !== undefined);
+    return this.sql.transaction(async (query) => {
+      const account = await query("SELECT 1 FROM accounts WHERE id = $1", [accountId]);
+      if (account.length === 0) return [];
+      const previous = await query<{ status: string }>("SELECT status FROM orders WHERE order_id = $1", [orderId]);
+      if (previous[0]?.status === "paid" || previous[0]?.status === "canceled") return [];
+      await query(
+        `INSERT INTO orders (order_id, account_id, sku, status) VALUES ($1, $2, $3, 'paid')
+         ON CONFLICT (order_id) DO UPDATE SET status = 'paid', account_id = EXCLUDED.account_id, updated_at = now()`,
+        [orderId, accountId, skus.join(",")],
+      );
+      const granted: string[] = [];
+      for (const item of items) {
+        const rows = await query("INSERT INTO inventory (account_id, item_id, source, order_id) VALUES ($1, $2, 'xsolla', $3) ON CONFLICT DO NOTHING RETURNING item_id", [accountId, item.id, orderId]);
+        if (rows.length === 1) granted.push(item.id);
+      }
+      return granted;
+    });
+  }
+
+  /** Refund or chargeback: removes what the order granted. Returns the item ids removed. */
+  async cancelOrder(orderId: string): Promise<string[]> {
+    return this.sql.transaction(async (query) => {
+      await query(
+        `INSERT INTO orders (order_id, sku, status) VALUES ($1, '', 'canceled')
+         ON CONFLICT (order_id) DO UPDATE SET status = 'canceled', updated_at = now()`,
+        [orderId],
+      );
+      const removed = await query<{ item_id: string }>("DELETE FROM inventory WHERE order_id = $1 RETURNING item_id", [orderId]);
+      return removed.map((row) => row.item_id);
+    });
   }
 
   /** Removes the account and everything tied to it. */

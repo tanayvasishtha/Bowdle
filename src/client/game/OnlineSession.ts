@@ -143,6 +143,7 @@ export class OnlineSession {
         this.predict.value(player, "z"),
         this.predict.value(player, "yaw"),
         id !== this.sessionId,
+        this.lookFor(player),
       );
       this.renderer.setPlayerMotion(id, motionFromSim(this.motionScratch, player, isInWater(this.map, player.x, player.y, player.z, serverNow)));
       if (player.alive) this.renderer.unpinPlayer(id);
@@ -151,6 +152,7 @@ export class OnlineSession {
     }
     this.renderArrows(timeMs, capture);
     this.renderer.setLocalTeam(this.me.state.team);
+    this.renderer.setLocalBowSkin(this.me.state.bowSkin);
     this.renderer.setDrawFraction(drawFraction(this.me.state.drawMs));
     this.renderer.setMeleeSwing(stabProgress(this.me.state.meleeCooldownMs));
     if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
@@ -173,7 +175,7 @@ export class OnlineSession {
       if (!source) continue;
       if (!render) {
         const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
+        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
       }
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
       render.sim.vx = source.vx; render.sim.vy = source.vy; render.sim.vz = source.vz; this.renderer.updateArrowVisual(render.visual, render.sim);
@@ -186,11 +188,19 @@ export class OnlineSession {
     }
   }
 
+  private readonly lookScratch = { bow: "", outfit: "" };
+  private lookFor(player: PlayerState): { bow: string; outfit: string } {
+    this.lookScratch.bow = player.bowSkin; this.lookScratch.outfit = player.outfit;
+    return this.lookScratch;
+  }
+
   private onKill(message: KillMessage): void {
     this.hud.kill(message, this.names); const victim = this.room.state.players.get(message.victim); const killer = this.room.state.players.get(message.killer);
     if (message.killer === this.sessionId) this.bestShot = Math.max(this.bestShot, message.distance);
     if (victim) {
-      if (message.headshot) this.renderer.addInkSplat(victim.x, victim.y, victim.z, victim.team, this.hash(message.victim) + Math.round(this.room.clock.serverNow()));
+      const seed = this.hash(message.victim) + Math.round(this.room.clock.serverNow());
+      const bought = killer ? this.renderer.spawnKillEffect(killer.killEffect, killer.team, victim.x, victim.y, victim.z, seed) : false;
+      if (!bought && message.headshot) this.renderer.addInkSplat(victim.x, victim.y, victim.z, victim.team, seed);
       if (killer && message.weapon === "arrow") this.renderer.pinPlayer(message.victim, killer.x, killer.z);
       this.markBodyArrow(victim.x, victim.y, victim.z);
     }

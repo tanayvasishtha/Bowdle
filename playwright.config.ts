@@ -22,6 +22,7 @@ export default defineConfig({
     command: `npm run dev -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
+    env: { BOWDLE_DEV_GRANTS: "1" },
     timeout: 120_000,
   },
 });

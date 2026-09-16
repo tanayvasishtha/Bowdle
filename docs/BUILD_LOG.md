@@ -1,5 +1,23 @@
 # Build log
 
+## M11: Cosmetics and shop
+
+Status: done.
+
+Built:
+
+- Catalog of 24 cosmetics plus a free default in each of four categories (bows, arrow trails, outfits, kill effects): 16 for Ink, 8 paid. No item uses a team color; shirts and sleeves always show the crew.
+- Rig cosmetics on the C1 skeleton: six headgear types, six accessories, hat and trim paints, five bow ornaments. Rig parts now merge by paint instead of by slot, so an explorer still costs 5 to 8 draw calls and a wood bow costs nothing extra.
+- First-person bow skins (limb paint, grip paint, ornaments).
+- Arrow trails as one crossed ribbon per arrow (dots, dashes, zigzag, ribbon) that follow the live arrow head and shrink away once it sticks. Kill effects as one instanced burst (leaves, feathers, stars, sparks, wings, rubble) shown on every kill by the owner; the default keeps the headshot ink splat.
+- Locker scene (`?scene=locker`, menu button): rotating explorer, Sun and Moon toggle, live preview of any item including trails and effects, Ink purchases, equipping, and paid purchases through Xsolla Pay Station.
+- Server: inventory, orders and loadout columns (migration 2). Ink purchases are one transaction. Loadouts are checked against the inventory when saved, when read and when a player joins a room; what the client claims is ignored. A bot that takes over a leaving player drops their cosmetics.
+- Xsolla: Store API payment token with merchant Basic auth, sandbox flag, signed webhook with user validation, idempotent order paid and refund handling. Money purchases need a linked Discord or Google account. The paid shop is off unless all Xsolla values are set, and portal builds never show it.
+- Practice Camp uses the equipped bow and trail.
+- A test-only Ink grant route, enabled only with `BOWDLE_DEV_GRANTS=1` outside production, for the browser test.
+
+Verified: `npm run check` (169 tests), full Playwright suite (25 passed, locker spec added), locker screenshots in `test-results/qa/m11`. A real Xsolla sandbox purchase still needs Tanay's Publisher Account (see ECONOMY.md).
+
 ## M10: Accounts and progression
 
 Status: done.

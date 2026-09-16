@@ -15,7 +15,7 @@ const sign = (body: string): string => `Signature ${createHash("sha1").update(bo
 
 describe("locker and Ink shop", () => {
   let db: GameDatabase;
-  beforeAll(async () => { db = await GameDatabase.open({ now: () => new Date("2026-09-16") }); });
+  beforeAll(async () => { db = await GameDatabase.open({ now: () => new Date("2026-05-23") }); });
   afterAll(async () => { await db.close(); });
 
   it("buys with Ink once, refuses when poor, and equips only owned items", async () => {
@@ -59,7 +59,7 @@ describe("Xsolla shop API", () => {
   }) as typeof fetch;
 
   beforeAll(async () => {
-    db = await GameDatabase.open({ now: () => new Date("2026-09-16") });
+    db = await GameDatabase.open({ now: () => new Date("2026-05-23") });
     const xsolla = new Xsolla({ XSOLLA_MERCHANT_ID: "678", XSOLLA_PROJECT_ID: "12345", XSOLLA_API_KEY: "api-key", XSOLLA_WEBHOOK_SECRET_KEY: SECRET, XSOLLA_SANDBOX: "1" }, fakeFetch);
     const app = express();
     app.use("/api", apiRouter({ database: async () => db, xsolla }));

@@ -52,6 +52,23 @@ describe("movement 2.0 online", () => {
     expect(direct.grappleCooldownMs).toBeGreaterThan(0);
   });
 
+  it("steps the synced quiver state exactly like the plain simulation", () => {
+    const synced = new PlayerState(); synced.x = -20; synced.y = 0; synced.z = 5;
+    const direct = createPlayerSim(-20, 0, 5);
+    const buttonsAt = (frame: number): number => (frame === 2 ? BTN.SLOT2 : frame === 40 ? BTN.SLOT_NEXT : frame === 70 ? BTN.SLOT_PREV : 0) | (frame % 25 < 22 ? BTN.FIRE : 0);
+    let volleys = 0;
+    for (let frame = 0; frame < 120; frame += 1) {
+      const input = { moveX: 0, moveZ: 0, yaw: -Math.PI / 2, pitch: 0.05, buttons: buttonsAt(frame) };
+      stepPlayer(synced, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      const events = stepPlayer(direct, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      volleys += events.filter((event) => event.type === "fire" && event.kind !== "arrow").length;
+      for (const key of ["arrowSlot", "scatterCharges", "scatterRechargeMs", "tetherCooldownMs", "drawMs", "releaseCooldownMs"] as const) {
+        expect(synced[key], `${key} at frame ${frame}`).toBe(direct[key]);
+      }
+    }
+    expect(volleys).toBeGreaterThan(1);
+  });
+
   it("sends the new movement state to the client", async () => {
     const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Hopper", test: true });
     await client.waitForInitialState();

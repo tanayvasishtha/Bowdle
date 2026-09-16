@@ -36,6 +36,7 @@ Two teams: **Sun** (team 0, orange) and **Moon** (team 1, indigo). Warm sepia wo
 | Hold right mouse | Aim: zoom and move slower |
 | Space | Jump. In the air: vine hop, or wall jump right after touching a wall |
 | Left Shift | Dodge |
+| 1, 2, 3 or mouse wheel | Broadhead, scatter or tether arrow |
 | C or Left Ctrl | Crouch. While running fast: slide |
 | V | Dagger stab (cancels the draw) |
 | E | Grapple: hold to reel, let go to swing |
@@ -182,6 +183,22 @@ No friendly fire. No self damage.
 | `INK_CLOUD_GRAVITY` | 15 | |
 | `INK_CLOUD_RADIUS` | 4.5 | Blocks vision and bot line of sight, never blocks arrows |
 | `INK_CLOUD_MS` | 6000 | |
+
+### Quiver (v2)
+
+Keys 1, 2, 3 (rebindable) or the mouse wheel pick the arrow. The quiver strip at the bottom of the screen shows the selected arrow, scatter charges and the tether cooldown; the nocked arrow changes too. Numbers are in `QUIVER` in `src/shared/constants.ts`. Slot and charges are synced and predicted.
+
+| Arrow | Rules |
+|---|---|
+| Broadhead | The v1 arrow, unlimited. Its arrow kind keeps the v1 name `arrow` |
+| Scatter | Three arrows at -4, 0 and +4 degrees, each at 55 % body damage with a 1.5 headshot multiplier. Full draw takes 700 ms. 3 charges; one returns every 6 s. Releasing with no charge shoots a broadhead |
+| Tether | Needs a full draw; 14 s cooldown from the shot. If it stops in a solid box, the line from 1.2 m above the release point to the hit (pulled back 0.5 m) becomes a zip line for 10 s when it is 6 to 35 m long and no steeper than 35 degrees. One line per player; a new one replaces the old. Anyone can ride it; an enemy arrow within 0.25 m cuts it (rope cut rules and reward) |
+
+Tether lines live in room state (`tethers`). The shared simulation takes them through `StepContext.zipLines`, so riding one is predicted like a map zip line; a rider drops when the line expires or is cut.
+
+### Dagger swat (v2)
+
+During the first 180 ms of a dagger swing, an enemy arrow whose path passes within 1.8 m of the swinger's chest and inside a 70 degree arc in front is destroyed, unless the arrow is younger than 60 ms (a point-blank shot nobody could react to). The swatter sees SWATTED and earns 25 XP per swat (the "Swats" reward line) and the Swatter medal. The server checks each arrow step against the swinger's current position.
 
 ### Swing grapple (v2)
 

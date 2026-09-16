@@ -5,9 +5,12 @@ import { defaultMatchMap, mapById, matchMaps } from "../../shared/maps/registry.
 import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { createPlayerSim, stepPlayer } from "../../shared/sim/movement.ts";
-import { spawnArrow, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
+import { spawnVolley, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
+import { ARROW_SLOTS, fullDrawMs } from "../../shared/sim/bow.ts";
+import type { ZipLine } from "../../shared/maps/types.ts";
+import { QuiverStrip } from "../ui/quiver.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
-import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage, RobinHoodMessage, RopeCutMessage } from "../../net/messages.ts";
+import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import { ropeSag, type Renderer } from "../render/Renderer.ts";
 import { MatchHud } from "../ui/hud.ts";
@@ -30,7 +33,7 @@ import { createMotion } from "../render/characters/pose.ts";
 import { ROPE_LOOK } from "../render/look.ts";
 
 export type RenderedPlayer = { id: string; team: number; x: number; y: number; z: number; grapple?: [number, number, number] };
-type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "grapple" | "ink" };
+type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "scatter" | "tether" | "grapple" | "ink" };
 type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number };
 
 export class OnlineSession {
@@ -74,6 +77,7 @@ export class OnlineSession {
       shareUrl: policy.externalLinks ? (text) => shareOnXUrl(text) : undefined,
     });
     this.replay = new ReplayDirector(renderer.canvas.parentElement!);
+    this.quiver = new QuiverStrip(renderer.canvas.parentElement!);
     this.cameraRig.onMove = (kind) => this.sounds.play(kind);
     this.sessionId = room.sessionId;
     this.input = room.input<PlayerInput>({ mode: "reliable", type: PlayerInput });
@@ -93,10 +97,10 @@ export class OnlineSession {
       input: this.input,
       smoothMs: RECONCILE_SMOOTH_MS,
       step: (context, state, command) => {
-        const events = stepPlayer(state, command, this.map, { nowMs: context.reckonTime });
+        const events = stepPlayer(state, command, this.map, { nowMs: context.reckonTime, zipLines: this.tetherZips });
         if (context.isReplay) return;
         for (const event of events) {
-          if (event.type === "fire") this.arrows.spawn({ ...spawnArrow(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: "arrow" });
+          if (event.type === "fire") for (const arrow of spawnVolley(event, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
           else if (event.type === "grapple" || event.type === "ink") this.arrows.spawn({ ...spawnAbilityProjectile(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: event.type });
         }
       },
@@ -105,6 +109,9 @@ export class OnlineSession {
     callbacks.onRemove("players", (_player, id) => this.renderer.removePlayer(id));
     callbacks.onAdd("inkClouds", (cloud, id) => this.renderer.setInkCloud(id, cloud.x, cloud.y, cloud.z, cloud.radius));
     callbacks.onRemove("inkClouds", (_cloud, id) => this.renderer.removeInkCloud(id));
+    callbacks.onAdd("tethers", () => this.rebuildTetherZips());
+    callbacks.onRemove("tethers", (_tether, id) => { this.rebuildTetherZips(); this.renderer.removeRope(id); });
+    room.onMessage<SwatMessage>("swat", (payload) => { const parsed = SwatMessage.safeParse(payload); if (parsed.success) this.onSwat(parsed.data); });
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.onHitConfirm(parsed.data); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) { this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); this.cameraRig.hurt(parsed.data.damage); } });
@@ -208,7 +215,10 @@ export class OnlineSession {
     this.renderArrows(timeMs, capture);
     this.renderer.setLocalTeam(this.me.state.team);
     this.renderer.setLocalBowSkin(this.me.state.bowSkin);
-    this.renderer.setDrawFraction(drawFraction(this.me.state.drawMs));
+    this.renderer.setLocalArrowKind(ARROW_SLOTS[this.me.state.arrowSlot] ?? "arrow");
+    this.quiver.update(this.me.state);
+    for (const [id, tether] of this.room.state.tethers) this.renderer.setTether(id, tether.fromX, tether.fromY, tether.fromZ, tether.toX, tether.toY, tether.toZ);
+    this.renderer.setDrawFraction(drawFraction(this.me.state.drawMs, fullDrawMs(this.me.state.arrowSlot)));
     this.renderer.setMeleeSwing(stabProgress(this.me.state.meleeCooldownMs));
     if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
     else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); this.hud.setReplay(false); }
@@ -230,7 +240,7 @@ export class OnlineSession {
       if (!source) continue;
       if (!render) {
         const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
+        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
       }
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
       render.sim.vx = source.vx; render.sim.vy = source.vy; render.sim.vz = source.vz; this.renderer.updateArrowVisual(render.visual, render.sim);
@@ -249,6 +259,28 @@ export class OnlineSession {
     return this.lookScratch;
   }
 
+  /** Tethers as zip lines, so prediction rides them like the server does. */
+  private tetherZips: ZipLine[] = [];
+  private readonly quiver: QuiverStrip;
+
+  private rebuildTetherZips(): void {
+    this.tetherZips = [];
+    for (const [id, tether] of this.room.state.tethers) this.tetherZips.push({ id, from: [tether.fromX, tether.fromY, tether.fromZ], to: [tether.toX, tether.toY, tether.toZ] });
+  }
+
+  private onSwat(message: SwatMessage): void {
+    this.sounds.play("dagger");
+    if (message.swatter === this.sessionId) { this.hud.banner("SWATTED"); this.hud.tickerLine(`+${RETENTION_XP.swat} Swatted`); }
+    else if (message.shooter === this.sessionId) this.hud.banner("SWATTED!");
+  }
+
+  /** Test hook: shows a swat as if the server had sent it. */
+  showSwat(message: SwatMessage): void { this.onSwat(SwatMessage.parse(message)); }
+  quiverState(): { slot: string; charges: number; tetherCooldownMs: number; tethers: number } {
+    const state = this.me.state;
+    return { slot: ARROW_SLOTS[state.arrowSlot] ?? "arrow", charges: state.scatterCharges, tetherCooldownMs: state.tetherCooldownMs, tethers: this.room.state.tethers.size };
+  }
+
   private readonly ropeCuts = new Map<string, number>();
   private recentlyCut(id: string, nowMs: number): boolean {
     const at = this.ropeCuts.get(id); if (at === undefined) return false;
@@ -257,8 +289,8 @@ export class OnlineSession {
   }
 
   private onRopeCut(message: RopeCutMessage, nowMs = performance.now()): void {
-    this.renderer.snapRope(message.owner, message.x, message.y, message.z, nowMs);
-    this.ropeCuts.set(message.owner, nowMs);
+    if (message.tether) this.renderer.snapRope(message.tether, message.x, message.y, message.z, nowMs);
+    else { this.renderer.snapRope(message.owner, message.x, message.y, message.z, nowMs); this.ropeCuts.set(message.owner, nowMs); }
     this.sounds.play("ropeSnap");
     if (message.cutter === this.sessionId) { this.hud.banner("ROPE CUT"); this.hud.tickerLine(`+${RETENTION_XP.ropeCut} Rope cut`); }
     else if (message.owner === this.sessionId) this.hud.banner("ROPE CUT!");

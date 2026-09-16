@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { collectErrors } from "./helpers.ts";
 
 type TestApi = { players(): Array<{ id: string; x: number; y: number; z: number }>; sessionId: string; aimAt(id: string): void; drawMs(): number; killFeed(): string };
-type AbilityTestApi = { aimAtGrapple(): void; grappleActive(): boolean; cloudCount(): number };
+type AbilityTestApi = { aimAtGrapple(minDistance?: number): void; grappleActive(): boolean; cloudCount(): number };
 
 test("two online players see shared movement", async ({ browser }) => {
   const contextA = await browser.newContext();
@@ -70,7 +70,7 @@ test("grapple and ink cloud are visible online", async ({ page }) => {
   await peer.goto("/?scene=online&test&map=lost-river");
   await peer.waitForFunction(() => "__bowdleTest" in window);
   await expect.poll(async () => page.locator(".bowdle-timer").textContent(), { timeout: 8_000 }).not.toContain("DRAW IN");
-  await page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.aimAtGrapple());
+  await page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.aimAtGrapple(8));
   await page.keyboard.down("e");
   await expect.poll(() => page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.grappleActive())).toBe(true);
   await page.keyboard.up("e");

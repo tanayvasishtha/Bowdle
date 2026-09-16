@@ -6,8 +6,11 @@ import type { PlayerSim } from "./movement.ts";
 
 function pressed(buttons: number, previous: number, button: number): boolean { return (buttons & button) !== 0 && (previous & button) === 0; }
 
-function findZip(map: MapData, id: string): ZipLine | null {
+const noZips: readonly ZipLine[] = [];
+
+function findZip(map: MapData, id: string, extra: readonly ZipLine[]): ZipLine | null {
   for (const zip of map.zipLines) if (zip.id === id) return zip;
+  for (const zip of extra) if (zip.id === id) return zip;
   return null;
 }
 
@@ -18,10 +21,11 @@ export function releaseZip(state: PlayerSim, jump: boolean): void {
   if (jump) state.vy += ZIP_JUMP_BOOST;
 }
 
-export function stepZipInput(state: PlayerSim, input: PlayerInputFrame, map: MapData): void {
+/** extra holds zip lines that come and go during a match, such as tethers. */
+export function stepZipInput(state: PlayerSim, input: PlayerInputFrame, map: MapData, extra: readonly ZipLine[] = noZips): void {
   if (state.zipId && pressed(input.buttons, state.prevButtons, BTN.JUMP)) { releaseZip(state, true); return; }
   if (state.zipId || !pressed(input.buttons, state.prevButtons, BTN.USE)) return;
-  for (const zip of map.zipLines) {
+  for (const zip of extra.length > 0 ? [...map.zipLines, ...extra] : map.zipLines) {
     if (Math.hypot(state.x - zip.from[0], state.y - zip.from[1], state.z - zip.from[2]) > ZIP_ATTACH_DIST) continue;
     state.zipId = zip.id;
     state.zipT = 0;
@@ -31,9 +35,9 @@ export function stepZipInput(state: PlayerSim, input: PlayerInputFrame, map: Map
   }
 }
 
-export function stepZipRide(state: PlayerSim, map: MapData, dt: number): boolean {
+export function stepZipRide(state: PlayerSim, map: MapData, dt: number, extra: readonly ZipLine[] = noZips): boolean {
   if (!state.zipId) return false;
-  const zip = findZip(map, state.zipId);
+  const zip = findZip(map, state.zipId, extra);
   if (!zip) { releaseZip(state, false); return false; }
   const dx = zip.to[0] - zip.from[0], dy = zip.to[1] - zip.from[1], dz = zip.to[2] - zip.from[2];
   const length = Math.hypot(dx, dy, dz);

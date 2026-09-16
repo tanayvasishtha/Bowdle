@@ -6,7 +6,7 @@ export const MEDALS = [
   { id: "headhunter", name: "Headhunter" }, { id: "eagleEye", name: "Eagle Eye" }, { id: "robinHood", name: "Robin Hood" },
   { id: "upClose", name: "Up Close" }, { id: "trapper", name: "Trapper" }, { id: "zipline", name: "Zipline Hero" },
   { id: "teamPlayer", name: "Team Player" }, { id: "untouchable", name: "Untouchable" },
-  { id: "snip", name: "Snip" },
+  { id: "snip", name: "Snip" }, { id: "swatter", name: "Swatter" },
 ] as const;
 export type MedalId = typeof MEDALS[number]["id"];
 export function medalsFor(stats: MatchStats, roomBestKills: number): MedalId[] {
@@ -22,5 +22,6 @@ export function medalsFor(stats: MatchStats, roomBestKills: number): MedalId[] {
   if (stats.assists >= L.teamPlayer) earned.push("teamPlayer");
   if (stats.won && stats.deaths === 0 && stats.kills >= L.untouchable) earned.push("untouchable");
   if (stats.ropeCuts > 0) earned.push("snip");
+  if (stats.swats > 0) earned.push("swatter");
   return earned;
 }

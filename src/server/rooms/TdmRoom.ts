@@ -5,7 +5,7 @@ import {
   ARROW_RADIUS,
   ASSIST_MIN_DAMAGE,
   ASSIST_WINDOW_MS,
-  HEAD_MULT,
+  QUIVER,
   INK_CLOUD_GRAVITY,
   INK_CLOUD_MS,
   INK_CLOUD_RADIUS,
@@ -26,22 +26,26 @@ import {
   WARMUP_MS,
   USE_DIST,
   GRAPPLE,
+  SWAT,
 } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { kitMap } from "../../shared/maps/fixtures/kit.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { defaultMatchMap, mapById, matchMaps, nextMatchMap } from "../../shared/maps/registry.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
-import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
-import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RobinHoodMessage, type RopeCutMessage } from "../../net/messages.ts";
+import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState, TetherState } from "../../net/schema.ts";
+import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage } from "../../net/messages.ts";
 import { gameDatabase, type MatchResultLine } from "../db/GameDatabase.ts";
 import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
 import { botDifficultyFor, type BotDifficulty, type HumanSkill } from "../../shared/bots/difficulty.ts";
 import { isPartyCode } from "../../shared/party.ts";
-import { spawnArrow, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
+import { headMultiplier, spawnVolley, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
+import type { FireEvent } from "../../shared/sim/bow.ts";
+import { tetherLine } from "../../shared/sim/tether.ts";
+import type { ZipLine } from "../../shared/maps/types.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
 import { chooseSpawn, respawnPlayer, scoreKill, updateMatchPhase } from "../../shared/sim/match.ts";
-import { meleeHit } from "../../shared/sim/melee.ts";
+import { inSwatWindow, meleeHit, swatHits } from "../../shared/sim/melee.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { segmentDistance } from "../../shared/math/segments.ts";
 import { BotController } from "../bots/BotController.ts";
@@ -50,17 +54,20 @@ import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBould
 import { nameError } from "../../shared/name.ts";
 import { fallCreditFor, isOutOfWorld } from "../../shared/sim/fall.ts";
 import { serverMetrics } from "../metrics.ts";
-import { createMatchStats, recordDeath, recordKill, recordRobinHood, recordRopeCut, type MatchStats } from "../../shared/matchStats.ts";
+import { createMatchStats, recordDeath, recordKill, recordRobinHood, recordRopeCut, recordSwat, recordTetherRide, type MatchStats } from "../../shared/matchStats.ts";
 import { medalsFor } from "../../shared/medals.ts";
 import type { MatchStatsMessage } from "../../net/messages.ts";
 
 export const PARTY_ROOM = "party";
 
 type JoinOptions = { name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
-type ArrowOrigin = { x: number; z: number };
+type ArrowOrigin = { x: number; y: number; z: number };
+
+/** Arrows that hurt players, clash, cut ropes and can be swatted. Grapple hooks and ink lobs do none of that. */
+function isDamaging(kind: string): boolean { return kind === "arrow" || kind === "scatter" || kind === "tether"; }
 
 export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; client: GameClient }> {
   maxClients = TEAM_SIZE * 2;
@@ -82,7 +89,12 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly hitTarget = { x: 0, y: 0, z: 0, height: STAND_HEIGHT, crouched: false };
   private readonly clashA0 = { x: 0, y: 0, z: 0 }; private readonly clashA1 = { x: 0, y: 0, z: 0 };
   private readonly clashB0 = { x: 0, y: 0, z: 0 }; private readonly clashB1 = { x: 0, y: 0, z: 0 };
-  readonly xpEvents: Array<{ type: "robinHood" | "ropeCut"; player: string }> = [];
+  readonly xpEvents: Array<{ type: "robinHood" | "ropeCut" | "swat"; player: string }> = [];
+  /** Tethers as zip lines for the shared simulation; rebuilt whenever a tether comes or goes. */
+  private tetherZips: ZipLine[] = [];
+  private tetherSerial = 0;
+  private readonly tetherFrom = { x: 0, y: 0, z: 0 };
+  private readonly tetherTo = { x: 0, y: 0, z: 0 };
   private readonly ropeFrom = { x: 0, y: 0, z: 0 };
   private readonly ropeTo = { x: 0, y: 0, z: 0 };
   zipRideCount = 0;
@@ -102,7 +114,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private botDifficulty: BotDifficulty = "normal";
   partyCode = "";
   private readonly humanStats = new Map<string, MatchStats>();
-  private readonly killStatsEvent: Parameters<typeof recordKill>[1] = { weapon: "arrow", headshot: false, distance: 0, onZip: false };
+  private readonly killStatsEvent: Parameters<typeof recordKill>[1] = { weapon: "arrow", headshot: false, distance: 0, onZip: false, scatter: false };
   private matchSerial = 0;
   private rewardedSerial = -1;
   rewardsSettled: Promise<void> = Promise.resolve();
@@ -150,19 +162,22 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         if (!player.alive) continue;
         player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
         this.tryLever(sessionId, player, frame, nowMs);
-        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs })); if (!beforeZip && player.zipId) this.zipRideCount += 1;
+        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips })); this.noteZipRide(sessionId, beforeZip, player.zipId);
       }
     }
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
       const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards);
-      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs })); if (!beforeZip && player.zipId) this.zipRideCount += 1;
+      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips })); this.noteZipRide(id, beforeZip, player.zipId);
     }
     this.checkFalls();
     this.updateHazards(nowMs, context.dt);
     this.stepArrows(context);
     for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
+    let expired = false;
+    for (const [id, tether] of this.state.tethers) if (tether.expiresAtMs <= nowMs) { this.state.tethers.delete(id); expired = true; }
+    if (expired) this.rebuildTetherZips();
     for (const player of this.state.players.values()) {
       if (player.alive) stepRegen(player, nowMs, context.dt);
       else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values(), player));
@@ -187,13 +202,20 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.state.arrows.set(`${owner}-${this.arrowSerial += 1}`, arrow);
   }
 
-  private createArrow(owner: string, team: number, event: Parameters<typeof spawnArrow>[0]): void {
-    const sim = spawnArrow(event, this.state.players.get(owner)?.crouched);
-    const arrow = new ArrowState(); Object.assign(arrow, sim);
-    arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
-    arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs;
-    const id = `${owner}-${this.arrowSerial += 1}`;
-    this.state.arrows.set(id, arrow); this.arrowOrigins.set(id, { x: event.x, z: event.z });
+  private noteZipRide(id: string, before: string, after: string): void {
+    if (before || !after) return;
+    this.zipRideCount += 1;
+    if (after.startsWith("tether-")) { const stats = this.humanStats.get(id); if (stats) recordTetherRide(stats); }
+  }
+
+  private createArrow(owner: string, team: number, event: FireEvent): void {
+    for (const sim of spawnVolley(event, this.state.players.get(owner)?.crouched)) {
+      const arrow = new ArrowState(); Object.assign(arrow, sim);
+      arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
+      arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs;
+      const id = `${owner}-${this.arrowSerial += 1}`;
+      this.state.arrows.set(id, arrow); this.arrowOrigins.set(id, { x: event.x, y: event.y, z: event.z });
+    }
     let owned = 0;
     for (const [arrowId, other] of this.state.arrows) if (other.owner === owner && ++owned > ARROW_MAX_PER_PLAYER) this.deleteArrow(arrowId);
   }
@@ -209,7 +231,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         let boulderBlocked = false;
         for (const hazard of this.state.hazards.values()) if (hazard.phase === "roll" && segmentHitsBoulder(fromX, fromY, fromZ, arrow.x, arrow.y, arrow.z, hazard, BOULDER_RADIUS + ARROW_RADIUS)) { boulderBlocked = true; break; }
         let targetId = "", headshot = false, earliest = Number.POSITIVE_INFINITY;
-        if (arrow.kind === "arrow" && !boulderBlocked) {
+        if (isDamaging(arrow.kind) && !boulderBlocked && this.swatArrow(id, arrow, fromX, fromY, fromZ)) continue;
+        if (isDamaging(arrow.kind) && !boulderBlocked) {
           const seen = this.rewindState.lastSeenBy(arrow.owner);
           for (const [candidateId, target] of this.state.players) {
             if (candidateId === arrow.owner || target.team === arrow.team || !target.alive || target.spawnProtectMs > 0) continue;
@@ -217,16 +240,17 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
             this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
             this.hitTarget.x = seen.value(target, "x"); this.hitTarget.y = seen.value(target, "y"); this.hitTarget.z = seen.value(target, "z");
             this.hitTarget.height = seen.value(target, "height"); this.hitTarget.crouched = this.hitTarget.height < STAND_HEIGHT;
-            const hit = sweepArrowVsTarget(this.arrowFrom, this.arrowTo, this.hitTarget);
+            const hit = sweepArrowVsTarget(this.arrowFrom, this.arrowTo, this.hitTarget, arrow.kind);
             if (hit && hit.t < earliest) { earliest = hit.t; targetId = candidateId; headshot = hit.kind === "head"; }
           }
         }
-        if (arrow.kind === "arrow" && !boulderBlocked) this.cutRopes(arrow, fromX, fromY, fromZ);
+        if (isDamaging(arrow.kind) && !boulderBlocked) this.cutRopes(arrow, fromX, fromY, fromZ);
         if (targetId) {
-          this.dealDamage(arrow.owner, targetId, arrow.damage * (headshot ? HEAD_MULT : 1), "arrow", headshot, fromX, fromZ, this.arrowOrigins.get(id));
+          this.dealDamage(arrow.owner, targetId, arrow.damage * (headshot ? headMultiplier(arrow.kind) : 1), "arrow", headshot, fromX, fromZ, this.arrowOrigins.get(id), arrow.kind);
           this.removeArrows.push(id);
         } else if (world.worldHit || boulderBlocked || this.simulationNowMs - arrow.bornMs >= ARROW_LIFETIME_MS) {
           if (world.worldHit && arrow.kind === "ink") this.createInkCloud(arrow.x, arrow.y, arrow.z);
+          if (world.worldHit && arrow.kind === "tether") this.createTether(id, arrow, world.boxHit);
           this.removeArrows.push(id);
         }
       }
@@ -234,6 +258,41 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       this.removeArrows.length = 0;
       this.resolveArrowClashes();
     }
+  }
+
+  /** A dagger swing early in its arc destroys an enemy arrow passing close in front. */
+  private swatArrow(id: string, arrow: ArrowState, fromX: number, fromY: number, fromZ: number): boolean {
+    if (arrow.ageMs < SWAT.minArrowAgeMs) return false;
+    this.arrowFrom.x = fromX; this.arrowFrom.y = fromY; this.arrowFrom.z = fromZ;
+    this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
+    for (const [swatterId, swatter] of this.state.players) {
+      if (swatter.team === arrow.team || !swatter.alive || !inSwatWindow(swatter.meleeCooldownMs)) continue;
+      if (!swatHits(swatter, this.arrowFrom, this.arrowTo)) continue;
+      this.removeArrows.push(id);
+      this.xpEvents.push({ type: "swat", player: swatterId });
+      const stats = this.humanStats.get(swatterId); if (stats) recordSwat(stats);
+      this.broadcast("swat", { swatter: swatterId, shooter: arrow.owner, x: arrow.x, y: arrow.y, z: arrow.z });
+      return true;
+    }
+    return false;
+  }
+
+  /** A tether arrow that stopped in a valid spot becomes its owner's only tether line. */
+  private createTether(arrowId: string, arrow: ArrowState, boxHit: boolean): void {
+    const origin = this.arrowOrigins.get(arrowId); if (!origin) return;
+    const line = tetherLine(`tether-${this.tetherSerial += 1}`, [origin.x, origin.y, origin.z], [arrow.x, arrow.y, arrow.z], boxHit);
+    if (!line) return;
+    for (const [id, other] of this.state.tethers) if (other.owner === arrow.owner) this.state.tethers.delete(id);
+    const tether = new TetherState();
+    [tether.fromX, tether.fromY, tether.fromZ] = line.from; [tether.toX, tether.toY, tether.toZ] = line.to;
+    tether.owner = arrow.owner; tether.team = arrow.team; tether.expiresAtMs = this.simulationNowMs + QUIVER.tether.lifeMs;
+    this.state.tethers.set(line.id, tether);
+    this.rebuildTetherZips();
+  }
+
+  private rebuildTetherZips(): void {
+    this.tetherZips = [];
+    for (const [id, tether] of this.state.tethers) this.tetherZips.push({ id, from: [tether.fromX, tether.fromY, tether.fromZ], to: [tether.toX, tether.toY, tether.toZ] });
   }
 
   /** An enemy arrow passing close to a rope cuts it. The rope is placed where the shooter saw its owner. */
@@ -251,11 +310,23 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       const stats = this.humanStats.get(arrow.owner); if (stats) recordRopeCut(stats);
       this.broadcast("ropeCut", { cutter: arrow.owner, owner: ownerId, x: arrow.x, y: arrow.y, z: arrow.z });
     }
+    let cut = false;
+    for (const [id, tether] of this.state.tethers) {
+      if (tether.team === arrow.team) continue;
+      this.tetherFrom.x = tether.fromX; this.tetherFrom.y = tether.fromY; this.tetherFrom.z = tether.fromZ;
+      this.tetherTo.x = tether.toX; this.tetherTo.y = tether.toY; this.tetherTo.z = tether.toZ;
+      if (segmentDistance(this.arrowFrom, this.arrowTo, this.tetherFrom, this.tetherTo) >= GRAPPLE.cutRadius) continue;
+      this.state.tethers.delete(id); cut = true;
+      this.xpEvents.push({ type: "ropeCut", player: arrow.owner });
+      const stats = this.humanStats.get(arrow.owner); if (stats) recordRopeCut(stats);
+      this.broadcast("ropeCut", { cutter: arrow.owner, owner: tether.owner, x: arrow.x, y: arrow.y, z: arrow.z, tether: id });
+    }
+    if (cut) this.rebuildTetherZips();
   }
 
   private resolveArrowClashes(): void {
     for (const [idA, arrowA] of this.state.arrows) for (const [idB, arrowB] of this.state.arrows) {
-      if (idA >= idB || arrowA.kind !== "arrow" || arrowB.kind !== "arrow" || arrowA.team === arrowB.team || this.removeArrows.includes(idA) || this.removeArrows.includes(idB)) continue;
+      if (idA >= idB || !isDamaging(arrowA.kind) || !isDamaging(arrowB.kind) || arrowA.team === arrowB.team || this.removeArrows.includes(idA) || this.removeArrows.includes(idB)) continue;
       this.clashA0.x = arrowA.prevX; this.clashA0.y = arrowA.prevY; this.clashA0.z = arrowA.prevZ; this.clashA1.x = arrowA.x; this.clashA1.y = arrowA.y; this.clashA1.z = arrowA.z;
       this.clashB0.x = arrowB.prevX; this.clashB0.y = arrowB.prevY; this.clashB0.z = arrowB.prevZ; this.clashB1.x = arrowB.x; this.clashB1.y = arrowB.y; this.clashB1.z = arrowB.z;
       if (segmentDistance(this.clashA0, this.clashA1, this.clashB0, this.clashB1) >= ARROW_RADIUS * 2) continue;
@@ -281,7 +352,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
   }
 
-  private dealDamage(attackerId: string, targetId: string, damage: number, weapon: "arrow" | "dagger" | "boulder" | "fall", headshot: boolean, fromX: number, fromZ: number, origin?: ArrowOrigin): void {
+  private dealDamage(attackerId: string, targetId: string, damage: number, weapon: "arrow" | "dagger" | "boulder" | "fall", headshot: boolean, fromX: number, fromZ: number, origin?: ArrowOrigin, arrowKind = ""): void {
     const attacker = this.state.players.get(attackerId), target = this.state.players.get(targetId);
     if (!attacker || !target || attacker.team === target.team || target.spawnProtectMs > 0) return;
     const actual = Math.min(target.hp, damage);
@@ -298,7 +369,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const attackerStats = this.humanStats.get(attackerId), victimStats = this.humanStats.get(targetId);
     if (attackerStats) {
       this.killStatsEvent.weapon = weapon; this.killStatsEvent.headshot = headshot;
-      this.killStatsEvent.distance = distance; this.killStatsEvent.onZip = attacker.zipId !== "";
+      this.killStatsEvent.distance = distance; this.killStatsEvent.onZip = attacker.zipId !== ""; this.killStatsEvent.scatter = arrowKind === "scatter";
       recordKill(attackerStats, this.killStatsEvent);
     }
     if (victimStats) recordDeath(victimStats);
@@ -351,7 +422,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.matchSerial += 1;
     this.matchLiveAtMs = this.simulationNowMs + WARMUP_MS;
     for (const id of this.humanStats.keys()) this.humanStats.set(id, createMatchStats());
-    this.state.arrows.clear(); this.state.inkClouds.clear(); this.arrowOrigins.clear(); this.damage.clear();
+    this.state.arrows.clear(); this.state.inkClouds.clear(); this.state.tethers.clear(); this.tetherZips = []; this.arrowOrigins.clear(); this.damage.clear();
     if (!this.fixedMap) this.loadMap(this.votedMap(), this.simulationNowMs);
     else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
     for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; }

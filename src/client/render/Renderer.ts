@@ -136,9 +136,11 @@ function phaseFor(id: string): number {
   return hash / 97;
 }
 
-function createArrowVisual(kind: "arrow" | "grapple" | "ink" = "arrow"): Group {
+export type ArrowVisualKind = "arrow" | "scatter" | "tether" | "grapple" | "ink";
+
+function createArrowVisual(kind: ArrowVisualKind = "arrow"): Group {
   const group = new Group();
-  const material = new InkMaterial(kind === "arrow" ? MATERIAL_ID.wood : MATERIAL_ID.gold);
+  const material = new InkMaterial(kind === "arrow" || kind === "scatter" ? MATERIAL_ID.wood : kind === "tether" ? MATERIAL_ID.rope : MATERIAL_ID.gold);
   const shaft = new Mesh(new CylinderGeometry(0.012, 0.012, 0.8, 6), material);
   const head = new Mesh(new ConeGeometry(0.055, 0.14, 6), material);
   head.position.y = 0.47;
@@ -326,6 +328,7 @@ export class Renderer {
   setViewmodelVisible(visible: boolean): void { this.viewmodel.visible = visible; }
   setLocalTeam(team: number): void { this.viewmodel.setTeam(team); }
   setLocalBowSkin(bowId: string): void { this.viewmodel.setBowSkin(bowId); }
+  setLocalArrowKind(kind: "arrow" | "scatter" | "tether"): void { this.viewmodel.setArrowKind(kind); }
   setMeleeSwing(progress: number): void { this.viewmodel.setStab(progress); }
 
   setPlayerMotion(id: string, motion: CharacterMotion): void { this.players.get(id)?.setMotion(motion); }
@@ -358,10 +361,10 @@ export class Renderer {
     target.visible = visible;
   }
 
-  spawnArrowVisual(arrow: ArrowSim, kind: "arrow" | "grapple" | "ink" = "arrow", trailId = ""): Group {
+  spawnArrowVisual(arrow: ArrowSim, kind: ArrowVisualKind = "arrow", trailId = ""): Group {
     const visual = createArrowVisual(kind);
     this.worldScene.add(visual);
-    if (kind === "arrow" && trailId) {
+    if ((kind === "arrow" || kind === "scatter" || kind === "tether") && trailId) {
       const trail = new ArrowTrailMesh(trailId);
       if (trail.enabled) { this.trails.set(visual, trail); this.worldScene.add(trail.mesh); } else trail.dispose();
     }
@@ -437,16 +440,32 @@ export class Renderer {
    * fromHand starts the rope at the local bow hand, since a rope from the eye would be seen end on.
    */
   setGrappleRope(id: string, active: boolean, x: number, y: number, z: number, anchorX: number, anchorY: number, anchorZ: number, sag = 0, fromHand = false): void {
-    let rope = this.ropes.get(id);
-    if (!active) { if (rope) rope.mesh.visible = false; return; }
-    if (!rope) { rope = new RopeMesh(ROPE_LOOK.points, ROPE_LOOK.radius); this.ropes.set(id, rope); this.worldScene.add(rope.mesh); }
-    rope.mesh.visible = true;
+    if (!active) { const rope = this.ropes.get(id); if (rope) rope.mesh.visible = false; return; }
     let startX = x, startY = y + EYE_STAND, startZ = z;
     if (fromHand) {
       this.camera.updateMatrixWorld();
       ropeHand.set(...ROPE_LOOK.handOffset).applyMatrix4(this.camera.matrixWorld);
       startX = ropeHand.x; startY = ropeHand.y; startZ = ropeHand.z;
     }
+    this.drawRope(id, startX, startY, startZ, anchorX, anchorY, anchorZ, sag);
+  }
+
+  /** A tether line, drawn like a tight rope between its ends. */
+  setTether(id: string, fromX: number, fromY: number, fromZ: number, toX: number, toY: number, toZ: number): void {
+    this.drawRope(id, fromX, fromY, fromZ, toX, toY, toZ, 0);
+  }
+
+  removeRope(id: string): void {
+    const rope = this.ropes.get(id); if (!rope) return;
+    rope.dispose(this.worldScene); this.ropes.delete(id);
+  }
+
+  ropeVisible(id: string): boolean { return this.ropes.get(id)?.mesh.visible ?? false; }
+
+  private drawRope(id: string, startX: number, startY: number, startZ: number, anchorX: number, anchorY: number, anchorZ: number, sag: number): void {
+    let rope = this.ropes.get(id);
+    if (!rope) { rope = new RopeMesh(ROPE_LOOK.points, ROPE_LOOK.radius); this.ropes.set(id, rope); this.worldScene.add(rope.mesh); }
+    rope.mesh.visible = true;
     for (let index = 0; index < ROPE_LOOK.points; index += 1) {
       const fraction = index / (ROPE_LOOK.points - 1), arc = 4 * fraction * (1 - fraction);
       const wobble = sag > 0 ? Math.sin(index * 2.7) * ROPE_LOOK.wobble * arc : 0;

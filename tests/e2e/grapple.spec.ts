@@ -23,12 +23,23 @@ test("the grapple reels while held, swings when let go, and snaps when cut", asy
   await page.locator("#game-canvas").click();
   await expect.poll(async () => page.locator(".bowdle-timer").textContent(), { timeout: 8_000 }).not.toContain("DRAW IN");
 
-  await page.evaluate(() => (window as unknown as { __bowdleTest: { aimAtGrapple(minDistance: number): void } }).__bowdleTest.aimAtGrapple(8));
+  const attach = async (): Promise<void> => {
+    await expect.poll(async () => (await page.locator(".bowdle-ability").first().textContent())?.includes("READY"), { timeout: 8_000 }).toBe(true);
+    await page.evaluate(() => (window as unknown as { __bowdleTest: { aimAtGrapple(minDistance: number): void } }).__bowdleTest.aimAtGrapple(10));
+    await page.keyboard.down("e");
+    await expect.poll(() => call(page, "grappleActive")).toBe(true);
+    await page.keyboard.up("e");
+  };
+
+  // Holding E reels. A slow machine can finish the reel before E is let go, so attach again for the swing if needed.
+  await page.evaluate(() => (window as unknown as { __bowdleTest: { aimAtGrapple(minDistance: number): void } }).__bowdleTest.aimAtGrapple(10));
   await page.keyboard.down("e");
-  await expect.poll(() => call(page, "grappleActive")).toBe(true);
-  expect(await call(page, "grappleReeling")).toBe(true);
+  let reeled = false;
+  for (let sample = 0; sample < 100 && !reeled; sample += 1) { reeled = await call<boolean>(page, "grappleReeling"); if (!reeled) await page.waitForTimeout(30); }
   await page.keyboard.up("e");
+  expect(reeled).toBe(true);
   await expect.poll(() => call(page, "grappleReeling")).toBe(false);
+  if (!(await call<boolean>(page, "grappleActive"))) await attach();
   expect(await call(page, "grappleActive")).toBe(true);
   await expect(page.locator(".bowdle-ability").first()).toContainText("SWINGING");
   await page.screenshot({ path: "test-results/qa/g3/swing.png" });
@@ -50,13 +61,6 @@ test("the grapple reels while held, swings when let go, and snaps when cut", asy
 
   // Cut the rope the way the server announces a cut. A cut only splits a rope a frame has drawn, and it hides
   // the rope for a moment, so tries are spaced out; if the swing has ended, attach again first.
-  const attach = async (): Promise<void> => {
-    await expect.poll(async () => (await page.locator(".bowdle-ability").first().textContent())?.includes("READY"), { timeout: 8_000 }).toBe(true);
-    await page.evaluate(() => (window as unknown as { __bowdleTest: { aimAtGrapple(minDistance: number): void } }).__bowdleTest.aimAtGrapple(8));
-    await page.keyboard.down("e");
-    await expect.poll(() => call(page, "grappleActive")).toBe(true);
-    await page.keyboard.up("e");
-  };
   let snaps = 0;
   for (let attempt = 0; attempt < 6 && snaps === 0; attempt += 1) {
     if (!(await call<boolean>(page, "grappleActive"))) await attach();

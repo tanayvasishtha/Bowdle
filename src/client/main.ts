@@ -35,6 +35,8 @@ declare global {
       grappleReeling?(): boolean;
       ropeSnaps?(): number;
       showRopeCut?(message: import("../net/messages.ts").RopeCutMessage): void;
+      showSwat?(message: import("../net/messages.ts").SwatMessage): void;
+      quiver?(): { slot: string; charges: number; tetherCooldownMs: number; tethers: number };
       aimAtGrapple?(minDistance?: number): void;
       stats?(): { drawCalls: number; triangles: number; renderScale: number };
       cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
@@ -85,6 +87,8 @@ else if (params.get("scene") === "online") {
       grappleReeling: () => session.grappleReeling(),
       ropeSnaps: () => renderer.snapCount(),
       showRopeCut: (message) => session.showRopeCut(message),
+      showSwat: (message) => session.showSwat(message),
+      quiver: () => session.quiverState(),
       aimAtGrapple: (minDistance) => session.aimAtGrapple(minDistance),
       stats: () => renderer.stats(),
       cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),

@@ -1,7 +1,7 @@
 import { DEFAULT_FOV, MASTER_VOLUME, MAX_FOV, MIN_FOV, MOUSE_SENSITIVITY } from "../shared/constants.ts";
 export { nameError } from "../shared/name.ts";
 
-export const ACTIONS = ["forward", "back", "left", "right", "jump", "crouch", "draw", "aim", "cancel", "melee", "grapple", "ink", "use", "dodge", "scoreboard", "menu", "debug"] as const;
+export const ACTIONS = ["forward", "back", "left", "right", "jump", "crouch", "draw", "aim", "cancel", "melee", "grapple", "ink", "use", "dodge", "slot1", "slot2", "slot3", "scoreboard", "menu", "debug"] as const;
 export type Action = typeof ACTIONS[number];
 export type KeyBindings = Record<Action, string>;
 
@@ -21,7 +21,7 @@ export type GameSettings = {
 export const DEFAULT_KEYS: KeyBindings = {
   forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD", jump: "Space", crouch: "KeyC",
   draw: "Mouse0", aim: "Mouse2", cancel: "KeyR", melee: "KeyV", grapple: "KeyE", ink: "KeyQ",
-  use: "KeyF", dodge: "ShiftLeft", scoreboard: "Tab", menu: "Escape", debug: "F3",
+  use: "KeyF", dodge: "ShiftLeft", slot1: "Digit1", slot2: "Digit2", slot3: "Digit3", scoreboard: "Tab", menu: "Escape", debug: "F3",
 };
 
 const STORAGE_KEY = "bowdle.settings.v1";

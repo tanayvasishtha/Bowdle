@@ -22,8 +22,9 @@ import {
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { campMap, campTargets, type CampTarget } from "../../shared/maps/camp.ts";
 import type { Vec3 } from "../../shared/math/vec3.ts";
-import { spawnArrow, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
-import { arrowSpeed, bodyDamage, drawFraction, type FireEvent } from "../../shared/sim/bow.ts";
+import { spawnArrow, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
+import { ARROW_SLOTS, arrowSpeed, bodyDamage, drawFraction, fullDrawMs, type FireEvent } from "../../shared/sim/bow.ts";
+import { QuiverStrip } from "../ui/quiver.ts";
 import { applyDamage } from "../../shared/sim/health.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
 import { meleeHit } from "../../shared/sim/melee.ts";
@@ -66,6 +67,7 @@ export class PracticeSession {
   private readonly hitText: HTMLDivElement;
   private readonly replayCard: HTMLDivElement;
   private readonly tutorial: PracticeTutorial;
+  private readonly quiver: QuiverStrip;
   private accumulatorMs = 0;
   private lastFrameMs = performance.now();
   private simTimeMs = 0;
@@ -85,6 +87,7 @@ export class PracticeSession {
     this.replayCard.style.cssText = "display:none;position:absolute;right:24px;bottom:24px;width:320px;height:180px;border:4px solid #4a3527;background-size:cover;background-position:center;color:#d2531f;font:24px 'Permanent Marker';padding:8px;box-sizing:border-box;pointer-events:none";
     container.append(this.crosshair, this.hitText, this.replayCard);
     this.tutorial = new PracticeTutorial(container);
+    this.quiver = new QuiverStrip(container);
   }
 
   start(): void {
@@ -175,8 +178,9 @@ export class PracticeSession {
   }
 
   private fire(event: FireEvent): void {
-    const arrow = spawnArrow(event, this.player.crouched);
-    this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow, "arrow", this.trailId), stuckAtMs: 0, trail: new Float32Array(PRACTICE_TRAIL_POINTS * 3), trailCount: 0, captureStep: 0 });
+    for (const arrow of spawnVolley(event, this.player.crouched)) {
+      this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow, arrow.kind, this.trailId), stuckAtMs: 0, trail: new Float32Array(PRACTICE_TRAIL_POINTS * 3), trailCount: 0, captureStep: 0 });
+    }
     this.sounds.play("release");
   }
 
@@ -217,9 +221,11 @@ export class PracticeSession {
     this.cameraRig.update(this.renderer.camera, this.previous, this.player, alpha, elapsed);
     this.renderer.setFeel(this.cameraRig.output.hurt, this.cameraRig.output.streaks);
     this.cameraRig.onMove ??= (kind) => this.sounds.play(kind);
-    const fraction = drawFraction(this.player.drawMs);
+    const fraction = drawFraction(this.player.drawMs, fullDrawMs(this.player.arrowSlot));
     this.renderer.setDrawFraction(fraction);
     this.renderer.setLocalTeam(0);
+    this.renderer.setLocalArrowKind(ARROW_SLOTS[this.player.arrowSlot] ?? "arrow");
+    this.quiver.update(this.player);
     this.renderer.setMeleeSwing(stabProgress(this.player.meleeCooldownMs));
     const radius = 18 - fraction * 12;
     this.crosshair.style.width = `${radius * 2}px`;
@@ -247,7 +253,7 @@ export class PracticeSession {
     const discriminant = speedSquared * speedSquared - ARROW_GRAVITY * (ARROW_GRAVITY * horizontal * horizontal + 2 * vertical * speedSquared);
     const pitch = Math.atan((speedSquared - Math.sqrt(Math.max(0, discriminant))) / (ARROW_GRAVITY * horizontal));
     const yaw = Math.atan2(-dx, -dz);
-    const event: FireEvent = { type: "fire", x: this.player.x, y: this.player.y, z: this.player.z, yaw, pitch, fraction, speed, damage: bodyDamage(fraction) };
+    const event: FireEvent = { type: "fire", kind: "arrow", x: this.player.x, y: this.player.y, z: this.player.z, yaw, pitch, fraction, speed, damage: bodyDamage(fraction) };
     const shot = spawnArrow(event);
     const trail = new Float32Array(PRACTICE_TRAIL_POINTS * 3); let trailCount = 0;
     const dt = 1 / (TICK_HZ * SUBSTEPS);

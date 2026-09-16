@@ -1,5 +1,5 @@
 // Every gameplay number lives here.
-export const RETENTION_XP = { finish: 100, kill: 50, assist: 25, headshot: 25, longShot: 25, ropeCut: 25, win: 200, medal: 25, maxMedals: 4 } as const;
+export const RETENTION_XP = { finish: 100, kill: 50, assist: 25, headshot: 25, longShot: 25, ropeCut: 25, swat: 25, win: 200, medal: 25, maxMedals: 4 } as const;
 export const MEDAL_LIMITS = { mvp: 5, unstoppable: 6, onARoll: 3, headhunter: 3, eagleEye: 45, teamPlayer: 4, untouchable: 3 } as const;
 export const XP_PER_LEVEL_STEP = 500;
 export const MAX_LEVEL = 100;
@@ -10,8 +10,8 @@ export const TIME_UNITS = { msPerSecond: 1000, secondsPerMinute: 60, secondsPerH
 export const DAYS_PER_WEEK = 7;
 export const ISO_THURSDAY = 4;
 export const WEEK_SEED_MULTIPLIER = 100;
-export const DAILY_TARGETS = { kills: 12, headshots: 4, wins: 2, matches: 3, longshots: 2, dagger: 2, assists: 5, zip: 1, streak: 1 } as const;
-export const WEEKLY_TARGETS = { kills: 80, headshots: 25, wins: 10, longshots: 12, robin: 1, boulder: 1, maps: 3, medals: 15 } as const;
+export const DAILY_TARGETS = { kills: 12, headshots: 4, wins: 2, matches: 3, longshots: 2, dagger: 2, assists: 5, zip: 1, streak: 1, scatter: 3 } as const;
+export const WEEKLY_TARGETS = { kills: 80, headshots: 25, wins: 10, longshots: 12, robin: 1, boulder: 1, maps: 3, medals: 15, tether: 10 } as const;
 export const CHALLENGE_REWARDS = { daily: { ink: 30, xp: 150 }, weekly: { ink: 120, xp: 600 } } as const;
 export const PLAY_STREAK = { inkPerDay: 5, capDays: 7, firstWinXp: 100, firstWinInk: 20 } as const;
 export const LEVEL_ITEM_LEVELS = { chalk: 3, explorer: 5, dust: 7, cartographer: 10, fern: 15, carved: 20, goldrush: 30, veteran: 50 } as const;
@@ -79,6 +79,16 @@ export const ARROW_SPAWN_FORWARD = 0.3;
 export const DMG_BODY_MIN = 25;
 export const DMG_BODY_MAX = 60;
 export const HEAD_MULT = 2;
+/** The quiver (v2). Slot 0 is the broadhead, the v1 arrow. */
+export const QUIVER = {
+  scatter: { spreadDeg: 4, damageMult: 0.55, headMult: 1.5, drawFullMs: 700, charges: 3, rechargeMs: 6000 },
+  tether: { minM: 6, maxM: 35, maxSlopeDeg: 35, liftM: 1.2, endClearanceM: 0.5, lifeMs: 10_000, cooldownMs: 14_000 },
+} as const;
+/**
+ * A dagger swing destroys enemy arrows close in front of the player early in the swing.
+ * Arrows younger than minArrowAgeMs are point-blank shots nobody could react to, so they cannot be swatted.
+ */
+export const SWAT = { rangeM: 1.8, arcDeg: 70, windowMs: 180, minArrowAgeMs: 60 } as const;
 export const HEAD_RADIUS = 0.25;
 export const BODY_RADIUS = 0.38;
 export const MELEE_DAMAGE = 55;
@@ -192,6 +202,10 @@ export const BOT_VINE_HOP_REMAINING_M = 1.5;
 /** Chance a bot dodges right after taking damage. */
 /** Bots reel for a moment, swing toward their goal, and launch once past the anchor or close to it. */
 export const BOT_GRAPPLE = { reelMs: 900, launchMs: 1800, launchDistM: 4 } as const;
+/** Bots switch to scatter arrows inside this range while they have charges. */
+export const BOT_SCATTER_M = 12;
+/** Below this speed a strafing bot is against a wall, so it steps forward or back instead. */
+export const BOT_STRAFE_BLOCKED_MPS = 0.5;
 export const BOT_DODGE_CHANCE = 0.2;
 /** A waypoint only counts as reached within this height, so a bot under a deck never "reaches" the deck. */
 export const BOT_WAYPOINT_REACHED_Y_M = 1.3;

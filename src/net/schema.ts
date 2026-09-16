@@ -1,5 +1,5 @@
 import { schema, t, type SchemaType } from "@colyseus/schema";
-import { COYOTE_MS, MAX_HP, STAND_HEIGHT, VINE_HOP } from "../shared/constants.ts";
+import { COYOTE_MS, MAX_HP, QUIVER, STAND_HEIGHT, VINE_HOP } from "../shared/constants.ts";
 
 export const PlayerState = schema({
   name: t.string().default("Player"),
@@ -14,6 +14,7 @@ export const PlayerState = schema({
   prevButtons: t.uint16().default(0), lastDamageAtMs: t.number().default(0), spawnProtectMs: t.number().default(0), respawnAtMs: t.number().default(0),
   grappleCooldownMs: t.number().default(0), grappleActive: t.boolean().default(false), grappleX: t.number().default(0), grappleY: t.number().default(0), grappleZ: t.number().default(0), grappleMs: t.number().default(0), inkCooldownMs: t.number().default(0),
   grappleLen: t.number().default(0), grappleBlockedMs: t.number().default(0), grappleReeling: t.boolean().default(false),
+  arrowSlot: t.uint8().default(0), scatterCharges: t.uint8().default(QUIVER.scatter.charges), scatterRechargeMs: t.number().default(0), tetherCooldownMs: t.number().default(0),
   zipId: t.string().default(""), zipT: t.number().default(0),
   kills: t.uint16().default(0), deaths: t.uint16().default(0), assists: t.uint16().default(0),
   bowSkin: t.string().default("bow.default"), arrowTrail: t.string().default("trail.default"), outfit: t.string().default("outfit.default"), killEffect: t.string().default("effect.default"),
@@ -28,11 +29,19 @@ export const ArrowState = schema({
   x: t.number().default(0), y: t.number().default(0), z: t.number().default(0),
   vx: t.number().default(0), vy: t.number().default(0), vz: t.number().default(0),
   owner: t.string().default(""), team: t.uint8().default(0), bornMs: t.number().default(0),
-  kind: t.string<"arrow" | "grapple" | "ink">().default("arrow"), damage: t.number().default(0),
+  kind: t.string<"arrow" | "scatter" | "tether" | "grapple" | "ink">().default("arrow"), damage: t.number().default(0),
   ageMs: t.number().noSync().default(0), stuck: t.boolean().noSync().default(false),
   prevX: t.number().noSync().default(0), prevY: t.number().noSync().default(0), prevZ: t.number().noSync().default(0),
 }, "ArrowState");
 export type ArrowState = SchemaType<typeof ArrowState>;
+
+/** A tether arrow's temporary zip line. Riders ride it like a map zip line until it expires or is cut. */
+export const TetherState = schema({
+  fromX: t.number().default(0), fromY: t.number().default(0), fromZ: t.number().default(0),
+  toX: t.number().default(0), toY: t.number().default(0), toZ: t.number().default(0),
+  owner: t.string().default(""), team: t.uint8().default(0), expiresAtMs: t.number().default(0),
+}, "TetherState");
+export type TetherState = SchemaType<typeof TetherState>;
 
 export const InkCloudState = schema({
   x: t.number().default(0), y: t.number().default(0), z: t.number().default(0),
@@ -56,6 +65,7 @@ export const MatchState = schema({
   players: t.map(PlayerState),
   arrows: t.map(ArrowState),
   inkClouds: t.map(InkCloudState),
+  tethers: t.map(TetherState),
   hazards: t.map(BoulderHazardState),
 }, "MatchState");
 export type MatchState = SchemaType<typeof MatchState>;

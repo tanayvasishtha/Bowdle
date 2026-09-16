@@ -57,6 +57,7 @@ Replaces `MATCH_XP` in `src/shared/progression.ts`. Ink is unchanged.
 | Headshot kill (on top of the kill) | 25 |
 | Long shot kill (on top of the kill) | 25 |
 | Rope cut (v2) | 25 |
+| Swat (v2) | 25 |
 | Win | 200 |
 | Each medal, up to 4 | 25 |
 | First win of the UTC day | 100 XP and 20 Ink |
@@ -81,6 +82,7 @@ Computed by a pure function `medalsFor(stats, roomBestKills)` in `src/shared/med
 | `teamPlayer` | Team Player | `assists` >= 4 |
 | `untouchable` | Untouchable | `won`, `deaths` = 0, `kills` >= 3 |
 | `snip` | Snip | `ropeCuts` >= 1 (v2) |
+| `swatter` | Swatter | `swats` >= 1 (v2) |
 
 ## Challenges
 
@@ -116,6 +118,7 @@ With 3 dailies, a player who finishes them earns 90 Ink a day on top of match In
 | `d.assists` | Earn 5 assists | assists | 5 |
 | `d.zip` | Get a kill from a zip line | zipKills | 1 |
 | `d.streak` | Get 3 kills without being tagged | streaks3 | 1 |
+| `d.scatter` | Get 3 kills with Scatter arrows | scatterKills | 3 |
 
 ### Weekly pool
 
@@ -129,6 +132,7 @@ With 3 dailies, a player who finishes them earns 90 Ink a day on top of match In
 | `w.boulder` | Crush an enemy with the boulder | boulderKills | 1 |
 | `w.maps` | Win on all three maps | mapsWon | 3 |
 | `w.medals` | Earn 15 medals | medals | 15 |
+| `w.tether` | Ride 10 tether lines | tetherRides | 10 |
 
 Derived stats: `matches` adds 1 per finished match; `won` adds 1 per win; `streaks3` adds 1 when `bestStreak` >= 3; `medals` adds the medal count; `mapsWon` counts distinct map ids won this week (stored as a list on the challenge row).
 

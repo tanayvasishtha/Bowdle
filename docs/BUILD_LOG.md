@@ -1,5 +1,24 @@
 # Build log
 
+## G4: Quiver and dagger swat
+
+Status: done.
+
+Built:
+
+- Quiver: broadhead, scatter and tether arrows on keys 1, 2, 3 (rebindable) and the mouse wheel, through new input bits. Slot, scatter charges and the tether cooldown are synced player state, so prediction replays them. The broadhead keeps the kind name `arrow` from v1 instead of `broadhead`, which kept every v1 check and stored value working.
+- Scatter volleys: three arrows 4 degrees apart, 55 % damage, 1.5 headshot multiplier, 700 ms full draw, 3 charges with one back every 6 s; an empty quiver slot shoots a broadhead.
+- Tether: full draw, 14 s cooldown, a 10 s zip line from above the release point to a valid box hit (6 to 35 m, 35 degrees at most), one per player, rideable by anyone, cut by enemy arrows with the rope cut reward. Tether lines are room state and reach the shared simulation through `StepContext.zipLines`.
+- Dagger swat: the first 180 ms of a swing destroys enemy arrows passing within 1.8 m in a 70 degree arc, except arrows younger than 60 ms. Without that rule bots, which stab whenever an enemy is close, swatted nearly every close shot and a Sun Temple soak match stalled at 5 kills in 7 minutes. SWATTED banner and ticker line, "Swats" reward line (25 XP each), Swatter medal. The check uses each arrow's server step against the swinger's current position rather than a rewound one; arrows are already server-owned.
+- Stats `swats`, `scatterKills`, `tetherRides`; daily challenge "Get 3 kills with Scatter arrows" and weekly "Ride 10 tether lines". The bigger pools change which challenges each day picks, so the server tests pinned to 2026-09-16 now use 2026-05-23, which picks the same dailies.
+- Quiver strip on the match HUD and in the practice camp; the nocked arrow shows the slot (red scatter heads, rope tether). Scatter and tether arrows draw like broadheads with trails.
+- The G3 grapple browser tests aim at anchors at least 8 to 10 m away and re-attach when a slow machine finishes the reel before E is released; the online test could pick an anchor inside the 1.5 m auto detach.
+- Bots switch to scatter inside 12 m while they have charges. Bots no longer stand still while strafing against a wall in a fight: they step forward or back instead (this showed up in the Sun Temple tunnel once scatter fights got longer). Bots do not shoot tethers yet.
+
+Verified: `npm run check` (266 tests, new `quiver.test.ts` unit and server tests and a quiver prediction test), full Playwright suite (41 tests) with the new `quiver.spec.ts` (screenshots in `test-results/qa/g4/`), `npm run soak` (all maps pass; Canopy matches run to the timer with 19 to 42 kills), `npm run smoke`, `npm run build:portals`. Break it: tether lines that never expire fail the tether ride test.
+
+Left: bots using tethers; a playtest of scatter balance. Sun Temple soak seed 101 has ended on the timer with about 25 kills since G3 (46 kills in 2 minutes before); the tunnel fights stall, which the G14 balance pass should look at. The server tick perf test is close to its 3 ms budget on this machine when other apps load the CPU.
+
 ## G3: Swing grapple and rope cutting
 
 Status: done.

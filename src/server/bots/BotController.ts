@@ -14,6 +14,8 @@ import {
   HEAD_RADIUS,
   GRAPPLE_RANGE,
   BOT_GRAPPLE,
+  BOT_SCATTER_M,
+  BOT_STRAFE_BLOCKED_MPS,
   BOT_LONG_LINK_M,
   BOULDER_RADIUS,
   PLAYER_WIDTH,
@@ -225,8 +227,13 @@ export class BotController {
     this.targetPose.x = target.x; this.targetPose.y = headCenterY(target) + HEAD_RADIUS; this.targetPose.z = target.z; this.targetPose.vx = target.vx; this.targetPose.vy = target.vy; this.targetPose.vz = target.vz;
     solveProjectileLead(this.origin, this.targetPose, ARROW_SPEED_MAX, this.aim);
     this.input.yaw = this.aim.yaw + this.aimYawError; this.input.pitch = this.aim.pitch + this.aimPitchError;
-    this.input.moveZ = 0; this.input.moveX = (Math.floor(nowMs / BOT_STRAFE_MS) % 2 === 0) !== this.strafeFlip ? -1 : 1; this.input.buttons = 0;
-    if (Math.hypot(target.x - player.x, target.z - player.z) <= MELEE_RANGE && player.meleeCooldownMs <= 0) { this.input.buttons = BTN.MELEE; return; }
+    const strafe = (Math.floor(nowMs / BOT_STRAFE_MS) % 2 === 0) !== this.strafeFlip ? -1 : 1;
+    this.input.moveX = strafe; this.input.buttons = 0;
+    this.input.moveZ = player.grounded && Math.hypot(player.vx, player.vz) < BOT_STRAFE_BLOCKED_MPS ? strafe : 0;
+    const range = Math.hypot(target.x - player.x, target.z - player.z);
+    if (range <= MELEE_RANGE && player.meleeCooldownMs <= 0) { this.input.buttons = BTN.MELEE; return; }
+    const wantSlot = range < BOT_SCATTER_M && player.scatterCharges > 0 ? 1 : 0;
+    if (player.arrowSlot !== wantSlot && (player.prevButtons & (BTN.SLOT1 | BTN.SLOT2)) === 0) this.input.buttons |= wantSlot === 1 ? BTN.SLOT2 : BTN.SLOT1;
     if (nowMs - this.sightedAtMs < BOT_REACTION_MS) return;
     if (this.releaseFrame) { this.releaseFrame = false; return; }
     if (this.releaseAtMs === 0) {

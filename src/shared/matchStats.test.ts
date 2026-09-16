@@ -1,22 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { createMatchStats, recordDeath, recordKill, recordRobinHood, recordRopeCut } from "./matchStats.ts";
+import { createMatchStats, recordDeath, recordKill, recordRobinHood, recordRopeCut, recordSwat, recordTetherRide } from "./matchStats.ts";
 import { MEDALS, medalsFor } from "./medals.ts";
 import { matchReward } from "./progression.ts";
 
 describe("match statistics and medals", () => {
-  it("tracks weapons, arrow-only distances, zip kills, clashes, rope cuts and death streak resets", () => {
+  it("tracks weapons, arrow-only distances, zip kills, clashes, rope cuts, swats, scatter kills, tether rides and death streak resets", () => {
     const stats = createMatchStats();
-    expect(stats).toEqual({ kills: 0, deaths: 0, assists: 0, headshots: 0, longShots: 0, longestShotM: 0, daggerKills: 0, boulderKills: 0, zipKills: 0, robinHoods: 0, ropeCuts: 0, streak: 0, bestStreak: 0, won: false });
+    expect(stats).toEqual({ kills: 0, deaths: 0, assists: 0, headshots: 0, longShots: 0, longestShotM: 0, daggerKills: 0, boulderKills: 0, zipKills: 0, robinHoods: 0, ropeCuts: 0, swats: 0, scatterKills: 0, tetherRides: 0, streak: 0, bestStreak: 0, won: false });
     recordKill(stats, { weapon: "arrow", headshot: true, distance: 35, onZip: true });
     recordKill(stats, { weapon: "arrow", headshot: false, distance: 34.9, onZip: false });
     recordKill(stats, { weapon: "dagger", headshot: true, distance: 100, onZip: false });
-    recordDeath(stats); recordRobinHood(stats); recordRopeCut(stats);
+    recordDeath(stats); recordRobinHood(stats); recordRopeCut(stats); recordSwat(stats); recordTetherRide(stats);
+    recordKill(stats, { weapon: "arrow", headshot: false, distance: 5, onZip: false, scatter: true }); recordDeath(stats);
     recordKill(stats, { weapon: "boulder", headshot: true, distance: 200, onZip: false });
-    expect(stats).toEqual({ kills: 4, deaths: 1, assists: 0, headshots: 1, longShots: 1, longestShotM: 35, daggerKills: 1, boulderKills: 1, zipKills: 1, robinHoods: 1, ropeCuts: 1, streak: 1, bestStreak: 3, won: false });
+    expect(stats).toEqual({ kills: 5, deaths: 2, assists: 0, headshots: 1, longShots: 1, longestShotM: 35, daggerKills: 1, boulderKills: 1, zipKills: 1, robinHoods: 1, ropeCuts: 1, swats: 1, scatterKills: 1, tetherRides: 1, streak: 1, bestStreak: 3, won: false });
     expect(createMatchStats().kills).toBe(0);
   });
   it("awards every medal in table order and excludes On a Roll from Unstoppable", () => {
-    const stats = { ...createMatchStats(), kills: 6, bestStreak: 6, headshots: 3, longestShotM: 45, robinHoods: 1, daggerKills: 1, boulderKills: 1, zipKills: 1, ropeCuts: 1, assists: 4, won: true };
+    const stats = { ...createMatchStats(), kills: 6, bestStreak: 6, headshots: 3, longestShotM: 45, robinHoods: 1, daggerKills: 1, boulderKills: 1, zipKills: 1, ropeCuts: 1, swats: 1, assists: 4, won: true };
     expect(medalsFor(stats, 6)).toEqual(MEDALS.filter((medal) => medal.id !== "onARoll").map((medal) => medal.id));
     expect(medalsFor({ ...stats, bestStreak: 3 }, 6)).toContain("onARoll");
     expect(medalsFor({ ...stats, bestStreak: 3 }, 6)).not.toContain("unstoppable");
@@ -40,7 +41,7 @@ describe("match statistics and medals", () => {
     const reward = matchReward(stats, ["mvp", "headhunter", "eagleEye", "onARoll", "untouchable"]);
     expect(reward).toEqual({ xp: 750, ink: 23, breakdown: [
       { label: "Finish the match", xp: 100, ink: 10 }, { label: "Kills", xp: 150, ink: 3 }, { label: "Assists", xp: 50, ink: 0 },
-      { label: "Headshots", xp: 75, ink: 0 }, { label: "Long shots", xp: 75, ink: 0 }, { label: "Rope cuts", xp: 0, ink: 0 }, { label: "Win", xp: 200, ink: 10 }, { label: "Medals", xp: 100, ink: 0 },
+      { label: "Headshots", xp: 75, ink: 0 }, { label: "Long shots", xp: 75, ink: 0 }, { label: "Rope cuts", xp: 0, ink: 0 }, { label: "Swats", xp: 0, ink: 0 }, { label: "Win", xp: 200, ink: 10 }, { label: "Medals", xp: 100, ink: 0 },
     ] });
     expect(matchReward({ ...stats, ropeCuts: 2 }).breakdown).toContainEqual({ label: "Rope cuts", xp: 50, ink: 0 });
     expect(reward.breakdown.reduce((sum, line) => sum + line.xp, 0)).toBe(reward.xp);

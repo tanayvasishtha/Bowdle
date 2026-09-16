@@ -11,6 +11,9 @@ export class InputSampler {
   private pitch = 0;
   private settings = loadSettings();
   private paused = false;
+  /** Wheel steps not sent yet. Each step becomes one press, with a released sample between presses. */
+  private wheelSteps = 0;
+  private wheelSent = false;
 
   constructor(canvas: HTMLCanvasElement, initialYaw = -Math.PI / 2) {
     this.canvas = canvas;
@@ -25,6 +28,10 @@ export class InputSampler {
       this.pitch = clamp(this.pitch - event.movementY * this.settings.sensitivity, -PITCH_LIMIT, PITCH_LIMIT);
     });
     window.addEventListener("contextmenu", (event) => event.preventDefault());
+    window.addEventListener("wheel", (event) => {
+      if (this.paused || event.deltaY === 0) return;
+      this.wheelSteps = Math.max(-3, Math.min(3, this.wheelSteps + Math.sign(event.deltaY)));
+    }, { passive: true });
     this.canvas.addEventListener("click", () => lockPointer(this.canvas));
     window.addEventListener("bowdle-settings", (event) => { this.settings = (event as CustomEvent<GameSettings>).detail; });
   }
@@ -51,6 +58,14 @@ export class InputSampler {
     if (!this.paused && this.bound("ink")) buttons |= BTN.INK;
     if (!this.paused && this.bound("use")) buttons |= BTN.USE;
     if (!this.paused && this.bound("dodge")) buttons |= BTN.DODGE;
+    if (!this.paused && this.bound("slot1")) buttons |= BTN.SLOT1;
+    if (!this.paused && this.bound("slot2")) buttons |= BTN.SLOT2;
+    if (!this.paused && this.bound("slot3")) buttons |= BTN.SLOT3;
+    if (this.wheelSent) this.wheelSent = false;
+    else if (this.wheelSteps !== 0 && !this.paused) {
+      buttons |= this.wheelSteps > 0 ? BTN.SLOT_NEXT : BTN.SLOT_PREV;
+      this.wheelSteps -= Math.sign(this.wheelSteps); this.wheelSent = true;
+    }
     out.buttons = buttons;
   }
 

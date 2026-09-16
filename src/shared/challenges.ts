@@ -2,7 +2,7 @@ import { CHALLENGE_COUNT, CHALLENGE_REWARDS, DAILY_TARGETS as D, DAYS_PER_WEEK, 
 import { mulberry32 } from "./math/rng.ts";
 import type { MatchStats } from "./matchStats.ts";
 
-export type ChallengeStat = "kills" | "headshots" | "won" | "matches" | "longShots" | "daggerKills" | "assists" | "zipKills" | "streaks3" | "robinHoods" | "boulderKills" | "mapsWon" | "medals";
+export type ChallengeStat = "kills" | "headshots" | "won" | "matches" | "longShots" | "daggerKills" | "assists" | "zipKills" | "streaks3" | "robinHoods" | "boulderKills" | "mapsWon" | "medals" | "scatterKills" | "tetherRides";
 export type Challenge = { id: string; text: string; stat: ChallengeStat; target: number };
 export type ChallengeState = Omit<Challenge, "stat"> & { progress: number; done: boolean; reward: { ink: number; xp: number } };
 export type ChallengeChange = { id: string; text: string; before: number; after: number; target: number; done: boolean };
@@ -17,6 +17,7 @@ export const DAILY_POOL: readonly Challenge[] = [
   { id: "d.assists", text: "Earn 5 assists", stat: "assists", target: D.assists },
   { id: "d.zip", text: "Get a kill from a zip line", stat: "zipKills", target: D.zip },
   { id: "d.streak", text: "Get 3 kills without being tagged", stat: "streaks3", target: D.streak },
+  { id: "d.scatter", text: "Get 3 kills with Scatter arrows", stat: "scatterKills", target: D.scatter },
 ];
 export const WEEKLY_POOL: readonly Challenge[] = [
   { id: "w.kills", text: "Tag 80 explorers", stat: "kills", target: W.kills },
@@ -27,6 +28,7 @@ export const WEEKLY_POOL: readonly Challenge[] = [
   { id: "w.boulder", text: "Crush an enemy with the boulder", stat: "boulderKills", target: W.boulder },
   { id: "w.maps", text: "Win on all three maps", stat: "mapsWon", target: W.maps },
   { id: "w.medals", text: "Earn 15 medals", stat: "medals", target: W.medals },
+  { id: "w.tether", text: "Ride 10 tether lines", stat: "tetherRides", target: W.tether },
 ];
 
 function calendar(date: Date): { day: number; year: number; week: number; monday: number } {

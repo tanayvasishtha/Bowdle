@@ -1,4 +1,5 @@
 import {
+  QUIVER,
   ABSOLUTE_SPEED_CAP,
   AIM_SPEED_MULT,
   AIR_ACCEL,
@@ -35,7 +36,7 @@ import {
   WATER_SPEED_MULT,
 } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
-import type { MapData } from "../maps/types.ts";
+import type { MapData, ZipLine } from "../maps/types.ts";
 import { normalizeXZ, type Vec3 } from "../math/vec3.ts";
 import { canOccupy, findMantleLedge, movePlayer, moveResult } from "./collision.ts";
 import { stepCombat, type CombatEvent } from "./bow.ts";
@@ -56,6 +57,7 @@ export type PlayerSim = {
   prevButtons: number; lastDamageAtMs: number; spawnProtectMs: number; respawnAtMs: number;
   grappleCooldownMs: number; grappleActive: boolean; grappleX: number; grappleY: number; grappleZ: number; grappleMs: number; inkCooldownMs: number;
   grappleLen: number; grappleBlockedMs: number; grappleReeling: boolean;
+  arrowSlot: number; scatterCharges: number; scatterRechargeMs: number; tetherCooldownMs: number;
   zipId: string; zipT: number;
   kills: number; deaths: number; assists: number;
   bowSkin: string; arrowTrail: string; outfit: string; killEffect: string;
@@ -64,7 +66,8 @@ export type PlayerSim = {
   mantleCooldownMs: number; dodgeCooldownMs: number; landingGraceMs: number;
 };
 
-export type StepContext = { nowMs: number };
+/** zipLines are the zip lines that exist only for part of a match, such as tethers. */
+export type StepContext = { nowMs: number; zipLines?: readonly ZipLine[] };
 export type PlayerEvent = CombatEvent | AbilityEvent;
 
 const wish: Vec3 = { x: 0, y: 0, z: 0 };
@@ -79,6 +82,7 @@ export function createPlayerSim(x = 0, y = 0, z = 0): PlayerSim {
     hp: MAX_HP, alive: true, drawMs: 0, releaseCooldownMs: 0, meleeCooldownMs: 0, prevButtons: 0, lastDamageAtMs: 0, spawnProtectMs: 0, respawnAtMs: 0,
     grappleCooldownMs: 0, grappleActive: false, grappleX: 0, grappleY: 0, grappleZ: 0, grappleMs: 0, inkCooldownMs: 0,
     grappleLen: 0, grappleBlockedMs: 0, grappleReeling: false,
+    arrowSlot: 0, scatterCharges: QUIVER.scatter.charges, scatterRechargeMs: 0, tetherCooldownMs: 0,
     zipId: "", zipT: 0,
     kills: 0, deaths: 0, assists: 0, bowSkin: "bow.default", arrowTrail: "trail.default", outfit: "outfit.default", killEffect: "effect.default",
     airJumps: VINE_HOP.perAirtime, wallJumps: 0, wallJumpCooldownMs: 0, wallTouchMs: WALL_TOUCH_IDLE_MS, wallNormalX: 0, wallNormalZ: 0,
@@ -203,7 +207,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
   const inputMagnitude = updateWish(input);
   state.yaw = input.yaw;
   state.pitch = input.pitch;
-  stepZipInput(state, input, map);
+  stepZipInput(state, input, map, ctx.zipLines);
   const wasGrappling = state.grappleActive;
   const abilityEvents = stepAbilityInput(state, input, map, 1000 / TICK_HZ);
   // A jump that launched off the rope is used up by the launch.
@@ -214,7 +218,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     state.mantleCooldownMs = Math.max(0, state.mantleCooldownMs - dtMs);
     state.dodgeCooldownMs = Math.max(0, state.dodgeCooldownMs - dtMs);
     state.landingGraceMs = Math.max(0, state.landingGraceMs - dtMs);
-    if (stepZipRide(state, map, dt)) continue;
+    if (stepZipRide(state, map, dt, ctx.zipLines)) continue;
     const water = isInWater(map, state.x, state.y, state.z, ctx.nowMs);
     if (water) state.sliding = false;
     state.slideCooldownMs = Math.max(0, state.slideCooldownMs - dtMs);

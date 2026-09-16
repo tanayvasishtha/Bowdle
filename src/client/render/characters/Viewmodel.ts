@@ -35,6 +35,11 @@ export class Viewmodel extends Group {
   private readonly rightSleeve: Mesh;
   private readonly arrowShaft: Mesh;
   private readonly arrowHead: Mesh;
+  /** The two extra heads of a scatter volley, fanned beside the main one. */
+  private readonly scatterHeads: Mesh[] = [];
+  private readonly headMaterials: Record<"arrow" | "scatter" | "tether", InkMaterial>;
+  private readonly shaftMaterials: Record<"arrow" | "scatter" | "tether", InkMaterial>;
+  private arrowKind: "arrow" | "scatter" | "tether" = "arrow";
   private readonly dagger = new Group();
   private readonly nock = new Vector3();
   private readonly sleeveEnd = new Vector3();
@@ -62,7 +67,11 @@ export class Viewmodel extends Group {
     this.rightSleeve = new Mesh(unit, this.sleeveMaterial);
     this.arrowShaft = new Mesh(unit, wood);
     this.arrowHead = new Mesh(new ConeGeometry(0.03, 0.09, 6), gold);
-    this.bow.add(grip, leftHand, leftSleeve, this.stringTop, this.stringBottom, this.rightHand, this.rightSleeve, this.arrowShaft, this.arrowHead);
+    const hazard = new InkMaterial(MATERIAL_ID.hazard);
+    this.headMaterials = { arrow: gold, scatter: hazard, tether: rope };
+    this.shaftMaterials = { arrow: wood, scatter: wood, tether: rope };
+    for (let index = 0; index < 2; index += 1) { const head = new Mesh(new ConeGeometry(0.022, 0.07, 6), hazard); head.visible = false; this.scatterHeads.push(head); }
+    this.bow.add(grip, leftHand, leftSleeve, this.stringTop, this.stringBottom, this.rightHand, this.rightSleeve, this.arrowShaft, this.arrowHead, ...this.scatterHeads);
     this.bow.position.set(0.55, -0.3, -1.1);
     this.bow.rotation.z = 0.12;
 
@@ -118,12 +127,26 @@ export class Viewmodel extends Group {
     const drawn = pull > 0;
     this.arrowShaft.visible = drawn;
     this.arrowHead.visible = drawn;
+    for (const head of this.scatterHeads) head.visible = drawn && this.arrowKind === "scatter";
     if (drawn) {
       this.arrowEnd.copy(ARROW_TIP);
       stretch(this.arrowShaft, this.nock, this.arrowEnd, 0.011);
       this.arrowHead.position.copy(this.arrowEnd);
       this.arrowHead.quaternion.copy(this.arrowShaft.quaternion);
+      for (let index = 0; index < this.scatterHeads.length; index += 1) {
+        const head = this.scatterHeads[index]!;
+        head.position.copy(this.arrowEnd); head.position.y += index === 0 ? 0.05 : -0.05; head.position.z += 0.05;
+        head.quaternion.copy(this.arrowShaft.quaternion);
+      }
     }
+  }
+
+  /** The nocked arrow shows the selected quiver slot: gold broadhead, three red scatter heads, or a rope tether. */
+  setArrowKind(kind: "arrow" | "scatter" | "tether"): void {
+    if (kind === this.arrowKind) return;
+    this.arrowKind = kind;
+    this.arrowHead.material = this.headMaterials[kind];
+    this.arrowShaft.material = this.shaftMaterials[kind];
   }
 
   /** t runs from 0 to 1 over one stab; 0 means no stab. */

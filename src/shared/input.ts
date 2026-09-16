@@ -9,6 +9,11 @@ export const BTN = {
   INK: 128,
   USE: 256,
   DODGE: 512,
+  SLOT1: 1024,
+  SLOT2: 2048,
+  SLOT3: 4096,
+  SLOT_NEXT: 8192,
+  SLOT_PREV: 16384,
 } as const;
 
 export type PlayerInputFrame = {

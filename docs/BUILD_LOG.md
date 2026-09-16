@@ -1,5 +1,44 @@
 # Build log
 
+## W6 — Lost River, Practice Camp and rotation
+
+Status: done.
+
+Built:
+
+- Added Lost River with a timed flood, split aqueduct and climb routes, traversable seaplane wreck, two log bridges, waterfall cave, reed cover, ruined gates, journal props and field notes, plus a connected waypoint network across six river routes.
+- Added Practice Camp with fixed and moving bow targets, a watchtower zip line, grapple wall, slide logs, boulder lane and safe alcove, creek crossing, and a moving opponent confined to the tall-grass stealth lane.
+- Added the map registry and deterministic Sun Temple → Canopy Village → Lost River match rotation. Synchronized map ids now rebuild the client world and ambience between matches.
+- Removed the retired prototype arena and target lane, including their source files, routes, tests, and documentation references.
+- Added close-range dagger decisions to computer-controlled combat so full matches do not stall when opponents meet behind cover.
+
+Tests added or updated:
+
+- Registry rotation across three match restarts, Lost River flood slowdown, and a full eight-player Lost River simulation. Together with the existing Sun Temple and Canopy Village simulations, every launch map now reaches the end phase under computer control.
+- Practice Camp headshot coverage and a browser join on each launch map with zero console errors and a 150-draw-call ceiling.
+- Existing online replication, combat, grapple, and ink-cloud journeys now run on a forced launch map and remain deterministic after map rotation.
+- Screenshots for every touched scene are in `test-results/qa/w6/` and are intentionally untracked.
+
+QA:
+
+- `npm run check`: passed with 92 tests.
+- `npm run e2e`: 12 passed.
+- `npm run size`: client JavaScript 252 KB gzipped, 900 KB budget.
+- The milestone defines no automated break-it-on-purpose check.
+- Diff review: no dependency changes, forbidden imports, unsafe simulation randomness, weak typing, per-frame or per-tick allocations, or reduced tests were introduced. New gameplay tuning is centralized in `src/shared/constants.ts`.
+
+Deviation:
+
+- Aqueduct stairs and broken seaplane wings use the shared ramp-wedge collision primitive instead of individual step or curved-mesh collisions. This preserves smooth authoritative traversal and the documented routes without introducing a second collision model.
+
+Verify by hand:
+
+- Play one complete match on Sun Temple, Canopy Village, and Lost River; confirm the next map appears in the documented order and that the world rebuild is clean.
+- Enter the Lost River during a flood warning and confirm the rising water gives enough time to choose a bridge, aqueduct, wreck, or cave route before the slowdown becomes dangerous.
+- Try every Practice Camp station without instructions and confirm each mechanic is discoverable, including the moving opponent inside the stealth grass.
+- Check each spawn for an obvious landmark, three useful exits, regular cover, and no enemy sightline into the protected area.
+- Confirm a stable 60 frames per second at 1080p on the target integrated-graphics laptop.
+
 ## W5 — Canopy Village
 
 Status: done.

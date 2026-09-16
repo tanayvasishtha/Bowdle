@@ -1,4 +1,4 @@
-import { Room, type Client, type Rewind, type StepContext as RoomStepContext } from "@colyseus/core";
+import { Room, ServerError, type Client, type Rewind, type StepContext as RoomStepContext } from "@colyseus/core";
 import {
   ARROW_LIFETIME_MS,
   ARROW_MAX_PER_PLAYER,
@@ -35,6 +35,8 @@ import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput,
 import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RobinHoodMessage } from "../../net/messages.ts";
 import { gameDatabase, type MatchResultLine } from "../db/GameDatabase.ts";
 import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
+import { botDifficultyFor, type BotDifficulty, type HumanSkill } from "../../shared/bots/difficulty.ts";
+import { isPartyCode } from "../../shared/party.ts";
 import { spawnArrow, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
 import { chooseSpawn, respawnPlayer, scoreKill, updateMatchPhase } from "../../shared/sim/match.ts";
@@ -50,7 +52,9 @@ import { createMatchStats, recordDeath, recordKill, recordRobinHood, type MatchS
 import { medalsFor } from "../../shared/medals.ts";
 import type { MatchStatsMessage } from "../../net/messages.ts";
 
-type JoinOptions = { name?: string; token?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
+export const PARTY_ROOM = "party";
+
+type JoinOptions = { name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
@@ -90,14 +94,19 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private reportedPlayers = 0;
   private botSeedBase = 0;
   private readonly accounts = new Map<string, Promise<string | undefined>>();
+  private readonly skills = new Map<string, HumanSkill>();
+  private botDifficulty: BotDifficulty = "normal";
+  partyCode = "";
   private readonly humanStats = new Map<string, MatchStats>();
   private readonly killStatsEvent: Parameters<typeof recordKill>[1] = { weapon: "arrow", headshot: false, distance: 0, onZip: false };
   private matchSerial = 0;
   private rewardedSerial = -1;
   rewardsSettled: Promise<void> = Promise.resolve();
   loadoutsApplied: Promise<void> = Promise.resolve();
+  skillsLoaded: Promise<void> = Promise.resolve();
 
   onCreate(options: JoinOptions): void {
+    this.partyCode = isPartyCode(options.party) ? options.party : "";
     this.botSeedBase = Number.isFinite(options.testBotSeed) ? options.testBotSeed! : 0;
     const selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
     this.fixedMap = selected !== undefined;
@@ -384,7 +393,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const player = source ?? new PlayerState(); player.name = `Doodle ${this.botSerial}`; player.team = team; player.isBot = true;
     if (!source) respawnPlayer(player, spawn);
     else { player.bowSkin = DEFAULT_LOADOUT.bow; player.arrowTrail = DEFAULT_LOADOUT.trail; player.outfit = DEFAULT_LOADOUT.outfit; player.killEffect = DEFAULT_LOADOUT.effect; }
-    this.state.players.set(id, player); this.bots.set(id, new BotController(id, this.botSeedBase + this.botSerial));
+    this.state.players.set(id, player); this.bots.set(id, new BotController(id, this.botSeedBase + this.botSerial, this.botDifficulty));
   }
 
   private fillBots(): void {
@@ -400,7 +409,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   replacePlayerWithBot(id: string): void {
     const player = this.state.players.get(id); if (!player || player.isBot) return;
-    this.humanStats.delete(id); this.state.players.delete(id); this.addBot(player.team, player);
+    this.humanStats.delete(id); this.skills.delete(id); this.state.players.delete(id); this.updateBotDifficulty(); this.addBot(player.team, player);
   }
 
   /** Cosmetics come from the database, never from the client, so nobody can wear an item they do not own. */
@@ -417,6 +426,35 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
   }
 
+  /** Party rooms need a well-formed code; public rooms never take one. */
+  onAuth(_client: GameClient, options?: JoinOptions): boolean {
+    const partyRoom = this.roomName === PARTY_ROOM;
+    if (partyRoom && !isPartyCode(options?.party)) throw new ServerError(400, "invalid party code");
+    if (!partyRoom && options?.party !== undefined) throw new ServerError(400, "party codes join the party room");
+    return true;
+  }
+
+  get currentBotDifficulty(): BotDifficulty { return this.botDifficulty; }
+
+  private updateBotDifficulty(): void {
+    const next = botDifficultyFor([...this.skills.values()]);
+    if (next === this.botDifficulty) return;
+    this.botDifficulty = next;
+    for (const bot of this.bots.values()) bot.setDifficulty(next);
+  }
+
+  private async loadSkill(sessionId: string, account: Promise<string | undefined>): Promise<void> {
+    try {
+      const accountId = await account;
+      const profile = accountId ? await (await gameDatabase()).profile(accountId) : undefined;
+      if (!profile || !this.skills.has(sessionId)) return;
+      this.skills.set(sessionId, { level: profile.progress.level, matches: profile.career.matches });
+      this.updateBotDifficulty();
+    } catch (error) {
+      console.error(JSON.stringify({ event: "skillError", message: error instanceof Error ? error.message : String(error) }));
+    }
+  }
+
   onJoin(client: GameClient, options?: JoinOptions): void {
     if (options?.test && !this.testMode) {
       this.testMode = true;
@@ -426,7 +464,12 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     let sun = 0;
     let moon = 0;
     for (const player of this.state.players.values()) if (!player.isBot) player.team === 0 ? sun += 1 : moon += 1;
-    const team = sun <= moon ? 0 : 1;
+    let team = sun <= moon ? 0 : 1;
+    // Friends in a party share a team while it has room for another human.
+    if (this.partyCode) {
+      const first = [...this.state.players.values()].find((player) => !player.isBot);
+      if (first) team = (first.team === 0 ? sun : moon) < TEAM_SIZE ? first.team : 1 - first.team;
+    }
     const replaced = [...this.state.players].find(([, player]) => player.isBot && player.team === team);
     if (replaced) { this.state.players.delete(replaced[0]); this.bots.delete(replaced[0]); }
     const spawn = team === 0 ? this.map.spawns.sun[sun % this.map.spawns.sun.length]! : this.map.spawns.moon[moon % this.map.spawns.moon.length]!;
@@ -441,11 +484,15 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
     this.state.players.set(client.sessionId, player);
     this.humanStats.set(client.sessionId, createMatchStats());
+    // Until the account loads, a player counts as new, which keeps first matches gentle.
+    this.skills.set(client.sessionId, { level: 1, matches: 0 });
+    this.updateBotDifficulty();
     if (options?.token) {
       const sessionId = client.sessionId;
       const account = gameDatabase().then((db) => db.authenticate(options.token)).catch(() => undefined);
       this.accounts.set(sessionId, account);
       this.loadoutsApplied = this.loadoutsApplied.then(() => this.applyLoadout(sessionId, account));
+      this.skillsLoaded = this.skillsLoaded.then(() => this.loadSkill(sessionId, account));
     }
     this.reportPlayers();
     if (this.testMode && sun + moon + 1 >= TEAM_COUNT) this.lock();
@@ -456,7 +503,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   onLeave(client: GameClient): void {
-    const player = this.state.players.get(client.sessionId); this.state.players.delete(client.sessionId); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId);
+    const player = this.state.players.get(client.sessionId); this.state.players.delete(client.sessionId); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId); this.skills.delete(client.sessionId);
+    this.updateBotDifficulty();
     if (player && !this.testMode) this.addBot(player.team, player);
     this.reportPlayers();
   }

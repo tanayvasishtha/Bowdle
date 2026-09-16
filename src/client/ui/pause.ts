@@ -4,9 +4,9 @@ import { loadSettings } from "../settings.ts";
 import { showSettings } from "./menu.ts";
 import { platform } from "../platform/sdk.ts";
 
-export function attachPauseMenu(container: HTMLElement, sampler: InputSampler): void {
+export function attachPauseMenu(container: HTMLElement, sampler: InputSampler, party?: string): void {
   const panel = document.createElement("section"); panel.className = "bowdle-panel bowdle-pause"; panel.style.display = "none";
-  panel.innerHTML = `<h2>Field Notes</h2><button data-action="resume">Resume</button><button data-action="settings">Settings</button><button data-action="leave">Leave match</button>`;
+  panel.innerHTML = `<h2>Field Notes</h2>${party ? `<p data-testid="pause-party">Party code <b>${party}</b></p>` : ""}<button data-action="resume">Resume</button><button data-action="settings">Settings</button><button data-action="leave">Leave match</button>`;
   container.append(panel);
   const setOpen = (open: boolean): void => {
     panel.style.display = open ? "grid" : "none"; sampler.setPaused(open); platform().setPlaying(!open);

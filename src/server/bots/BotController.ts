@@ -38,7 +38,9 @@ import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { sphereBlocksSight, type VisionSphere } from "../../shared/sim/abilities.ts";
 import { isHiddenInTallGrass } from "../../shared/sim/volumes.ts";
 
-export type BotDifficulty = "easy" | "normal" | "hard";
+import type { BotDifficulty } from "../../shared/bots/difficulty.ts";
+
+export type { BotDifficulty };
 export type BotMode = "roam" | "engage" | "retreat";
 const noClouds: readonly VisionSphere[] = [];
 type BoulderThreat = { phase: "idle" | "telegraph" | "roll" | "despawn"; x: number; z: number };
@@ -95,7 +97,8 @@ export class BotController {
   private releaseFrame = false;
   private aimYawError = 0;
   private aimPitchError = 0;
-  private readonly errorRad: number;
+  private errorRad = 0;
+  difficulty: BotDifficulty = "normal";
   private routeSerial = 0;
   private progressIndex = -1;
   private progressBest = Number.POSITIVE_INFINITY;
@@ -110,6 +113,12 @@ export class BotController {
   constructor(id: string, seed: number, difficulty: BotDifficulty = "normal") {
     this.id = id;
     this.rng = mulberry32(seed);
+    this.setDifficulty(difficulty);
+  }
+
+  /** Only the aim error changes; bots never move faster or see through walls on higher settings. */
+  setDifficulty(difficulty: BotDifficulty): void {
+    this.difficulty = difficulty;
     const degrees = difficulty === "easy" ? BOT_AIM_ERROR_EASY_DEG : difficulty === "hard" ? BOT_AIM_ERROR_HARD_DEG : BOT_AIM_ERROR_NORMAL_DEG;
     this.errorRad = degrees * Math.PI / 180;
   }

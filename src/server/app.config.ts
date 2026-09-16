@@ -7,7 +7,9 @@ import { TdmRoom } from "./rooms/TdmRoom.ts";
 
 export const server = defineServer({
   transport: new WebSocketTransport(),
-  rooms: { tdm: defineRoom(TdmRoom).filterBy(["test", "testMapId"]) },
+  // Matchmaking only filters on options a joiner sends, so parties get their own room name:
+  // a public join can never land in a party room.
+  rooms: { tdm: defineRoom(TdmRoom).filterBy(["test", "testMapId"]), party: defineRoom(TdmRoom).filterBy(["party"]) },
   express: (app) => {
     if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
     app.get("/health", (_req, res) => {

@@ -16,6 +16,7 @@ import { platform } from "./platform/sdk.ts";
 import { fetchLocker } from "./account.ts";
 import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
+import { isPartyCode, normalizePartyCode } from "../shared/party.ts";
 import { startLocker, type LockerTestHooks } from "./ui/locker.ts";
 
 declare global {
@@ -57,9 +58,12 @@ else if (params.get("scene") === "online") {
   const requestedMapId = params.get("map") ?? undefined;
   const renderer = new Renderer(app, params.has("debug"), requestedMapId ? mapById(requestedMapId) ?? defaultMatchMap : defaultMatchMap);
   const sampler = new InputSampler(renderer.canvas);
-  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId).then((session) => {
+  const requestedParty = normalizePartyCode(params.get("party") ?? "");
+  const party = isPartyCode(requestedParty) ? requestedParty : undefined;
+  if (party) loading.querySelector("p")!.textContent = `Joining party ${party}.`;
+  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party).then((session) => {
     loading.remove();
-    attachPauseMenu(app, sampler);
+    attachPauseMenu(app, sampler, party);
     session.start();
     if (params.has("test")) window.__bowdleTest = {
       snapshot: () => renderer.snapshot(),

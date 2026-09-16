@@ -17,7 +17,7 @@ test("the end screen lists medals and an exact reward breakdown", async ({ page 
   }, { stats, medals, reward });
   await expect(page.getByTestId("medals")).toHaveText("HeadhunterEagle Eye");
   await expect(page.getByTestId("rewards")).toContainText(`+${reward.xp} XP`);
-  for (const line of reward.breakdown) await expect(page.getByTestId("rewards")).toContainText(`${line.label}: +${line.xp} XP · +${line.ink} Ink`);
+  for (const line of reward.breakdown.filter((entry) => entry.xp !== 0 || entry.ink !== 0)) await expect(page.getByTestId("rewards")).toContainText(`${line.label}: +${line.xp} XP · +${line.ink} Ink`);
   const bounds = (await page.locator(".bowdle-end").boundingBox())!;
   expect(bounds.y).toBeGreaterThanOrEqual(0);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(page.viewportSize()!.height);

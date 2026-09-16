@@ -1,5 +1,19 @@
 # Build log
 
+## R5: Parties and bot difficulty
+
+Status: done.
+
+Built:
+
+- Party codes (`src/shared/party.ts`): 6 characters from an alphabet without 0, O, 1 or I, typed codes normalized (case, spaces, dashes).
+- A separate `party` room name. Colyseus matchmaking only filters on options the joiner sends, so a filter on `tdm` alone would let public players fall into party rooms. `party` refuses joins without a valid code, `tdm` refuses joins with one. Friends share the first member's team while it has room.
+- Menu "Play with friends": create a code with Copy invite link (web build) and Start party, or join by typed code. `?scene=online&party=CODE` links work directly; the pause menu shows the code.
+- Bot difficulty (`src/shared/bots/difficulty.ts`): easy while any human has fewer than 3 finished matches, otherwise by average level (below 4 easy, below 12 normal, else hard). Players count as new until their account loads. `BotController.setDifficulty` changes only aim error.
+- The online test hook reports each player's team.
+
+Verified: `npm run check` (215 tests), full Playwright suite (35 passed, party spec added), `npm run smoke`, `npm run soak`, `npm run build:portals`. Break it: letting `tdm` accept party codes fails the party test. Screenshots in `test-results/qa/r5`.
+
 ## R4: In-match feedback and the post-match sequence
 
 Status: done.

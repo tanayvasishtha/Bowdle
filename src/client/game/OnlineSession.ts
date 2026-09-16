@@ -28,7 +28,7 @@ import { isInWater } from "../../shared/sim/volumes.ts";
 import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
 import { createMotion } from "../render/characters/pose.ts";
 
-export type RenderedPlayer = { id: string; x: number; y: number; z: number };
+export type RenderedPlayer = { id: string; team: number; x: number; y: number; z: number };
 type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "grapple" | "ink" };
 type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number };
 
@@ -112,9 +112,11 @@ export class OnlineSession {
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
-  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string): Promise<OnlineSession> {
+  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string): Promise<OnlineSession> {
     const endpoint = import.meta.env.VITE_SERVER_URL || location.origin;
-    const room = await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, token: loadToken(), test: testing, testMapId }, MatchState);
+    const room = party
+      ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party }, MatchState)
+      : await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, token: loadToken(), test: testing, testMapId }, MatchState);
     if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {
@@ -274,6 +276,7 @@ export class OnlineSession {
     const result: RenderedPlayer[] = [];
     for (const [id, player] of this.room.state.players) result.push({
       id,
+      team: player.team,
       x: this.predict.value(player, "x"),
       y: this.predict.value(player, "y"),
       z: this.predict.value(player, "z"),

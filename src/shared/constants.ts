@@ -170,3 +170,9 @@ export const BOT_PROGRESS_MS = 4000;
 export const BOT_PROGRESS_M = 0.5;
 export const SERVER_METRICS_MS = 10000;
 export const SERVER_TICK_BUDGET_MS = 3;
+export const PARTY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const PARTY_CODE_LENGTH = 6;
+/** Average human level at which bots step up to normal and hard aim. */
+export const BOT_DIFFICULTY_LEVELS = { normal: 4, hard: 12 } as const;
+/** Players with fewer finished matches than this always face easy bots. */
+export const NEW_PLAYER_MATCHES = 3;

@@ -1,5 +1,45 @@
 # Build log
 
+## M8 — Menus, onboarding and settings
+
+Status: done.
+
+Built:
+
+- Replaced the temporary launch page with a journal-style main menu for Play, Practice, and Settings, plus first-visit explorer naming stored locally and validated against a built-in reserved/unfriendly word list on both client and server.
+- Added persistent mouse sensitivity, 80–110 field of view, master volume, animated ink boil, floating notes, team symbols, and complete keyboard/mouse action rebinding. Saved bindings drive gameplay, scoreboard, menu, and development overlay input.
+- Added circle and triangle team markers, thicker high-contrast symbol strokes, live FOV changes, note visibility, volume changes, and an option to freeze the ink boil.
+- Added a skippable first-visit Practice Camp lesson that advances through movement, jumping, sliding, shooting the 10-metre target, and stabbing a target.
+- Added the match result card with personal kills, deaths, best-shot distance, MVP, a large same-room Play Again button, and a synchronized next-map vote. A unique vote winner overrides rotation; ties preserve the documented rotation.
+- Added a retryable connection screen, a friendly keyboard-and-mouse requirement screen for touch-only devices, and an Esc menu with Resume, Settings, and Leave Match.
+- Isolated ordinary and deterministic browser rooms with the installed Colyseus matchmaking filter so disconnected test sessions cannot affect live matchmaking.
+
+Tests added or updated:
+
+- Shared name validation tests for valid, reserved, unfriendly, empty, and oversized names.
+- Server vote coverage for a clear winner and tied-vote rotation fallback.
+- Browser journeys from the menu into Practice Camp, from first-time name entry into the online HUD and Esc menu, and through an FOV change that survives reload.
+- The online movement/combat journey now verifies that both replicated players have physically settled before its server-authoritative headshot.
+- Screenshots are in `test-results/qa/m8/` and are intentionally untracked.
+
+QA:
+
+- `npm run check`: passed with 96 tests.
+- `npm run e2e`: 15 passed.
+- `npm run size`: client JavaScript 256 KB gzipped, 900 KB budget.
+- The milestone defines no automated break-it-on-purpose check.
+- Diff review: no dependency changes, forbidden imports, unsafe simulation randomness, weak typing, per-frame or per-tick allocations, or reduced tests were introduced. New gameplay limits remain in `src/shared/constants.ts`.
+
+Deviation: none. The installed Colyseus room definition exposes the documented `filterBy` matchmaking API and it is used for browser-room isolation.
+
+Verify by hand:
+
+- Give the link to a first-time player and watch them reach their first Practice Camp elimination without coaching; note and fix any unclear prompt or station.
+- Try every remapped action, including mouse draw/aim, scoreboard, Esc, and the development F3 overlay; reload and confirm the choices persist.
+- Play through a match end, vote with multiple clients, press Play Again, and confirm all clients remain in the same room and load the winning map.
+- Inspect team symbols on mixed terrain and verify Sun and Moon remain distinguishable without relying on color.
+- Open on a touch-only phone or tablet and confirm the desktop message replaces the game controls.
+
 ## W6 — Lost River, Practice Camp and rotation
 
 Status: done.

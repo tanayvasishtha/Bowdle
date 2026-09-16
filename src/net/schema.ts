@@ -1,5 +1,5 @@
 import { schema, t, type SchemaType } from "@colyseus/schema";
-import { COYOTE_MS, MAX_HP, STAND_HEIGHT } from "../shared/constants.ts";
+import { COYOTE_MS, MAX_HP, STAND_HEIGHT, VINE_HOP } from "../shared/constants.ts";
 
 export const PlayerState = schema({
   name: t.string().default("Player"),
@@ -16,6 +16,10 @@ export const PlayerState = schema({
   zipId: t.string().default(""), zipT: t.number().default(0),
   kills: t.uint16().default(0), deaths: t.uint16().default(0), assists: t.uint16().default(0),
   bowSkin: t.string().default("bow.default"), arrowTrail: t.string().default("trail.default"), outfit: t.string().default("outfit.default"), killEffect: t.string().default("effect.default"),
+  // Movement 2.0: synced so client prediction replays air jumps, wall jumps, mantles and dodges exactly.
+  airJumps: t.uint8().default(VINE_HOP.perAirtime), wallJumps: t.uint8().default(0), wallJumpCooldownMs: t.number().default(0),
+  wallTouchMs: t.number().default(10_000), wallNormalX: t.number().default(0), wallNormalZ: t.number().default(0),
+  mantleCooldownMs: t.number().default(0), dodgeCooldownMs: t.number().default(0), landingGraceMs: t.number().default(0),
 }, "PlayerState");
 export type PlayerState = SchemaType<typeof PlayerState>;
 

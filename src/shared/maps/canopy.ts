@@ -66,8 +66,11 @@ for (const [id,x,y,z] of [
   ["sun-ring-ground-west",-23,0,19],["sun-ring-ground-approach",-10,0,19],["sun-ring-ramp-low",-4,0,19],["sun-ring-ramp-high",-4,4.8,5],["center-low",-5,4.8,0],["ring-low-north",0,4.8,5],["center-low-east",5,4.8,0],["moon-ring-ramp-high",4,4.8,5],["ring-high-approach",2.2,4.8,17],["ring-high-low",0,4.8,17],["ring-high-west",-5,8.8,0],["ring-high-nw",-4,8.8,3],["center-high",0,8.8,5],["ring-high-east",5,8.8,0],["ring-high-ne",4,8.8,3],["ring-high-sw",-4,8.8,-3],["ring-high-se",4,8.8,-3],["moon-ring-ramp-low",4,0,19],["moon-ring-ground-approach",10,0,19],["moon-ring-ground-west",23,0,19],
   ["sun-zip-north-high",-3,8.8,5],["sun-zip-south-high",-3,8.8,-5],["moon-zip-north-high",3,8.8,5],["moon-zip-south-high",3,8.8,-5],
   ["sun-grass-north",-20,0,9],["sun-grass-south",-20,0,-9],["moon-grass-north",20,0,9],["moon-grass-south",20,0,-9],
+  // Ground routes around the narrow west ramps: the wedge is solid, so bots under the decks walk round it.
+  ["sun-under-deck",-17,0,-3.5],["sun-ramp-side",-24.5,0,-2.6],["moon-under-deck",17,0,-3.5],["moon-ramp-side",24.5,0,-2.6],
 ] as const) node(id, x, y, z);
 connect("sun-spawn-0","sun-exit"); connect("sun-exit","sun-hub"); connect("moon-spawn-0","moon-exit"); connect("moon-exit","moon-hub");
+connect("sun-hub","sun-ramp-side"); connect("sun-ramp-side","sun-under-deck"); connect("sun-under-deck","sun-grass-south"); connect("moon-hub","moon-ramp-side"); connect("moon-ramp-side","moon-under-deck"); connect("moon-under-deck","moon-grass-south");
 connect("sun-hub","sun-grass-north"); connect("sun-hub","sun-grass-south"); connect("moon-hub","moon-grass-north"); connect("moon-hub","moon-grass-south");
 for (let i = 1; i < 4; i += 1) { connect(`sun-spawn-${i}`, "sun-hub", "jump"); connect(`moon-spawn-${i}`, "moon-hub", "jump"); }
 for (const chain of [

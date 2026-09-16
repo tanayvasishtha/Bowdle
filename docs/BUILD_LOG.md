@@ -1,5 +1,29 @@
 # Build log
 
+## G2: Movement 2.0
+
+Status: done.
+
+Built:
+
+- Tuning: gravity 24, jump 8.4 (apex about 1.47 m), run 8.5, ground accel 14, friction 6.5, coyote 130 ms, jump buffer 140 ms. Grounded speed cap 16; airborne total cap 30.
+- Landing grace (30 % friction for 350 ms after landing above 9 m/s), vine hop (one air jump), wall jump (120 ms touch window, 400 ms cooldown, 3 before landing), mantle (0.6 to 2.0 m ledges, forward carry for 350 ms), and a dodge on Left Shift (1.6 s cooldown, rebindable, shown in the ability boxes).
+- Slides have no time limit: they lose 6 m/s per second, steer at 5, end below 3.5 m/s or after 350 ms airborne, cool down in 500 ms, and slide jumps multiply speed by 1.06.
+- Collision moves fast bodies in pieces of at most 0.28 m and snaps down stairs and ramps for a body that was on the ground.
+- Fall rule: 8 m below a map's lowest bound kills, credited to an enemy who hit the player in the last 5 s (KNOCKED OFF), otherwise LOST IN THE RAVINE. Kill messages gained the `fall` weapon.
+- The new movement state is part of `PlayerState`, so prediction replays it.
+- Camera kicks and generated sounds for vine hops, wall jumps, mantles and dodges.
+- Bots vine hop over long jump links, may dodge when hit, and back away first when wedged. Canopy Village gained ground waypoints around the narrow west ramps.
+
+Fixed:
+
+- Correction to the v1.0.0 log: the change that made ramps block as solid wedges never applied (the file had Windows line endings and the text replacement silently missed). It is in now. A body can no longer walk into a ramp's side or high end, and a body that lands overlapping a ramp can always walk out.
+- The bot ramp guide pulled bots standing on a deck at the top of a ramp back to the ramp end forever; it now only steers bots on the slope and stops once there.
+
+Verified: `npm run check` (245 tests, 16 new movement tests and 3 server tests), full Playwright suite (38 passed), `npm run soak` (9 matches, near-zero stuck time on every map), `npm run smoke`, `npm run build:portals`. Break it: dropping the wall jump limit fails its test.
+
+Left: the in-hand feel of the new numbers needs a human playtest.
+
 ## G1: Camera and hit feel
 
 Status: done.

@@ -1,4 +1,4 @@
-import { BOT_LONG_LINK_M, BOT_SLIDE_CHANCE, BOT_WAYPOINT_REACHED_M, BOT_WAYPOINT_REACHED_Y_M, STEP_HEIGHT } from "../constants.ts";
+import { BOT_LONG_LINK_M, BOT_VINE_HOP_GAP_M, BOT_VINE_HOP_REMAINING_M, BOT_SLIDE_CHANCE, BOT_WAYPOINT_REACHED_M, BOT_WAYPOINT_REACHED_Y_M, STEP_HEIGHT } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData, Waypoint, WaypointLink } from "../maps/types.ts";
 import { wrapAngle } from "../math/angles.ts";
@@ -60,7 +60,12 @@ export function followPath(player: PlayerSim, path: readonly Waypoint[], index: 
   const delta = wrapAngle(yaw - player.yaw); out.yaw = yaw; out.pitch = 0; out.moveZ = Math.max(0, Math.cos(delta)); out.moveX = Math.sin(delta);
   out.buttons = 0;
   const prior = path[Math.max(0, nextIndex - 1)]!; const link = linkTo(prior, target.id);
-  if (link?.kind === "jump") out.buttons |= BTN.JUMP;
+  if (link?.kind === "jump" || link?.kind === "mantle") {
+    // Hold jump on the ground; in the air, release it and vine hop over a long gap once the arc starts falling.
+    const gap = distance(prior, target);
+    if (player.grounded) out.buttons |= BTN.JUMP;
+    else if (gap > BOT_VINE_HOP_GAP_M && player.vy < 0 && player.airJumps > 0 && Math.hypot(target.pos[0] - player.x, target.pos[2] - player.z) > BOT_VINE_HOP_REMAINING_M && (player.prevButtons & BTN.JUMP) === 0) out.buttons |= BTN.JUMP;
+  }
   if (link?.kind === "zip") out.buttons |= BTN.USE;
   if (link?.kind === "walk" && distance(prior, target) >= BOT_LONG_LINK_M && rng() < BOT_SLIDE_CHANCE) out.buttons |= BTN.CROUCH;
   return nextIndex;

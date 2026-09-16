@@ -2,7 +2,7 @@ import { lockPointer } from "../game/pointerLock.ts";
 import type { MatchState } from "../../net/schema.ts";
 import type { KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage } from "../../net/messages.ts";
 import { HIT_FEEL as HIT, HUD_END_MAX_HEIGHT_VH, RETENTION_LOOK as L } from "../render/look.ts";
-import { GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS, KILL_FEEDBACK, MEDAL_LIMITS } from "../../shared/constants.ts";
+import { DODGE, GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS, KILL_FEEDBACK, MEDAL_LIMITS } from "../../shared/constants.ts";
 import type { KillFeedback } from "../../shared/killFeedback.ts";
 import { PostMatchSequence } from "./PostMatchSequence.ts";
 import type { MapData } from "../../shared/maps/types.ts";
@@ -80,7 +80,7 @@ export class MatchHud {
     for (const [id, player] of state.players) board += `${player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${id === sessionId ? "  YOU" : ""}\n`;
     this.scoreboard.textContent = board;
     const me = state.players.get(sessionId);
-    if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS)}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}`;
+    if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS)}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}${this.ability("SHIFT", "DODGE", me.dodgeCooldownMs, DODGE.cooldownMs)}`;
     if (state.phase === "end" || this.endPinned) { this.sequence.countdown(seconds); return; }
     this.sequence.stop();
     this.endPanel.style.display = "none";
@@ -110,7 +110,7 @@ export class MatchHud {
   }
   damaged(fromX: number, fromZ: number): void { this.damage.style.transform = `translate(-50%,-50%) rotate(${Math.atan2(fromZ, fromX)}rad)`; this.flash(this.damage); }
   kill(message: KillMessage, names: ReadonlyMap<string, string>): void {
-    const row = document.createElement("div"); row.textContent = `${names.get(message.killer) ?? message.killer}  ${message.weapon === "arrow" ? "➳" : message.weapon === "boulder" ? "●" : "🗡"}  ${names.get(message.victim) ?? message.victim}${message.headshot ? "  HEADSHOT" : ""}`;
+    const row = document.createElement("div"); row.textContent = `${names.get(message.killer) ?? message.killer}  ${message.weapon === "arrow" ? "➳" : message.weapon === "boulder" ? "●" : message.weapon === "fall" ? "↓" : "🗡"}  ${names.get(message.victim) ?? message.victim}${message.headshot ? "  HEADSHOT" : ""}`;
     this.feed.prepend(row); while (this.feed.childElementCount > 5) this.feed.lastElementChild?.remove();
   }
   end(message: MatchEndMessage, names: ReadonlyMap<string, string>, stats: EndStats, maps: readonly MapData[]): void {

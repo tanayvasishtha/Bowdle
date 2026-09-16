@@ -8,6 +8,7 @@ export const BTN = {
   GRAPPLE: 64,
   INK: 128,
   USE: 256,
+  DODGE: 512,
 } as const;
 
 export type PlayerInputFrame = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FLOOD_MS, JUMP_VELOCITY, MAX_HORIZONTAL_SPEED, RUN_SPEED, SLIDE_BOOST, WATER_SPEED_MULT } from "../constants.ts";
+import { FLOOD_MS, GRAVITY, JUMP_VELOCITY, MAX_HORIZONTAL_SPEED, RUN_SPEED, SLIDE_BOOST, WATER_SPEED_MULT } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData } from "../maps/types.ts";
 import { matchMaps } from "../maps/registry.ts";
@@ -42,8 +42,8 @@ describe("movement", () => {
       stepPlayer(state, idle, arena(), { nowMs: tick * 1000 / 30 });
       apex = Math.max(apex, state.y);
     }
-    expect(apex).toBeGreaterThan(JUMP_VELOCITY * JUMP_VELOCITY / 40 - 0.08);
-    expect(apex).toBeLessThan(JUMP_VELOCITY * JUMP_VELOCITY / 40 + 0.08);
+    expect(apex).toBeGreaterThan(JUMP_VELOCITY * JUMP_VELOCITY / (2 * GRAVITY) - 0.1);
+    expect(apex).toBeLessThan(JUMP_VELOCITY * JUMP_VELOCITY / (2 * GRAVITY) + 0.1);
   });
 
   it("air strafing gains speed but respects the cap", () => {
@@ -87,8 +87,10 @@ describe("movement", () => {
   it("walks smoothly up and down ramps", () => {
     const map = { ...arena(), ramps: [{ id: "ramp", min: [1, 0, -2], max: [5, 2, 2], up: "+x", material: "earth", tags: ["solid"] }] } as MapData;
     const state = createPlayerSim();
-    run(state, { ...idle, moveZ: 1 }, 25, map);
+    run(state, { ...idle, moveZ: 1 }, 14, map);
     expect(state.y).toBeGreaterThan(1);
+    expect(state.x).toBeLessThan(5);
+    expect(state.grounded).toBe(true);
     run(state, { ...idle, moveZ: -1 }, 25, map);
     expect(state.y).toBeCloseTo(0, 5);
     expect(state.grounded).toBe(true);

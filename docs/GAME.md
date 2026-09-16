@@ -34,7 +34,8 @@ Two teams: **Sun** (team 0, orange) and **Moon** (team 1, indigo). Warm sepia wo
 | Hold left mouse | Pull the bow back (draw). Release to fire |
 | R | Cancel the draw without firing |
 | Hold right mouse | Aim: zoom and move slower |
-| Space | Jump |
+| Space | Jump. In the air: vine hop, or wall jump right after touching a wall |
+| Left Shift | Dodge |
 | C or Left Ctrl | Crouch. While running fast: slide |
 | V | Dagger stab (cancels the draw) |
 | E | Grapple arrow (M7) |
@@ -68,20 +69,21 @@ Friction: `control = max(speed, STOP_SPEED)`, `newSpeed = max(0, speed - control
 
 | Name | Value | Notes |
 |---|---|---|
-| `GRAVITY` | 20 | m/s² |
-| `RUN_SPEED` | 8.0 | Ground wish speed |
+| `GRAVITY` | 24 | m/s² |
+| `RUN_SPEED` | 8.5 | Ground wish speed. Always run, no sprint key |
 | `CROUCH_SPEED` | 4.0 | |
 | `AIM_SPEED_MULT` | 0.75 | While aiming |
-| `GROUND_ACCEL` | 10 | |
+| `GROUND_ACCEL` | 14 | |
 | `AIR_ACCEL` | 70 | |
 | `AIR_WISH_CAP` | 1.0 | Wish speed cap in the air, allows air strafing |
-| `FRICTION` | 6 | |
+| `FRICTION` | 6.5 | |
 | `STOP_SPEED` | 3 | |
-| `JUMP_VELOCITY` | 7.0 | Apex about 1.22 m |
-| `MAX_HORIZONTAL_SPEED` | 14 | Hard cap, applied last every substep |
-| `STEP_HEIGHT` | 0.45 | Auto step-up on ledges and stairs |
-| `COYOTE_MS` | 100 | Jump still allowed this long after leaving ground |
-| `JUMP_BUFFER_MS` | 100 | Jump pressed slightly before landing still fires |
+| `JUMP_VELOCITY` | 8.4 | Apex about 1.47 m |
+| `MAX_HORIZONTAL_SPEED` | 16 | Cap while grounded and for player-controlled speed |
+| `ABSOLUTE_SPEED_CAP` | 30 | Cap on total speed in the air, including launches |
+| `STEP_HEIGHT` | 0.45 | Auto step-up and step-down on ledges and stairs |
+| `COYOTE_MS` | 130 | Jump still allowed this long after leaving ground |
+| `JUMP_BUFFER_MS` | 140 | Jump pressed slightly before landing still fires |
 | `PLAYER_WIDTH` | 0.7 | Collision box is width × height × width |
 | `STAND_HEIGHT` | 1.8 | |
 | `CROUCH_HEIGHT` | 1.0 | Also the slide height |
@@ -89,21 +91,33 @@ Friction: `control = max(speed, STOP_SPEED)`, `newSpeed = max(0, speed - control
 | `EYE_CROUCH` | 0.9 | |
 
 **Bunny hop:** on the first substep after landing, skip friction if jump is held or buffered.
+**Landing grace:** landing faster than 9 m/s applies 30 % friction for 350 ms.
+
+### Air moves (v2)
+
+| Move | Input | Rules |
+|---|---|---|
+| Vine hop | Jump in the air | Once per airtime; vertical speed 7.1; turns toward the input keeping at least 6.5 m/s. Restored on landing, wall jumps and rope launches |
+| Wall jump | Jump within 120 ms of touching a wall in the air | 7 m/s off the wall, keeps 40 % of speed along it, vertical speed 8.4; 400 ms cooldown; at most 3 before landing; restores the vine hop |
+| Mantle | Hold forward into a ledge in the air | Ledge top 0.6 to 2.0 m above the feet within 0.8 m, with room to stand; lifts to 0.4 m above the ledge and carries forward at 3 m/s for 350 ms; 600 ms cooldown |
+| Dodge | Shift (rebindable) | Ground or air; speed along the input (or forward) becomes at least 13, or current + 5; lifts to 1.5 m/s in the air; 1.6 s cooldown. Never changes the hitbox |
+
+**Collision:** bodies move in pieces of at most 0.28 m (up to 8 per substep), so nothing passes through thin walls at speed. Ramps are solid wedges: a body cannot walk into one from the side or the high end, and a body that lands overlapping one can always walk out.
+**Falling:** 8 m below a map's lowest bound kills. An enemy who damaged the player in the last 5 s gets the kill ("KNOCKED OFF"); otherwise the feed reads "LOST IN THE RAVINE".
 
 ### Slide
 
 | Name | Value | Notes |
 |---|---|---|
-| `SLIDE_MIN_SPEED` | 6.0 | Crouch pressed on ground above this speed starts a slide |
-| `SLIDE_BOOST` | 2.5 | Added along current velocity when the slide starts |
-| `SLIDE_MAX_SPEED` | 12 | Boost cannot push past this |
-| `SLIDE_FRICTION` | 0.8 | Replaces `FRICTION` while sliding |
-| `SLIDE_STEER_ACCEL` | 2 | Only steering allowed while sliding |
-| `SLIDE_MAX_MS` | 1100 | |
-| `SLIDE_END_SPEED` | 4.0 | Slide ends below this speed |
-| `SLIDE_COOLDOWN_MS` | 800 | No new boost until this passes |
-
-Jumping out of a slide keeps the momentum.
+| `SLIDE_MIN_SPEED` | 6.5 | Crouch pressed on ground above this speed starts a slide |
+| `SLIDE_BOOST` | 3 | Speed becomes min(start + 3, 12.5), never lower than the start |
+| `SLIDE_MAX_SPEED` | 12.5 | Boost cannot push past this |
+| `SLIDE_DECEL` | 6 | m/s lost per second while sliding; no time limit |
+| `SLIDE_STEER_ACCEL` | 5 | Only steering allowed while sliding |
+| `SLIDE_AIR_MS` | 350 | A slide ends after this long airborne |
+| `SLIDE_END_SPEED` | 3.5 | Slide ends below this speed |
+| `SLIDE_COOLDOWN_MS` | 500 | No new boost until this passes |
+| `SLIDE_JUMP_MULT` | 1.06 | Jumping out of a slide multiplies horizontal speed, up to the ground cap |
 
 ### Bow and arrows
 

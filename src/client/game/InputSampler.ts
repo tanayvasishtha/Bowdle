@@ -50,6 +50,7 @@ export class InputSampler {
     if (!this.paused && this.bound("grapple")) buttons |= BTN.GRAPPLE;
     if (!this.paused && this.bound("ink")) buttons |= BTN.INK;
     if (!this.paused && this.bound("use")) buttons |= BTN.USE;
+    if (!this.paused && this.bound("dodge")) buttons |= BTN.DODGE;
     out.buttons = buttons;
   }
 

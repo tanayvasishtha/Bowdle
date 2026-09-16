@@ -13,7 +13,7 @@ export type Box = {
 
 export type SpawnPoint = { pos: Vec3Tuple; yaw: number };
 export type MapNote = { text: string; pos: Vec3Tuple };
-export type WaypointLink = { to: string; kind: "walk" | "jump" | "drop" | "zip" | "grapple" };
+export type WaypointLink = { to: string; kind: "walk" | "jump" | "drop" | "zip" | "grapple" | "mantle" };
 export type Waypoint = { id: string; pos: Vec3Tuple; links: readonly WaypointLink[] };
 
 export type Ramp = { id: string; min: Vec3Tuple; max: Vec3Tuple; up: RampDirection; material: MaterialName; tags: readonly BoxTag[] };

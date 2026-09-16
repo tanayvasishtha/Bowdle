@@ -73,6 +73,7 @@ export class OnlineSession {
       shareUrl: policy.externalLinks ? (text) => shareOnXUrl(text) : undefined,
     });
     this.replay = new ReplayDirector(renderer.canvas.parentElement!);
+    this.cameraRig.onMove = (kind) => this.sounds.play(kind);
     this.sessionId = room.sessionId;
     this.input = room.input<PlayerInput>({ mode: "reliable", type: PlayerInput });
     this.predict = Predict.get(room, { mode: "lerp", delay: INTERP_DELAY_MS, renderPresent: false });
@@ -273,6 +274,8 @@ export class OnlineSession {
       this.markBodyArrow(victim.x, victim.y, victim.z);
     }
     if (message.weapon === "boulder" && message.killer === this.sessionId) this.hud.banner("TRAP!");
+    else if (message.weapon === "fall" && message.killer === this.sessionId) this.hud.banner("KNOCKED OFF");
+    else if (message.weapon === "fall" && message.victim === this.sessionId) this.hud.banner(message.killer === "Ravine" ? "LOST IN THE RAVINE" : "KNOCKED OFF");
     else if (message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
     else if (message.distance >= LONG_SHOT_M) { this.hud.banner("LONG SHOT!"); happyTime("longShot"); }
     if (message.killer === this.sessionId) {

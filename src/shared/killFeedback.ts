@@ -6,7 +6,7 @@ export class KillFeedbackTracker {
   bestStreak = 0;
   private chain = 0;
   private lastKillMs = Number.NEGATIVE_INFINITY;
-  kill(event: { atMs: number; headshot: boolean; distance: number; weapon: "arrow" | "dagger" | "boulder" }): KillFeedback {
+  kill(event: { atMs: number; headshot: boolean; distance: number; weapon: "arrow" | "dagger" | "boulder" | "fall" }): KillFeedback {
     this.chain = event.atMs >= this.lastKillMs && event.atMs - this.lastKillMs <= F.windowMs ? this.chain + 1 : 1;
     this.lastKillMs = event.atMs; this.streak += 1; this.bestStreak = Math.max(this.bestStreak, this.streak);
     const ticker = [`+${RETENTION_XP.kill} Tagged`];

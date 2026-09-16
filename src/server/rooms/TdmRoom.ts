@@ -47,6 +47,7 @@ import { BotController } from "../bots/BotController.ts";
 import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
 import { nameError } from "../../shared/name.ts";
+import { fallCreditFor, isOutOfWorld } from "../../shared/sim/fall.ts";
 import { serverMetrics } from "../metrics.ts";
 import { createMatchStats, recordDeath, recordKill, recordRobinHood, type MatchStats } from "../../shared/matchStats.ts";
 import { medalsFor } from "../../shared/medals.ts";
@@ -155,6 +156,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards);
       const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs })); if (!beforeZip && player.zipId) this.zipRideCount += 1;
     }
+    this.checkFalls();
     this.updateHazards(nowMs, context.dt);
     this.stepArrows(context);
     for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
@@ -258,7 +260,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
   }
 
-  private dealDamage(attackerId: string, targetId: string, damage: number, weapon: "arrow" | "dagger" | "boulder", headshot: boolean, fromX: number, fromZ: number, origin?: ArrowOrigin): void {
+  private dealDamage(attackerId: string, targetId: string, damage: number, weapon: "arrow" | "dagger" | "boulder" | "fall", headshot: boolean, fromX: number, fromZ: number, origin?: ArrowOrigin): void {
     const attacker = this.state.players.get(attackerId), target = this.state.players.get(targetId);
     if (!attacker || !target || attacker.team === target.team || target.spawnProtectMs > 0) return;
     const actual = Math.min(target.hp, damage);
@@ -384,10 +386,30 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   private killByWildBoulder(targetId: string, fromX: number, fromZ: number): void {
+    this.killByWorld(targetId, "Jungle", "boulder", fromX, fromZ);
+  }
+
+  private killByWorld(targetId: string, killer: string, weapon: "boulder" | "fall", fromX: number, fromZ: number): void {
     const target = this.state.players.get(targetId); if (!target || !applyDamage(target, MAX_HP, this.simulationNowMs)) return;
     target.deaths += 1; target.respawnAtMs = this.simulationNowMs + RESPAWN_MS;
     const stats = this.humanStats.get(targetId); if (stats) recordDeath(stats);
-    this.broadcast("kill", { killer: "Jungle", victim: targetId, weapon: "boulder", headshot: false, distance: Math.hypot(target.x - fromX, target.z - fromZ) });
+    this.damage.delete(targetId);
+    this.broadcast("kill", { killer, victim: targetId, weapon, headshot: false, distance: Math.hypot(target.x - fromX, target.z - fromZ) });
+  }
+
+  /** Falling out of the world kills. A recent attacker is credited ("KNOCKED OFF"); otherwise the ravine takes them. */
+  private checkFalls(): void {
+    for (const [id, player] of this.state.players) {
+      if (!player.alive || !isOutOfWorld(this.map, player.y)) continue;
+      const credited = fallCreditFor(this.damage.get(id)?.values() ?? [], this.simulationNowMs);
+      const attacker = credited ? this.state.players.get(credited) : undefined;
+      if (credited && attacker && attacker.team !== player.team) {
+        // Spawn protection cannot save a body that already left the world.
+        player.spawnProtectMs = 0;
+        this.dealDamage(credited, id, MAX_HP, "fall", false, player.x, player.z);
+      }
+      if (player.alive) this.killByWorld(id, "Ravine", "fall", player.x, player.z);
+    }
   }
 
 

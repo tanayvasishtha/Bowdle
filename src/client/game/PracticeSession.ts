@@ -215,6 +215,7 @@ export class PracticeSession {
     const alpha = this.accumulatorMs / tickMs;
     this.cameraRig.update(this.renderer.camera, this.previous, this.player, alpha, elapsed);
     this.renderer.setFeel(this.cameraRig.output.hurt, this.cameraRig.output.streaks);
+    this.cameraRig.onMove ??= (kind) => this.sounds.play(kind);
     const fraction = drawFraction(this.player.drawMs);
     this.renderer.setDrawFraction(fraction);
     this.renderer.setLocalTeam(0);

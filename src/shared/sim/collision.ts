@@ -1,4 +1,4 @@
-import { GROUND_SNAP, PLAYER_WIDTH, STEP_HEIGHT } from "../constants.ts";
+import { COLLISION_MAX_PIECES, COLLISION_MAX_STEP_M, GROUND_SNAP, MANTLE, PLAYER_WIDTH, STEP_HEIGHT } from "../constants.ts";
 import { rampHeightAt } from "../maps/ramps.ts";
 import type { MapData } from "../maps/types.ts";
 
@@ -65,6 +65,11 @@ function blockedByRamp(body: CollisionBody, map: MapData, x: number, z: number):
   return false;
 }
 
+/** Blocks moves into a ramp wedge. A body already inside one (after landing beside it) may always move, so it can get out. */
+function entersRamp(body: CollisionBody, map: MapData, x: number, z: number): boolean {
+  return blockedByRamp(body, map, x, z) && !blockedByRamp(body, map, body.x, body.z);
+}
+
 function moveX(body: CollisionBody, amount: number, map: MapData): void {
   if (amount === 0) return;
   let destination = body.x + amount;
@@ -78,6 +83,7 @@ function moveX(body: CollisionBody, amount: number, map: MapData): void {
     destination = amount > 0 ? Math.min(destination, boundary) : Math.max(destination, boundary);
     body.vx = 0;
   }
+  if (entersRamp(body, map, destination, body.z)) { body.vx = 0; return; }
   body.x = destination;
 }
 
@@ -94,6 +100,7 @@ function moveZ(body: CollisionBody, amount: number, map: MapData): void {
     destination = amount > 0 ? Math.min(destination, boundary) : Math.max(destination, boundary);
     body.vz = 0;
   }
+  if (entersRamp(body, map, body.x, destination)) { body.vz = 0; return; }
   body.z = destination;
 }
 
@@ -122,9 +129,31 @@ function moveY(body: CollisionBody, amount: number, map: MapData): void {
   body.y = destination;
 }
 
-export function movePlayer(body: CollisionBody, map: MapData, dt: number): void {
-  moveX(body, body.vx * dt, map);
-  moveZ(body, body.vz * dt, map);
+/** What the last movePlayer call ran into. Reused to avoid allocating per substep. */
+export const moveResult = { hitWall: false, wallNormalX: 0, wallNormalZ: 0 };
+
+function noteWall(normalX: number, normalZ: number): void {
+  moveResult.hitWall = true; moveResult.wallNormalX = normalX; moveResult.wallNormalZ = normalZ;
+}
+
+/** Highest solid top at most one step below the feet, under the body's footprint. */
+function supportBelow(body: CollisionBody, map: MapData): number | null {
+  let best: number | null = null;
+  for (const box of solidBoxes(map)) {
+    if (!overlapsRange(body.x - HALF_WIDTH, body.x + HALF_WIDTH, box.min[0], box.max[0])
+      || !overlapsRange(body.z - HALF_WIDTH, body.z + HALF_WIDTH, box.min[2], box.max[2])) continue;
+    const top = box.max[1];
+    if (top <= body.y + EPSILON && top >= body.y - STEP_HEIGHT - EPSILON && (best === null || top > best)) best = top;
+  }
+  return best;
+}
+
+function movePiece(body: CollisionBody, map: MapData, dt: number, supported: boolean): void {
+  const vx = body.vx, vz = body.vz;
+  moveX(body, vx * dt, map);
+  if (vx !== 0 && body.vx === 0) noteWall(vx > 0 ? -1 : 1, 0);
+  moveZ(body, vz * dt, map);
+  if (vz !== 0 && body.vz === 0) noteWall(0, vz > 0 ? -1 : 1);
   moveY(body, body.vy * dt, map);
   // A box that already holds the body up wins: snapping down onto a ramp here would sink the feet
   // into a deck that meets the ramp top, and the body would then fall through it.
@@ -133,10 +162,50 @@ export function movePlayer(body: CollisionBody, map: MapData, dt: number): void 
     const surface = rampHeightAt(ramp, body.x, body.z);
     if (standingOnBox && surface !== null && surface < body.y - EPSILON) continue;
     // Upward snaps reach a full step, matching what blockedByRamp lets a body walk into.
-    if (surface !== null && body.y >= surface - Math.max(GROUND_SNAP, STEP_HEIGHT) && body.y <= surface + GROUND_SNAP) {
+    // Downward snaps reach a full step only for a body that was already on the ground.
+    const below = supported ? STEP_HEIGHT : GROUND_SNAP;
+    if (surface !== null && body.y >= surface - Math.max(GROUND_SNAP, STEP_HEIGHT) && body.y <= surface + below) {
       body.y = surface;
       body.vy = 0;
       body.grounded = true;
     }
   }
+  // Walking down stairs keeps the feet on each step instead of hopping off it.
+  if (supported && !body.grounded && body.vy <= 0) {
+    const top = supportBelow(body, map);
+    if (top !== null && canOccupy(body, map, body.x, top + EPSILON, body.z)) {
+      body.y = top;
+      body.vy = 0;
+      body.grounded = true;
+    }
+  }
+}
+
+/**
+ * Moves a body by its velocity for dt. Fast bodies move in several pieces, none longer than
+ * COLLISION_MAX_STEP_M, so they cannot pass through thin walls.
+ */
+export function movePlayer(body: CollisionBody, map: MapData, dt: number): void {
+  moveResult.hitWall = false;
+  const speed = Math.hypot(body.vx, body.vy, body.vz);
+  const pieces = Math.min(COLLISION_MAX_PIECES, Math.max(1, Math.ceil((speed * dt) / COLLISION_MAX_STEP_M)));
+  const pieceDt = dt / pieces;
+  for (let piece = 0; piece < pieces; piece += 1) movePiece(body, map, pieceDt, body.grounded);
+}
+
+/**
+ * The top of a ledge the body can climb onto: a solid box `reach` ahead whose top is between
+ * MANTLE.minRise and MANTLE.maxRise above the feet, with room to stand on it.
+ */
+export function findMantleLedge(body: CollisionBody, map: MapData, directionX: number, directionZ: number): { x: number; z: number; top: number } | null {
+  const probeX = body.x + directionX * MANTLE.reach, probeZ = body.z + directionZ * MANTLE.reach;
+  let best: number | null = null;
+  for (const box of solidBoxes(map)) {
+    if (probeX < box.min[0] || probeX > box.max[0] || probeZ < box.min[2] || probeZ > box.max[2]) continue;
+    const rise = box.max[1] - body.y;
+    if (rise < MANTLE.minRise || rise > MANTLE.maxRise) continue;
+    if (best === null || box.max[1] < best) best = box.max[1];
+  }
+  if (best === null || !canOccupy(body, map, probeX, best + EPSILON, probeZ)) return null;
+  return { x: probeX, z: probeZ, top: best };
 }

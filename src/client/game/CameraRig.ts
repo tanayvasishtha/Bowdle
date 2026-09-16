@@ -6,6 +6,7 @@ import { loadSettings, type GameSettings } from "../settings.ts";
 import { CameraFeel, type FeelOutput, type KickKind } from "./cameraFeel.ts";
 
 const DEG = Math.PI / 180;
+export type MoveKind = "doubleJump" | "wallJump" | "mantle" | "dodge";
 const JUMP_KICK_MIN_DELTA_VY = 3;
 
 export class CameraRig {
@@ -16,6 +17,12 @@ export class CameraRig {
   private wasGrounded = true;
   private wasSliding = false;
   private lastVy = 0;
+  private lastAirJumps = 0;
+  private lastWallJumps = 0;
+  private lastMantleCooldown = 0;
+  private lastDodgeCooldown = 0;
+  /** Called for movement moves the body just made, so the session can play their sounds. */
+  onMove: ((kind: MoveKind) => void) | undefined;
   private lastOut: FeelOutput = this.feel.out;
 
   constructor() {
@@ -27,6 +34,11 @@ export class CameraRig {
   get currentFov(): number { return this.fov; }
 
   kick(kind: KickKind): void { this.feel.kickFov(kind); }
+
+  private move(kind: MoveKind): void {
+    if (kind === "doubleJump" || kind === "dodge") this.feel.kickFov(kind);
+    this.onMove?.(kind);
+  }
   hurt(damage: number): void { this.feel.hurt(damage); }
   shake(amount: number): void { this.feel.addShake(amount); }
 
@@ -40,6 +52,12 @@ export class CameraRig {
     if (current.vy - this.lastVy > JUMP_KICK_MIN_DELTA_VY && current.vy > 0) this.feel.kickFov("jump");
     if (current.grounded && !this.wasGrounded) this.feel.land(-this.lastVy);
     if (current.sliding && !this.wasSliding) this.feel.kickFov("slide");
+    if (current.airJumps < this.lastAirJumps && !current.grounded) this.move("doubleJump");
+    if (current.wallJumps > this.lastWallJumps) this.move("wallJump");
+    if (current.mantleCooldownMs > this.lastMantleCooldown) this.move("mantle");
+    if (current.dodgeCooldownMs > this.lastDodgeCooldown) this.move("dodge");
+    this.lastAirJumps = current.airJumps; this.lastWallJumps = current.wallJumps;
+    this.lastMantleCooldown = current.mantleCooldownMs; this.lastDodgeCooldown = current.dodgeCooldownMs;
     this.wasGrounded = current.grounded; this.wasSliding = current.sliding; this.lastVy = current.vy;
 
     const speed = Math.hypot(current.vx, current.vz);

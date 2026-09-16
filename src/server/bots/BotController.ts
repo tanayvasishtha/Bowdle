@@ -16,6 +16,7 @@ import {
   BOT_LONG_LINK_M,
   BOULDER_RADIUS,
   PLAYER_WIDTH,
+  BOT_DODGE_CHANCE,
   BOT_PROGRESS_M,
   BOT_PROGRESS_MS,
   BOT_STUCK_MS,
@@ -31,6 +32,7 @@ import { findPath, followPath, nearestWaypoint } from "../../shared/bots/nav.ts"
 import { rampHeightAt } from "../../shared/maps/ramps.ts";
 
 const RAMP_GUIDE_TOLERANCE_M = 0.5;
+const RAMP_GUIDE_DONE_M = 0.6;
 const BOT_TARGET_SWITCH_RATIO = 1.3;
 const BOT_UNSTUCK_MS = 500;
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
@@ -107,7 +109,9 @@ export class BotController {
   private lastZ = Number.NaN;
   private movedAtMs = 0;
   private unstuckUntilMs = 0;
+  private lastHp = Number.POSITIVE_INFINITY;
   private unstuckYaw = 0;
+  private unstuckCount = 0;
   private strafeFlip = false;
 
   constructor(id: string, seed: number, difficulty: BotDifficulty = "normal") {
@@ -137,9 +141,15 @@ export class BotController {
     this.avoidBoulders(player, map, hazards);
     if (nowMs - this.movedAtMs >= BOT_STUCK_MS) {
       // Wedged against something: turn aside and hop for a moment, and strafe the other way afterwards.
-      this.unstuckUntilMs = nowMs + BOT_UNSTUCK_MS; this.unstuckYaw = player.yaw + (this.rng() < 0.5 ? 1 : -1) * Math.PI / 2;
+      this.unstuckUntilMs = nowMs + BOT_UNSTUCK_MS;
+      // First back away from whatever is in front, then try the sides.
+      this.unstuckYaw = player.yaw + (this.unstuckCount % 2 === 0 ? Math.PI : (this.rng() < 0.5 ? 1 : -1) * Math.PI / 2);
+      this.unstuckCount += 1;
       this.strafeFlip = !this.strafeFlip; this.movedAtMs = nowMs;
     }
+    // Taking damage sometimes triggers a sideways dodge.
+    if (player.hp < this.lastHp && player.dodgeCooldownMs <= 0 && this.rng() < BOT_DODGE_CHANCE) { this.input.buttons |= BTN.DODGE; this.input.moveX = this.rng() < 0.5 ? -1 : 1; }
+    this.lastHp = player.hp;
     if (nowMs < this.unstuckUntilMs) { this.input.yaw = this.unstuckYaw; this.input.pitch = 0; this.input.moveX = 0; this.input.moveZ = 1; this.input.buttons = BTN.JUMP; }
     return this.input;
   }
@@ -155,12 +165,13 @@ export class BotController {
 
   private guideRamp(player: PlayerSim, map: MapData, target: PlayerSim | undefined): void {
     for (const ramp of map.ramps) {
-      if (player.x < ramp.min[0] - PLAYER_WIDTH || player.x > ramp.max[0] + PLAYER_WIDTH || player.z < ramp.min[2] - PLAYER_WIDTH || player.z > ramp.max[2] + PLAYER_WIDTH) continue;
-      // Only steer bots that are on the slope; a bot beside or below it follows its route instead.
-      const surface = rampHeightAt(ramp, Math.min(Math.max(player.x, ramp.min[0]), ramp.max[0]), Math.min(Math.max(player.z, ramp.min[2]), ramp.max[2]));
+      // Only steer bots standing on the slope itself. A bot beside it, below it, or on a deck at its top
+      // (where the clamped surface height matches the deck) follows its route instead.
+      const surface = rampHeightAt(ramp, player.x, player.z);
       if (surface === null || Math.abs(player.y - surface) > RAMP_GUIDE_TOLERANCE_M) continue;
       const destinationX = target ? (target.x < player.x ? ramp.min[0] : ramp.max[0]) : player.team === 0 ? ramp.max[0] : ramp.min[0];
       const destinationZ = (ramp.min[2] + ramp.max[2]) / 2, dx = destinationX - player.x, dz = destinationZ - player.z;
+      if (Math.hypot(dx, dz) < RAMP_GUIDE_DONE_M) continue;
       this.input.yaw = Math.atan2(-dx, -dz); this.input.pitch = 0; this.input.moveX = 0; this.input.moveZ = 1; return;
     }
   }

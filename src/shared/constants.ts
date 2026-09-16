@@ -20,33 +20,52 @@ export const DEV_GRANT_MAX = 100000;
 export const KILL_FEEDBACK = { windowMs: 4000, double: 2, triple: 3, jungle: 4, streakVisible: 2, tickerLines: 4 } as const;
 export const TICK_HZ = 30;
 export const SUBSTEPS = 2;
-export const GRAVITY = 20;
-export const RUN_SPEED = 8;
+// Movement 2.0 (V2-DESIGN.md section 3).
+export const GRAVITY = 24;
+export const RUN_SPEED = 8.5;
 export const CROUCH_SPEED = 4;
 export const AIM_SPEED_MULT = 0.75;
-export const GROUND_ACCEL = 10;
+export const GROUND_ACCEL = 14;
 export const AIR_ACCEL = 70;
 export const AIR_WISH_CAP = 1;
-export const FRICTION = 6;
+export const FRICTION = 6.5;
 export const STOP_SPEED = 3;
-export const JUMP_VELOCITY = 7;
-export const MAX_HORIZONTAL_SPEED = 14;
+/** Apex of about 1.47 m with GRAVITY 24. */
+export const JUMP_VELOCITY = 8.4;
+/** Cap for speed the player controls: running, air strafing and anything while grounded. */
+export const MAX_HORIZONTAL_SPEED = 16;
+/** Cap for every source together, including rope launches, while airborne. */
+export const ABSOLUTE_SPEED_CAP = 30;
 export const STEP_HEIGHT = 0.45;
-export const COYOTE_MS = 100;
-export const JUMP_BUFFER_MS = 100;
+export const COYOTE_MS = 130;
+export const JUMP_BUFFER_MS = 140;
+/** Landing fast keeps momentum: less friction for a moment. */
+export const LANDING_GRACE = { minSpeed: 9, ms: 350, frictionMult: 0.3 } as const;
+/** One extra jump in the air, restored on landing, wall jumps and rope launches. */
+export const VINE_HOP = { velocity: 7.1, minSpeed: 6.5, perAirtime: 1 } as const;
+export const WALL_JUMP = { touchMs: 120, cooldownMs: 400, push: 7, keepAlongWall: 0.4, velocity: 8.4, maxBeforeLanding: 3 } as const;
+/** pushMs: after a mantle starts, forward speed is held so the body carries onto the ledge once it clears the edge. */
+export const MANTLE = { minRise: 0.6, maxRise: 2, reach: 0.8, clearance: 0.4, forwardSpeed: 3, cooldownMs: 600, pushMs: 350, minForwardInput: 0.5 } as const;
+export const DODGE = { cooldownMs: 1600, boost: 5, minSpeed: 13, airLift: 1.5 } as const;
+/** Collision never moves a body more than this per piece, so fast bodies cannot tunnel. */
+export const COLLISION_MAX_STEP_M = 0.28;
+export const COLLISION_MAX_PIECES = 8;
+export const FALL = { belowBoundsM: 8, creditMs: 5000 } as const;
 export const PLAYER_WIDTH = 0.7;
 export const STAND_HEIGHT = 1.8;
 export const CROUCH_HEIGHT = 1;
 export const EYE_STAND = 1.62;
 export const EYE_CROUCH = 0.9;
-export const SLIDE_MIN_SPEED = 6;
-export const SLIDE_BOOST = 2.5;
-export const SLIDE_MAX_SPEED = 12;
-export const SLIDE_FRICTION = 0.8;
-export const SLIDE_STEER_ACCEL = 2;
-export const SLIDE_MAX_MS = 1100;
-export const SLIDE_END_SPEED = 4;
-export const SLIDE_COOLDOWN_MS = 800;
+export const SLIDE_MIN_SPEED = 6.5;
+export const SLIDE_BOOST = 3;
+export const SLIDE_MAX_SPEED = 12.5;
+/** Slides have no time limit; they lose this much speed per second. */
+export const SLIDE_DECEL = 6;
+export const SLIDE_STEER_ACCEL = 5;
+export const SLIDE_AIR_MS = 350;
+export const SLIDE_END_SPEED = 3.5;
+export const SLIDE_COOLDOWN_MS = 500;
+export const SLIDE_JUMP_MULT = 1.06;
 export const DRAW_MIN_MS = 120;
 export const DRAW_FULL_MS = 550;
 export const RELEASE_COOLDOWN_MS = 200;
@@ -163,6 +182,11 @@ export const BOULDER_SPAWN_CLEARANCE = 6;
 export const PROP_HIDE_DISTANCE = 90;
 export const BOT_STUCK_MS = 2500;
 export const BOT_STUCK_MOVE_M = 0.03;
+/** Bots vine hop on jump links longer than this, while still this far from the landing. */
+export const BOT_VINE_HOP_GAP_M = 3;
+export const BOT_VINE_HOP_REMAINING_M = 1.5;
+/** Chance a bot dodges right after taking damage. */
+export const BOT_DODGE_CHANCE = 0.2;
 /** A waypoint only counts as reached within this height, so a bot under a deck never "reaches" the deck. */
 export const BOT_WAYPOINT_REACHED_Y_M = 1.3;
 /** A bot that gets no closer to its waypoint for this long drops the route and plans again. */

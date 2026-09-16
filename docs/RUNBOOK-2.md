@@ -110,7 +110,7 @@ pass.
 Build milestone M5 only: bots. Read AGENTS.md, docs/MAP.md (Waypoints,
 Validation) and docs/GAME.md (Match).
 
-1. Author about 40 waypoints for Notebook Page as MAP.md describes and make
+1. Author the waypoint network for the current launch map as MAP.md describes and make
    validation rules 6 to 8 pass.
 2. src/shared/bots/nav.ts: A* over waypoints, and path following that outputs
    moveX, moveZ and yaw. Jump on jump links. Slide sometimes on long walk
@@ -158,7 +158,7 @@ Build milestone M6 only: highlight features. Read AGENTS.md, docs/GAME.md
    (player transforms, arrow positions) at 30 Hz. When the local player dies
    to an arrow, the death screen replays the last 1.2 s following the killing
    arrow at 0.35x speed, then shows the killer. Add a skip button. In the
-   Practice Range, your own kills over 30 m play the same replay as a small
+   Practice Camp, your own kills over 30 m play the same replay as a small
    picture-in-picture.
 2. Client-only effects: pinned bodies, ink splat on headshots, arrows stuck in
    bodies for 3 s, damage direction arcs.

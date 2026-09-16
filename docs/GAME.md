@@ -16,7 +16,7 @@ A fast team shooter drawn in blue ballpoint on notebook paper. Everyone has a bo
 
 | Mode | Milestone | Rules |
 |---|---|---|
-| Practice Range | M3 | Offline. Targets at fixed distances, moving targets, no timer |
+| Practice Camp | W6 | Offline. Targets and traversal stations, no timer |
 | Team Deathmatch | M4 | 4v4, bots fill empty slots, first team to 25 kills or most kills after 7 minutes |
 | Kill Confirmed | later | Not in v1 |
 | Capture the Flag | later | Not in v1 |
@@ -205,7 +205,7 @@ No friendly fire. No self damage.
 - Fastest kill: one full-draw headshot, about 0.55 s of drawing.
 - Two full-draw body shots: about 1.3 s.
 - Crossing the 60 m map: about 7.5 s running, about 5.5 s chaining slides and hops.
-- A new player should land a body shot on a bot within their first minute in the Practice Range.
+- A new player should land a body shot on a computer-controlled opponent within their first minute in the Practice Camp.
 
 ## Highlight features (later milestones)
 

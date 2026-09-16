@@ -34,14 +34,14 @@ npm run e2e                        # browser tests
 | Doc | Contents |
 |---|---|
 | [GAME.md](docs/GAME.md) | Rules, controls, every tuning number |
-| [MAP.md](docs/MAP.md) | Map format, Notebook Page layout, validation |
+| [MAP.md](docs/MAP.md) | Map format, launch layouts, validation |
 | [TECH.md](docs/TECH.md) | Stack, layout, scripts, tests, budgets |
 | [NETCODE.md](docs/NETCODE.md) | Server authority, prediction, lag compensation |
 | [WORLD.md](docs/WORLD.md) | Expedition Journal art direction and world systems |
 | [JUNGLE-MAPS.md](docs/JUNGLE-MAPS.md) | Launch maps and Practice Camp |
 | [RENDERING.md](docs/RENDERING.md) | The doodle shader pipeline |
 | [ECONOMY.md](docs/ECONOMY.md) | Accounts, cosmetics, payments, portal rules |
-| [RUNBOOK-1.md](docs/RUNBOOK-1.md) | Setup to Practice Range (M0 to M3) |
+| [RUNBOOK-1.md](docs/RUNBOOK-1.md) | Setup to Practice Camp (M0 to M3) |
 | [RUNBOOK-2.md](docs/RUNBOOK-2.md) | Online play and bots (M4a to M6) |
 | [RUNBOOK-3.md](docs/RUNBOOK-3.md) | Abilities to launch (M7 to M12) |
 

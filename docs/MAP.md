@@ -63,7 +63,7 @@ stairs(opts: {
 
 Build the Sun half of the map, then generate the Moon half with `mirrorX`. Boxes that cross `x = 0` must be symmetric on their own.
 
-## Map 1: Notebook Page (`notebook.ts`)
+## Archived prototype layout
 
 Play area 60 m by 40 m. Teams face each other along X. Sun spawns on the west (-X), Moon on the east (+X).
 
@@ -121,7 +121,7 @@ About 40 nodes, authored on the Sun half and mirrored. Required coverage: each s
 
 The stair and perch numbers above are a starting point. If validation fails, adjust positions by the smallest amount that passes and write down the change in the commit message.
 
-## Map 2: Practice Range (`range.ts`)
+## Practice Camp target lane (`camp.ts`)
 
 - A 20 m wide, 80 m long lane along -Z, player starts at `(0, 0, 0)` facing -Z.
 - Standing targets at 10, 20, 30, 45 and 60 m.
@@ -135,7 +135,7 @@ The stair and perch numbers above are a starting point. If validation fails, adj
 
 1. Every box has `min < max` on all three axes.
 2. Every box is inside `bounds`.
-3. Notebook Page is mirror symmetric across `x = 0` for all `solid` boxes (tolerance 1e-6).
+3. Every team arena is mirror symmetric across `x = 0` for all `solid` boxes (tolerance 1e-6).
 4. No spawn capsule overlaps a solid box, and every spawn has a solid top surface within 0.05 m below its feet.
 5. Adjacent stair steps differ in height by at most `STEP_HEIGHT`.
 6. The waypoint graph is connected.

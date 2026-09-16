@@ -1,4 +1,4 @@
-# Bowdle runbook, part 1: setup to Practice Range
+# Bowdle runbook, part 1: setup to Practice Camp
 
 How to use this: one milestone per Codex task. Paste the prompt, let it finish, review the diff, run **Verify** yourself, commit it yourself, then move on.
 
@@ -6,7 +6,7 @@ How to use this: one milestone per Codex task. Paste the prompt, let it finish, 
 
 | Part | Milestones |
 |---|---|
-| RUNBOOK-1 (this file) | Step 0, M0 scaffold, M1 renderer, M2 movement, M3 bow and Practice Range |
+| RUNBOOK-1 (this file) | Step 0, M0 scaffold, M1 renderer, M2 movement, M3 bow and Practice Camp |
 | RUNBOOK-2 | M4a online movement, M4b online combat, M5 bots, M6 highlight features |
 | RUNBOOK-3 | M7 abilities, M8 menus, M9 deploy, M10 accounts, M11 shop, M12 portals, recovery, launch checklist |
 
@@ -72,7 +72,7 @@ Open http://localhost:5173 (paper-colored page) and http://localhost:5173/health
 Build milestone M1 only: the doodle renderer and map data. Read AGENTS.md,
 docs/RENDERING.md and docs/MAP.md fully before writing code.
 
-1. src/shared/maps/types.ts, helpers.ts (mirrorX, stairs) and notebook.ts as
+1. src/shared/maps/types.ts, helpers.ts (mirrorX, stairs) and sunTemple.ts as
    MAP.md describes. Waypoints can be an empty array for now.
 2. src/shared/maps/validate.ts with rules 1 to 5 and 9 from MAP.md. Unit tests:
    notebook passes, plus one broken map per rule that fails that rule.
@@ -144,7 +144,7 @@ and docs/NETCODE.md (the PlayerState field list).
    CameraRig.ts (eye height, 80 ms crouch transition, FOV 90, aim FOV 65
    over 120 ms).
 8. Replace the M1 free-fly camera: the player spawns at red spawn 1 on the
-   Notebook Page.
+   launch arena.
 9. F3 overlay adds horizontal speed, grounded and sliding.
 
 No shooting, no networking. Stop when npm run check and npm run e2e pass.
@@ -163,14 +163,14 @@ No shooting, no networking. Stop when npm run check and npm run e2e pass.
 
 ---
 
-## M3: Bow, arrows, dagger and Practice Range
+## M3: Bow, arrows, dagger and Practice Camp
 
 **Prompt:**
 
 ```
-Build milestone M3 only: bow, arrows, dagger, targets and the Practice Range.
+Build milestone M3 only: bow, arrows, dagger, targets and the Practice Camp.
 Read AGENTS.md, docs/GAME.md (Bow and arrows, Hitboxes, Dagger, Health),
-docs/MAP.md (Practice Range) and docs/RENDERING.md (Meshes, HUD).
+docs/MAP.md (Practice Camp) and docs/RENDERING.md (Meshes, HUD).
 
 1. src/shared/sim/bow.ts: draw time from held FIRE (compare prevButtons),
    CANCEL, release cooldown, draw fraction, arrow speed and damage.
@@ -181,8 +181,8 @@ docs/MAP.md (Practice Range) and docs/RENDERING.md (Meshes, HUD).
    (head wins ties) using hitboxes.ts.
 3. src/shared/sim/hitboxes.ts, melee.ts (range, arc, backstab), health.ts
    (damage, regen, death).
-4. src/shared/maps/range.ts, passing validation.
-5. Practice Range at /?scene=range: standing targets at 10, 20, 30, 45 and
+4. src/shared/maps/camp.ts, passing validation.
+5. Practice Camp at /?scene=camp: standing targets at 10, 20, 30, 45 and
    60 m, moving targets at 25 m (4 m/s) and 40 m (7 m/s). Targets use player
    hitboxes, show damage numbers and respawn after 2 s.
 6. Rendering: flying arrows, stuck arrows for 8 s, viewmodel bow pulls back
@@ -194,13 +194,13 @@ docs/MAP.md (Practice Range) and docs/RENDERING.md (Meshes, HUD).
 8. Unit tests from docs/TECH.md: Arrows, Bow, Melee.
 9. With ?test, add window.__bowdleTest.fireAt(targetId, drawMs): aim the
    camera at the target's head, hold fire for drawMs, release.
-   tests/e2e/range.spec.ts: at /?scene=range&test, fireAt the 20 m target
+   tests/e2e/camp.spec.ts: at /?scene=camp&test, fireAt the 20 m target
    with 600 ms and assert it reports a headshot kill.
 
 No networking, no bots. Stop when npm run check and npm run e2e pass.
 ```
 
-**Verify:** `npm run check`, `npm run e2e`, then at http://localhost:5173/?scene=range:
+**Verify:** `npm run check`, `npm run e2e`, then at http://localhost:5173/?scene=camp:
 
 - A full-draw shot at 30 m drops visibly but lands near the crosshair.
 - A quick tap shot flies slower and drops much more.

@@ -27,7 +27,7 @@ pass v2, Floating notes) and docs/RENDERING.md.
 1. Rename teams everywhere: red to sun, green to moon (types, map spawns,
    palette, HUD text, messages, tests). Team indices stay 0 and 1.
 2. Replace ink ids with material ids as WORLD.md specifies. Boxes take a
-   material name. Map the current Notebook Page boxes to stone, wood and gold
+   material name. Map the current arena boxes to stone, wood and gold
    so it keeps rendering until the new maps exist.
 3. Add src/client/render/look.ts for render-only numbers, and add that
    exception to AGENTS.md.
@@ -46,14 +46,14 @@ pass v2, Floating notes) and docs/RENDERING.md.
    returns fractions by name. tests/e2e/render.spec.ts at /?scene=map&test:
    parchment + sky >= 0.35, all material washes together >= 0.10,
    sepia >= 0.02, legacy entries together < 0.01, zero console errors.
-9. Screenshots of /?scene=map, /?scene=range and an online match to
+9. Screenshots of /?scene=map, /?scene=camp and an online match to
    test-results/qa/w1/.
 
 Do not change gameplay, map layout or netcode.
 Stop when npm run check and npm run e2e pass.
 ```
 
-**Verify:** open `/?scene=map`, `/?scene=range` and an online match. Parchment sky, colored washes, sepia lines, no ruled lines anywhere. Teams read clearly as orange and indigo against the scenery.
+**Verify:** open `/?scene=map`, `/?scene=camp` and an online match. Parchment sky, colored washes, sepia lines, no ruled lines anywhere. Teams read clearly as orange and indigo against the scenery.
 
 **Break it on purpose:** make the composite return the old paper color for every surface. The wash fraction check must fail. Revert.
 
@@ -206,7 +206,7 @@ AGENTS.md and docs/JUNGLE-MAPS.md (Map 3, Practice Camp, Map rotation).
 2. src/shared/maps/camp.ts with every station. Practice mode uses it.
 3. A map registry by id. TdmRoom rotates sun-temple, canopy, lost-river.
    MatchState.mapId drives the client map build and changes each new match.
-4. Delete Notebook Page, the old Practice Range and every reference, test
+4. Delete the retired prototype arena and target lane and every reference, test
    and doc mention of them. History stays in git.
 5. Server tests: rotation order across three matches; the flood window slows
    a player in the river; a bots-only match reaches the end on each map.

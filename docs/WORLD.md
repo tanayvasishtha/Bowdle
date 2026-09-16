@@ -1,6 +1,6 @@
 # Bowdle world: Expedition Journal
 
-From milestone W1 on, this file replaces the notebook look in `RENDERING.md` and the Notebook Page map. W1 updates `RENDERING.md`, `MAP.md`, `GAME.md` and `AGENTS.md` to match it.
+From milestone W1 on, this file replaces the ruled-paper look in `RENDERING.md` and defines the launch-map presentation. W1 updates `RENDERING.md`, `MAP.md`, `GAME.md` and `AGENTS.md` to match it.
 
 ## Why the change
 

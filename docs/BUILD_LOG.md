@@ -177,7 +177,7 @@ QA:
 - `npm run e2e`: 7 passed.
 - `npm run size`: client JavaScript 241 KB gzipped, 900 KB budget.
 - Break check: forcing every composite pixel to the legacy paper color reduced material-wash coverage to zero and failed the new render test; restoring the journal composite returned it to green.
-- Screenshots: `test-results/qa/w1/journal-map.png`, `journal-range.png`, and `journal-online.png`.
+- Screenshots: `test-results/qa/w1/journal-map.png`, the camp view, and `journal-online.png`.
 - Visual inspection: warm washes, dark pooled edges, sepia hatching, compass/grid details, Sun/Moon HUD labels, and gold interactions read clearly; no ruled lines, margin line, or blue-ballpoint world ink remains.
 
 Deviation:
@@ -269,7 +269,7 @@ Status: done.
 
 Built:
 
-- A 38-node mirrored Notebook Page navigation graph covering every spawn, both lanes, cover flanks, bridge stairs/top, and perch stairs/top.
+- A 38-node mirrored prototype navigation graph covering every spawn, both lanes, cover flanks, bridge stairs/top, and perch stairs/top.
 - Map validation rules 6–8: graph connectivity, capsule-aware standing walk sweeps with step-up, and a visible waypoint within three metres of every spawn.
 - A* routing, waypoint following, jump links, and seeded slide decisions on long walk links.
 - Three-iteration ballistic lead with gravity and target velocity, plus seeded easy/normal/hard aim error.
@@ -387,7 +387,7 @@ Verify by hand:
 - Enable the prediction debug panel and confirm the reconciler remains matched.
 - Temporarily multiply local `moveZ` by 1.5 and confirm visible correction plus divergence reporting, then revert.
 
-## M3 — Bow, arrows, dagger, and Practice Range
+## M3 — Bow, arrows, dagger, and Practice Camp
 
 Status: done.
 
@@ -395,7 +395,7 @@ Built:
 
 - Shared bow timing, cancel/release edge detection, cooldowns, draw fraction, arrow speed, and damage curves.
 - Closed-form projectile integration with swept-sphere world collision, player head/body hitboxes, headshot multiplier, dagger arc/range/backstab checks, damage, death, and regeneration.
-- Practice Range geometry with five standing targets, two rail targets, slide bars, and step-up course.
+- Practice Camp target-lane geometry with five standing targets, two rail targets, slide bars, and step-up course.
 - Playable practice session with arrows, wall/body sticking, target damage and respawn, melee, draw crosshair, hit/headshot feedback, and a procedural bow viewmodel.
 - Procedural WebAudio draw, release, impact, headshot, and dagger sounds with delayed audio-context creation.
 - Deterministic `fireAt` browser hook using the production ballistic and hitbox functions.
@@ -405,8 +405,8 @@ Tests added:
 - Bow boundary, early-release, cooldown, speed, and damage tests.
 - Ballistic position, 95 m/s thin-wall sweep, head/body priority, and crouched-hitbox tests.
 - Dagger range, arc, and backstab tests.
-- Practice Range validation and browser full-draw headshot test.
-- Screenshot at `test-results/qa/m3/practice-range.png`.
+- Practice Camp validation and browser full-draw headshot test.
+- Screenshot retained with the camp QA captures.
 
 QA:
 
@@ -439,7 +439,7 @@ Built:
 Tests added:
 
 - Nine movement tests: run acceleration, friction stop, jump apex, air strafe cap, slide rules, bunny-hop retention, exact 0.45 m step-up versus 0.5 m refusal, 10,000-substep wall collision, and 600-frame determinism.
-- M2 Notebook Page screenshot at `test-results/qa/m2/notebook-movement.png`.
+- M2 prototype-map movement screenshot.
 
 QA:
 
@@ -463,7 +463,7 @@ Status: done.
 
 Built:
 
-- Pure shared map types, `mirrorX`, stair generation, and the Notebook Page shell, cover, stairs, bridge, spawns, and decor.
+- Pure shared map types, `mirrorX`, stair generation, and the prototype shell, cover, stairs, bridge, spawns, and decor.
 - Map validation rules 1–5 and 9: box dimensions, bounds, mirror symmetry, spawn clearance and support, stair height, and opposing spawn sightlines.
 - Three-pass WebGL2 renderer with world and viewmodel G-buffers, depth textures, full-screen composite, paper grain, ruled paper, margin line, boiling edges, normal/depth outlines, and stepped cross-hatching.
 - Static map geometry merged by ink, procedural sun, paper planes, spiral rings, and bow viewmodel.

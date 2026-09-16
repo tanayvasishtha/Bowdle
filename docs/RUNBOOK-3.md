@@ -53,7 +53,7 @@ docs/RENDERING.md (HUD, Accessibility) and docs/GAME.md (Controls).
 3. Settings saved in localStorage: mouse sensitivity, FOV (80 to 110), master
    volume, boil on or off, colorblind symbols, key rebinding for every action
    in GAME.md.
-4. First Practice Range visit shows 5 short prompts in order: move, jump,
+4. First Practice Camp visit shows 5 short prompts in order: move, jump,
    slide, draw and shoot the 10 m target, stab a target. Each prompt clears
    when done. Skippable.
 5. Match end screen: result, your kills, deaths and best shot distance, one

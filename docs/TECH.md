@@ -153,7 +153,7 @@ Use `boot(server)` in `beforeAll`, `cleanup()` in `beforeEach`, `shutdown()` in 
 Chromium only, headless, launched with `--use-angle=swiftshader`, `--enable-unsafe-swiftshader` and `--ignore-gpu-blocklist` so WebGL works without a GPU.
 
 - The page loads with zero console errors.
-- Practice Range renders: sample the canvas, at least 40% of pixels are paper color and at least 2% are ink color.
+- Practice Camp renders: sample the canvas, at least 40% of pixels are paper color and at least 2% are ink color.
 - Clicking Play joins a match and the HUD shows both team scores within 10 s.
 
 Tests never touch the internet. Seed every random source.

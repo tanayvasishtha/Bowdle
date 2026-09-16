@@ -11,7 +11,8 @@ describe("full computer-controlled match", () => {
   afterAll(async () => { await colyseus.shutdown(); });
 
   it("eight computer-controlled players finish within seven simulated minutes", async () => {
-    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Observer", testMapId: "sun-temple" }); await client.waitForInitialState();
+    const testBotSeed = Number(process.env.BOWDLE_BOT_SEED ?? 0);
+    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Observer", testMapId: "sun-temple", testBotSeed }); await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.replacePlayerWithBot(client.sessionId);
     const attacker = [...room.state.players].find(([, player]) => player.team === 0)!;
     const victim = [...room.state.players].find(([, player]) => player.team === 1)!;

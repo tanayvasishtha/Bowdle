@@ -45,7 +45,7 @@ import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBould
 import { nameError } from "../../shared/name.ts";
 import { serverMetrics } from "../metrics.ts";
 
-type JoinOptions = { name?: string; test?: boolean; mapId?: string; testMapId?: string };
+type JoinOptions = { name?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
@@ -82,8 +82,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly bots = new Map<string, BotController>();
   private readonly mapVotes = new Map<string, string>();
   private reportedPlayers = 0;
+  private botSeedBase = 0;
 
   onCreate(options: JoinOptions): void {
+    this.botSeedBase = Number.isFinite(options.testBotSeed) ? options.testBotSeed! : 0;
     const selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
     this.fixedMap = selected !== undefined;
     this.loadMap(selected ?? defaultMatchMap, 0);
@@ -325,7 +327,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const id = `bot-${this.botSerial += 1}`; const spawn = chooseSpawn(this.map, team, this.state.players.values());
     const player = source ?? new PlayerState(); player.name = `Doodle ${this.botSerial}`; player.team = team; player.isBot = true;
     if (!source) respawnPlayer(player, spawn);
-    this.state.players.set(id, player); this.bots.set(id, new BotController(id, this.botSerial));
+    this.state.players.set(id, player); this.bots.set(id, new BotController(id, this.botSeedBase + this.botSerial));
   }
 
   private fillBots(): void {

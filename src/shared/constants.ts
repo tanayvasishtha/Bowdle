@@ -145,3 +145,4 @@ export const PROP_HIDE_DISTANCE = 90;
 export const BOT_STUCK_MS = 2500;
 export const BOT_STUCK_MOVE_M = 0.03;
 export const SERVER_METRICS_MS = 10000;
+export const SERVER_TICK_BUDGET_MS = 3;

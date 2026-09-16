@@ -39,7 +39,7 @@ import type { MapData } from "../maps/types.ts";
 import { normalizeXZ, type Vec3 } from "../math/vec3.ts";
 import { canOccupy, findMantleLedge, movePlayer, moveResult } from "./collision.ts";
 import { stepCombat, type CombatEvent } from "./bow.ts";
-import { stepAbilityInput, stepGrapplePull, type AbilityEvent } from "./abilities.ts";
+import { enforceRopeLength, stepAbilityInput, stepGrappleForces, stepRopeSight, type AbilityEvent } from "./abilities.ts";
 import { isInWater } from "./volumes.ts";
 import { stepZipInput, stepZipRide } from "./zip.ts";
 
@@ -55,6 +55,7 @@ export type PlayerSim = {
   hp: number; alive: boolean; drawMs: number; releaseCooldownMs: number; meleeCooldownMs: number;
   prevButtons: number; lastDamageAtMs: number; spawnProtectMs: number; respawnAtMs: number;
   grappleCooldownMs: number; grappleActive: boolean; grappleX: number; grappleY: number; grappleZ: number; grappleMs: number; inkCooldownMs: number;
+  grappleLen: number; grappleBlockedMs: number; grappleReeling: boolean;
   zipId: string; zipT: number;
   kills: number; deaths: number; assists: number;
   bowSkin: string; arrowTrail: string; outfit: string; killEffect: string;
@@ -77,6 +78,7 @@ export function createPlayerSim(x = 0, y = 0, z = 0): PlayerSim {
     grounded: true, crouched: false, sliding: false, slideMs: 0, slideCooldownMs: 0, coyoteMs: COYOTE_MS, jumpBufferMs: 0,
     hp: MAX_HP, alive: true, drawMs: 0, releaseCooldownMs: 0, meleeCooldownMs: 0, prevButtons: 0, lastDamageAtMs: 0, spawnProtectMs: 0, respawnAtMs: 0,
     grappleCooldownMs: 0, grappleActive: false, grappleX: 0, grappleY: 0, grappleZ: 0, grappleMs: 0, inkCooldownMs: 0,
+    grappleLen: 0, grappleBlockedMs: 0, grappleReeling: false,
     zipId: "", zipT: 0,
     kills: 0, deaths: 0, assists: 0, bowSkin: "bow.default", arrowTrail: "trail.default", outfit: "outfit.default", killEffect: "effect.default",
     airJumps: VINE_HOP.perAirtime, wallJumps: 0, wallJumpCooldownMs: 0, wallTouchMs: WALL_TOUCH_IDLE_MS, wallNormalX: 0, wallNormalZ: 0,
@@ -202,7 +204,10 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
   state.yaw = input.yaw;
   state.pitch = input.pitch;
   stepZipInput(state, input, map);
+  const wasGrappling = state.grappleActive;
   const abilityEvents = stepAbilityInput(state, input, map, 1000 / TICK_HZ);
+  // A jump that launched off the rope is used up by the launch.
+  const launched = wasGrappling && !state.grappleActive && jumpPressed;
 
   for (let substep = 0; substep < SUBSTEPS; substep += 1) {
     state.wallJumpCooldownMs = Math.max(0, state.wallJumpCooldownMs - dtMs);
@@ -260,7 +265,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
       state.grounded = false;
       state.coyoteMs = 0;
       state.jumpBufferMs = 0;
-    } else if (substep === 0 && jumpPressed && !state.grounded && !state.zipId) {
+    } else if (substep === 0 && jumpPressed && !state.grounded && !state.zipId && !launched && !state.grappleActive) {
       // Air jumps: a wall jump when a wall was touched just now, otherwise the vine hop.
       if (state.wallTouchMs <= WALL_JUMP.touchMs && state.wallJumpCooldownMs <= 0 && state.wallJumps < WALL_JUMP.maxBeforeLanding) wallJump(state);
       else if (state.airJumps > 0) vineHop(state, inputMagnitude);
@@ -269,7 +274,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     if (substep === 0 && dodgePressed && state.dodgeCooldownMs <= 0 && !state.zipId) dodge(state, inputMagnitude);
 
     state.vy -= GRAVITY * dt;
-    stepGrapplePull(state, dt, dtMs);
+    stepGrappleForces(state, dt, dtMs, inputMagnitude > 0 ? wish.x : 0, inputMagnitude > 0 ? wish.z : 0);
     const wasGrounded = state.grounded;
     const landingSpeed = Math.hypot(state.vx, state.vz);
     movePlayer(state, map, dt);
@@ -278,6 +283,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     } else {
       state.wallTouchMs = Math.min(WALL_TOUCH_IDLE_MS, state.wallTouchMs + dtMs);
     }
+    enforceRopeLength(state, map);
     if (state.grounded) {
       state.coyoteMs = COYOTE_MS;
       state.airJumps = VINE_HOP.perAirtime;
@@ -294,6 +300,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     else if (state.grounded) capHorizontal(state, MAX_HORIZONTAL_SPEED);
     else capTotal(state, ABSOLUTE_SPEED_CAP);
   }
+  stepRopeSight(state, map, 1000 / TICK_HZ);
   const events: PlayerEvent[] = stepCombat(state, input, 1000 / TICK_HZ);
   events.push(...abilityEvents);
   state.prevButtons = input.buttons;

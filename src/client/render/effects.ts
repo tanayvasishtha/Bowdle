@@ -194,3 +194,46 @@ const scaleVector = new Vector3();
 const matrix = new Matrix4();
 const spinAxis = new Vector3();
 function axisFor(spin: Vector3): Vector3 { return spinAxis.copy(spin).normalize(); }
+
+const ropeUp = new Vector3(0, 1, 0);
+const ropeFrom = new Vector3();
+const ropeTo = new Vector3();
+const ropeMid = new Vector3();
+const ropeRotation = new Quaternion();
+const ropeScale = new Vector3();
+const ropeMatrix = new Matrix4();
+
+/** A rope drawn as thin ink-shaded segments through a list of points, so the journal pass outlines it like the world. */
+export class RopeMesh {
+  readonly mesh: InstancedMesh;
+  readonly points: Float32Array;
+  private readonly radius: number;
+
+  constructor(pointCount: number, radius: number) {
+    this.points = new Float32Array(pointCount * 3);
+    this.radius = radius;
+    this.mesh = new InstancedMesh(new BoxGeometry(1, 1, 1), new InkMaterial(MATERIAL_ID.rope), pointCount - 1);
+    this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+    this.mesh.frustumCulled = false;
+  }
+
+  /** Rebuilds the segments from points. thickness scales the radius, and the gap segment is left out, which is how a cut rope comes apart. */
+  update(thickness = 1, gap = -1): void {
+    const width = this.radius * 2 * thickness;
+    for (let segment = 0; segment < this.mesh.count; segment += 1) {
+      ropeFrom.fromArray(this.points, segment * 3); ropeTo.fromArray(this.points, segment * 3 + 3);
+      ropeMid.addVectors(ropeFrom, ropeTo).multiplyScalar(0.5);
+      ropeTo.sub(ropeFrom); const length = ropeTo.length();
+      if (length > 1e-6) ropeRotation.setFromUnitVectors(ropeUp, ropeTo.divideScalar(length)); else ropeRotation.identity();
+      if (segment === gap) ropeScale.set(0, 0, 0); else ropeScale.set(width, length + width, width);
+      this.mesh.setMatrixAt(segment, ropeMatrix.compose(ropeMid, ropeRotation, ropeScale));
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  dispose(parent: Object3D): void {
+    parent.remove(this.mesh);
+    this.mesh.geometry.dispose();
+    (this.mesh.material as InkMaterial).dispose();
+  }
+}

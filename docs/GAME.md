@@ -38,7 +38,7 @@ Two teams: **Sun** (team 0, orange) and **Moon** (team 1, indigo). Warm sepia wo
 | Left Shift | Dodge |
 | C or Left Ctrl | Crouch. While running fast: slide |
 | V | Dagger stab (cancels the draw) |
-| E | Grapple arrow (M7) |
+| E | Grapple: hold to reel, let go to swing |
 | Q | Ink cloud arrow (M7) |
 | Tab | Scoreboard |
 | Esc | Menu, releases mouse |
@@ -174,19 +174,31 @@ No friendly fire. No self damage.
 
 | Name | Value | Notes |
 |---|---|---|
-| `GRAPPLE_COOLDOWN_MS` | 7000 | |
-| `GRAPPLE_SPEED` | 120 | No gravity |
-| `GRAPPLE_RANGE` | 40 | Attaches only to boxes tagged `grapple` |
-| `GRAPPLE_PULL_ACCEL` | 35 | Toward the anchor |
-| `GRAPPLE_MAX_PULL_SPEED` | 22 | |
-| `GRAPPLE_MAX_MS` | 1600 | |
-| `GRAPPLE_RELEASE_DIST` | 1.5 | Auto release this close to the anchor |
-| `GRAPPLE_JUMP_BOOST` | 2 | Upward m/s added when released with jump |
+| `GRAPPLE_COOLDOWN_MS` | 5000 | Starts when the rope detaches |
+| `GRAPPLE_SPEED` | 120 | Speed of the drawn hook, no gravity |
+| `GRAPPLE_RANGE` | 45 | Attaches only to boxes tagged `grapple` |
 | `INK_CLOUD_COOLDOWN_MS` | 15000 | |
 | `INK_CLOUD_SPEED` | 35 | |
 | `INK_CLOUD_GRAVITY` | 15 | |
 | `INK_CLOUD_RADIUS` | 4.5 | Blocks vision and bot line of sight, never blocks arrows |
 | `INK_CLOUD_MS` | 6000 | |
+
+### Swing grapple (v2)
+
+The server owns the rope (`grappleX/Y/Z`, `grappleLen`, `grappleMs`, `grappleReeling`) and client prediction replays it like other movement. Numbers are in `GRAPPLE` in `src/shared/constants.ts`.
+
+| Step | Rule |
+|---|---|
+| Press E | The hook attaches at once to the first `grapple` box on the aim ray within 45 m. A miss costs a 1 s cooldown |
+| Attach | Rope length is 0.95 x the distance from the chest to the anchor, at least 2 m |
+| Hold E | Reel in at 12 m/s and pull at 38 m/s² along the rope, up to 22 m/s toward the anchor |
+| Let go of E | Swing: the body stays within the rope length, gravity is 0.9 x, and move input pushes 8 m/s² sideways while below the anchor |
+| Space | Let go and launch: speed along the current velocity +2 m/s, then +3 m/s up. Gives the vine hop back |
+| Crouch | Let go without a launch |
+| Auto detach | After 4.5 s attached, after the rope has been blocked by a solid box for 300 ms, or closer than 1.5 m |
+| Walls | The pull back to the rope length moves through collision; where a wall stops it the rope pays out instead of letting go |
+
+**Rope cut:** an enemy arrow step that passes within 0.25 m of a rope cuts it. The rope runs from the owner's chest, placed where the shooter last saw the owner, to the anchor. The owner drops, everyone gets a `ropeCut` message (snap effect and sound), the shooter sees ROPE CUT and earns 25 XP per cut in the match reward, and a cut earns the Snip medal.
 
 ### Match (Team Deathmatch)
 
@@ -220,7 +232,7 @@ XP, Ink, medals, challenges and the unlock track are defined in `docs/RETENTION.
 
 ### Medals
 
-MVP, Unstoppable, On a Roll, Headhunter, Eagle Eye, Robin Hood, Up Close, Trapper, Zipline Hero, Team Player and Untouchable. Conditions are in RETENTION.md.
+MVP, Unstoppable, On a Roll, Headhunter, Eagle Eye, Robin Hood, Up Close, Trapper, Zipline Hero, Team Player, Untouchable and Snip. Conditions are in RETENTION.md.
 
 ### In-match feedback
 

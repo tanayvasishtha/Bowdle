@@ -30,7 +30,7 @@ import { meleeHit } from "../../shared/sim/melee.ts";
 import { createPlayerSim, stepPlayer, type PlayerSim } from "../../shared/sim/movement.ts";
 import { JOURNAL_LOOK } from "../render/look.ts";
 import { SoundEffects } from "../audio/sfx.ts";
-import type { Renderer } from "../render/Renderer.ts";
+import { ropeSag, type Renderer } from "../render/Renderer.ts";
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { PracticeTutorial } from "../ui/tutorial.ts";
@@ -196,6 +196,7 @@ export class PracticeSession {
     if (input.moveX !== 0 || input.moveZ !== 0) this.tutorial.observe("move");
     if ((input.buttons & BTN.JUMP) !== 0) this.tutorial.observe("jump");
     if (this.player.sliding) this.tutorial.observe("slide");
+    if (this.player.grappleActive) this.tutorial.observe("grapple");
     for (const event of events) {
       if (event.type === "fire") this.fire(event);
       else this.melee();
@@ -223,6 +224,8 @@ export class PracticeSession {
     const radius = 18 - fraction * 12;
     this.crosshair.style.width = `${radius * 2}px`;
     this.crosshair.style.height = `${radius * 2}px`;
+    this.renderer.setGrappleRope("practice", this.player.grappleActive, this.player.x, this.player.y, this.player.z, this.player.grappleX, this.player.grappleY, this.player.grappleZ, ropeSag(this.player, this.player.x, this.player.y, this.player.z), true);
+    this.renderer.setGrappleHighlights(this.player.grappleCooldownMs <= 0 && !this.player.grappleActive);
     this.renderer.setDebugMovement(this.player);
     this.renderer.render(timeMs);
     requestAnimationFrame((time) => this.frame(time));

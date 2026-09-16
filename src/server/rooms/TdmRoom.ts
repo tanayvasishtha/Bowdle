@@ -25,6 +25,7 @@ import {
   TICK_HZ,
   WARMUP_MS,
   USE_DIST,
+  GRAPPLE,
 } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { kitMap } from "../../shared/maps/fixtures/kit.ts";
@@ -32,7 +33,7 @@ import type { MapData } from "../../shared/maps/types.ts";
 import { defaultMatchMap, mapById, matchMaps, nextMatchMap } from "../../shared/maps/registry.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
-import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RobinHoodMessage } from "../../net/messages.ts";
+import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RobinHoodMessage, type RopeCutMessage } from "../../net/messages.ts";
 import { gameDatabase, type MatchResultLine } from "../db/GameDatabase.ts";
 import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
 import { botDifficultyFor, type BotDifficulty, type HumanSkill } from "../../shared/bots/difficulty.ts";
@@ -44,19 +45,19 @@ import { meleeHit } from "../../shared/sim/melee.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { segmentDistance } from "../../shared/math/segments.ts";
 import { BotController } from "../bots/BotController.ts";
-import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
+import { releaseGrapple, ropeSegment, spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
 import { nameError } from "../../shared/name.ts";
 import { fallCreditFor, isOutOfWorld } from "../../shared/sim/fall.ts";
 import { serverMetrics } from "../metrics.ts";
-import { createMatchStats, recordDeath, recordKill, recordRobinHood, type MatchStats } from "../../shared/matchStats.ts";
+import { createMatchStats, recordDeath, recordKill, recordRobinHood, recordRopeCut, type MatchStats } from "../../shared/matchStats.ts";
 import { medalsFor } from "../../shared/medals.ts";
 import type { MatchStatsMessage } from "../../net/messages.ts";
 
 export const PARTY_ROOM = "party";
 
 type JoinOptions = { name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
 type ArrowOrigin = { x: number; z: number };
@@ -81,7 +82,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly hitTarget = { x: 0, y: 0, z: 0, height: STAND_HEIGHT, crouched: false };
   private readonly clashA0 = { x: 0, y: 0, z: 0 }; private readonly clashA1 = { x: 0, y: 0, z: 0 };
   private readonly clashB0 = { x: 0, y: 0, z: 0 }; private readonly clashB1 = { x: 0, y: 0, z: 0 };
-  readonly xpEvents: Array<{ type: "robinHood"; player: string }> = [];
+  readonly xpEvents: Array<{ type: "robinHood" | "ropeCut"; player: string }> = [];
+  private readonly ropeFrom = { x: 0, y: 0, z: 0 };
+  private readonly ropeTo = { x: 0, y: 0, z: 0 };
   zipRideCount = 0;
   private rewindState!: Rewind;
   private arrowSerial = 0;
@@ -218,6 +221,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
             if (hit && hit.t < earliest) { earliest = hit.t; targetId = candidateId; headshot = hit.kind === "head"; }
           }
         }
+        if (arrow.kind === "arrow" && !boulderBlocked) this.cutRopes(arrow, fromX, fromY, fromZ);
         if (targetId) {
           this.dealDamage(arrow.owner, targetId, arrow.damage * (headshot ? HEAD_MULT : 1), "arrow", headshot, fromX, fromZ, this.arrowOrigins.get(id));
           this.removeArrows.push(id);
@@ -229,6 +233,23 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       for (const id of this.removeArrows) this.deleteArrow(id);
       this.removeArrows.length = 0;
       this.resolveArrowClashes();
+    }
+  }
+
+  /** An enemy arrow passing close to a rope cuts it. The rope is placed where the shooter saw its owner. */
+  private cutRopes(arrow: ArrowState, fromX: number, fromY: number, fromZ: number): void {
+    const seen = this.rewindState.lastSeenBy(arrow.owner);
+    this.arrowFrom.x = fromX; this.arrowFrom.y = fromY; this.arrowFrom.z = fromZ;
+    this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
+    for (const [ownerId, owner] of this.state.players) {
+      if (!owner.grappleActive || owner.team === arrow.team || !owner.alive) continue;
+      ropeSegment(owner, this.ropeFrom, this.ropeTo);
+      this.ropeFrom.x = seen.value(owner, "x"); this.ropeFrom.y = seen.value(owner, "y") + owner.height * 0.5; this.ropeFrom.z = seen.value(owner, "z");
+      if (segmentDistance(this.arrowFrom, this.arrowTo, this.ropeFrom, this.ropeTo) >= GRAPPLE.cutRadius) continue;
+      releaseGrapple(owner, false);
+      this.xpEvents.push({ type: "ropeCut", player: arrow.owner });
+      const stats = this.humanStats.get(arrow.owner); if (stats) recordRopeCut(stats);
+      this.broadcast("ropeCut", { cutter: arrow.owner, owner: ownerId, x: arrow.x, y: arrow.y, z: arrow.z });
     }
   }
 

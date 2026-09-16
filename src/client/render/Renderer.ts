@@ -26,7 +26,8 @@ import type { CampTarget } from "../../shared/maps/camp.ts";
 import { defaultMatchMap } from "../../shared/maps/registry.ts";
 import { BODY_RADIUS, BOULDER_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
 import { mulberry32 } from "../../shared/math/rng.ts";
-import { ArrowTrailMesh, KillBurst } from "./effects.ts";
+import { ArrowTrailMesh, KillBurst, RopeMesh } from "./effects.ts";
+import { ROPE_LOOK } from "./look.ts";
 import { killEffect } from "../../shared/cosmetics.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
@@ -41,13 +42,20 @@ import { CharacterRig, characterLookKey, type CharacterLook, type CharacterKind 
 import type { CharacterMotion } from "./characters/pose.ts";
 import { Viewmodel } from "./characters/Viewmodel.ts";
 
+/** Straight while reeling; while swinging the rope hangs a little, more when it has slack. */
+export function ropeSag(player: Pick<PlayerSim, "grappleActive" | "grappleReeling" | "grappleX" | "grappleY" | "grappleZ" | "grappleLen" | "height">, x: number, y: number, z: number): number {
+  if (!player.grappleActive || player.grappleReeling) return 0;
+  const distance = Math.hypot(player.grappleX - x, player.grappleY - (y + player.height * 0.5), player.grappleZ - z);
+  return Math.min(ROPE_LOOK.maxSag, ROPE_LOOK.swingSag + Math.max(0, player.grappleLen - distance) * ROPE_LOOK.slackSagPerM);
+}
+
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
+const ropeHand = new Vector3();
 const arrowDirection = new Vector3();
 const symbolWorld = new Vector3();
 const viewDirection = new Vector3();
 const projectScratch = new Vector3();
-const ropePoints = 9;
 
 function mapMeshes(map: MapData): Mesh[] {
   const groups = new Map<MaterialName, BufferGeometry[]>();
@@ -169,8 +177,9 @@ export class Renderer {
   private readonly showcase: CharacterRig[] = [];
   private readonly trails = new Map<Group, ArrowTrailMesh>();
   private readonly bursts: KillBurst[] = [];
+  private readonly snaps: Array<{ rope: RopeMesh; base: Float32Array; cut: number; startMs: number }> = [];
   private readonly playerSymbols = new Map<string, { element: HTMLDivElement; team: number }>();
-  private readonly ropes = new Map<string, Line>();
+  private readonly ropes = new Map<string, RopeMesh>();
   private readonly clouds = new Map<string, Group>();
   private readonly grappleHighlights: Mesh[] = [];
   private readonly notes: Array<{ element: HTMLDivElement; world: Vector3; x: number; y: number; z: number }> = [];
@@ -423,20 +432,60 @@ export class Renderer {
   setZipAudio(speed: number): void { this.ambience.setZipSpeed(speed); }
   leverAudio(): void { this.ambience.leverClunk(); }
 
-  setGrappleRope(id: string, active: boolean, x: number, y: number, z: number, anchorX: number, anchorY: number, anchorZ: number): void {
+  /**
+   * sag is how far the middle of the rope hangs below the straight line, in meters.
+   * fromHand starts the rope at the local bow hand, since a rope from the eye would be seen end on.
+   */
+  setGrappleRope(id: string, active: boolean, x: number, y: number, z: number, anchorX: number, anchorY: number, anchorZ: number, sag = 0, fromHand = false): void {
     let rope = this.ropes.get(id);
-    if (!active) { if (rope) rope.visible = false; return; }
-    if (!rope) {
-      const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(new Float32Array(ropePoints * 3), 3));
-      rope = new Line(geometry, new LineBasicMaterial({ color: 0xf08a24 })); this.ropes.set(id, rope); this.worldScene.add(rope);
+    if (!active) { if (rope) rope.mesh.visible = false; return; }
+    if (!rope) { rope = new RopeMesh(ROPE_LOOK.points, ROPE_LOOK.radius); this.ropes.set(id, rope); this.worldScene.add(rope.mesh); }
+    rope.mesh.visible = true;
+    let startX = x, startY = y + EYE_STAND, startZ = z;
+    if (fromHand) {
+      this.camera.updateMatrixWorld();
+      ropeHand.set(...ROPE_LOOK.handOffset).applyMatrix4(this.camera.matrixWorld);
+      startX = ropeHand.x; startY = ropeHand.y; startZ = ropeHand.z;
     }
-    rope.visible = true;
-    const positions = rope.geometry.getAttribute("position") as BufferAttribute;
-    for (let index = 0; index < ropePoints; index += 1) {
-      const fraction = index / (ropePoints - 1), wobble = Math.sin(index * 2.7) * 0.07 * Math.sin(fraction * Math.PI);
-      positions.setXYZ(index, x + (anchorX - x) * fraction + wobble, y + EYE_STAND + (anchorY - y - EYE_STAND) * fraction, z + (anchorZ - z) * fraction - wobble);
+    for (let index = 0; index < ROPE_LOOK.points; index += 1) {
+      const fraction = index / (ROPE_LOOK.points - 1), arc = 4 * fraction * (1 - fraction);
+      const wobble = sag > 0 ? Math.sin(index * 2.7) * ROPE_LOOK.wobble * arc : 0;
+      rope.points[index * 3] = startX + (anchorX - startX) * fraction + wobble;
+      rope.points[index * 3 + 1] = startY + (anchorY - startY) * fraction - sag * arc;
+      rope.points[index * 3 + 2] = startZ + (anchorZ - startZ) * fraction - wobble;
     }
-    positions.needsUpdate = true;
+    rope.update();
+  }
+
+  /** Splits a player's rope at the cut: the piece on the owner's side drops, the anchor piece swings down, both thin away. */
+  snapRope(id: string, cutX: number, cutY: number, cutZ: number, nowMs = performance.now()): void {
+    const rope = this.ropes.get(id);
+    if (!rope?.mesh.visible) return;
+    let cut = 0, best = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < ROPE_LOOK.points; index += 1) {
+      const distance = Math.hypot(rope.points[index * 3]! - cutX, rope.points[index * 3 + 1]! - cutY, rope.points[index * 3 + 2]! - cutZ);
+      if (distance < best) { best = distance; cut = index; }
+    }
+    const piece = new RopeMesh(ROPE_LOOK.points, ROPE_LOOK.radius);
+    piece.points.set(rope.points); piece.update();
+    this.snaps.push({ rope: piece, base: Float32Array.from(rope.points), cut, startMs: nowMs }); this.worldScene.add(piece.mesh);
+    rope.mesh.visible = false;
+  }
+
+  snapCount(): number { return this.snaps.length; }
+
+  private updateSnaps(nowMs: number): void {
+    for (let index = this.snaps.length - 1; index >= 0; index -= 1) {
+      const snap = this.snaps[index]!, t = (nowMs - snap.startMs) / ROPE_LOOK.snapMs;
+      if (t >= 1) { snap.rope.dispose(this.worldScene); this.snaps.splice(index, 1); continue; }
+      const drop = ROPE_LOOK.snapFall * t * t, last = ROPE_LOOK.points - 1;
+      for (let point = 0; point <= last; point += 1) {
+        // Owner side falls freely; the anchor side hangs from the anchor, so it drops less near the anchor.
+        const weight = point <= snap.cut ? 1 : (last - point) / Math.max(1, last - snap.cut);
+        snap.rope.points[point * 3 + 1] = snap.base[point * 3 + 1]! - drop * weight;
+      }
+      snap.rope.update(1 - t, Math.min(snap.cut, last - 1));
+    }
   }
 
   setInkCloud(id: string, x: number, y: number, z: number, radius: number): void {
@@ -492,6 +541,7 @@ export class Renderer {
     for (const rig of this.players.values()) rig.update(seconds);
     for (const rig of this.targets.values()) rig.update(seconds);
     for (const rig of this.showcase) rig.update(seconds);
+    this.updateSnaps(timeMs);
     for (let index = this.bursts.length - 1; index >= 0; index -= 1) {
       const burst = this.bursts[index]!;
       if (!burst.update(timeMs)) { burst.dispose(this.worldScene); this.bursts.splice(index, 1); }

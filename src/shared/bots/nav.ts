@@ -46,7 +46,7 @@ export function findPath(map: MapData, startId: string, goalId: string): Waypoin
   return [];
 }
 
-function linkTo(point: Waypoint, targetId: string): WaypointLink | undefined {
+export function linkTo(point: Waypoint, targetId: string): WaypointLink | undefined {
   for (const link of point.links) if (link.to === targetId) return link;
   return undefined;
 }

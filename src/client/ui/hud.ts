@@ -80,7 +80,7 @@ export class MatchHud {
     for (const [id, player] of state.players) board += `${player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${id === sessionId ? "  YOU" : ""}\n`;
     this.scoreboard.textContent = board;
     const me = state.players.get(sessionId);
-    if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS)}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}${this.ability("SHIFT", "DODGE", me.dodgeCooldownMs, DODGE.cooldownMs)}`;
+    if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS, me.grappleActive ? (me.grappleReeling ? "REELING" : "SWINGING") : "")}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}${this.ability("SHIFT", "DODGE", me.dodgeCooldownMs, DODGE.cooldownMs)}`;
     if (state.phase === "end" || this.endPinned) { this.sequence.countdown(seconds); return; }
     this.sequence.stop();
     this.endPanel.style.display = "none";
@@ -161,13 +161,14 @@ export class MatchHud {
   feedback(result: KillFeedback): void {
     this.streakLine.textContent = result.streak >= KILL_FEEDBACK.streakVisible ? `Streak ${result.streak}` : "";
     this.endedStreak = result.endedAt;
-    for (const line of result.ticker) { const row = document.createElement("div"); row.textContent = line; this.ticker.append(row); while (this.ticker.childElementCount > KILL_FEEDBACK.tickerLines) this.ticker.firstElementChild?.remove(); }
+    for (const line of result.ticker) this.tickerLine(line);
     if (result.banner) this.banner(result.banner);
   }
+  tickerLine(text: string): void { const row = document.createElement("div"); row.textContent = text; this.ticker.append(row); while (this.ticker.childElementCount > KILL_FEEDBACK.tickerLines) this.ticker.firstElementChild?.remove(); }
   resetFeedback(): void { this.streakLine.textContent = ""; this.ticker.replaceChildren(); this.endedStreak = 0; }
   banner(text: string): void { for (const animation of this.moment.getAnimations()) animation.cancel(); this.moment.textContent = text; this.moment.animate([{ opacity: 0, transform: "translateX(-50%) scale(.7) rotate(-5deg)" }, { opacity: 1, transform: "translateX(-50%) scale(1.08) rotate(2deg)" }, { opacity: 0 }], { duration: L.bannerMs }); }
   setReplay(active: boolean): void { this.center.style.visibility = active ? "hidden" : "visible"; }
   feedText(): string { return this.feed.textContent ?? ""; }
-  private ability(key: string, label: string, remaining: number, total: number): string { const ready = remaining <= 0; return `<div class="bowdle-ability${ready ? " ready" : ""}">${key} · ${label}<br>${ready ? "READY" : `${(remaining / 1000).toFixed(1)}s`}<div style="height:3px;background:#e3b23c;width:${Math.round((1 - remaining / total) * 100)}%"></div></div>`; }
+  private ability(key: string, label: string, remaining: number, total: number, active = ""): string { const ready = remaining <= 0; return `<div class="bowdle-ability${ready ? " ready" : ""}">${key} · ${label}<br>${active || (ready ? "READY" : `${(remaining / 1000).toFixed(1)}s`)}<div style="height:3px;background:#e3b23c;width:${Math.round((1 - remaining / total) * 100)}%"></div></div>`; }
   private flash(element: HTMLElement): void { element.animate([{ opacity: 1 }, { opacity: 1, offset: 0.35 }, { opacity: 0 }], { duration: 500 }); }
 }

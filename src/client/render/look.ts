@@ -48,4 +48,7 @@ export const CAMERA_FEEL = {
 /** Screen-space shapes for the hurt vignette and speed streaks. */
 export const COMPOSITE_FEEL = { streakRays: 48, streakWidth: 0.08, streakDensity: 0.55, streakFlickerHz: 6, streakInner: 0.38, streakOuter: 0.75, hurtInner: 0.32, hurtOuter: 0.85 } as const;
 
+/** Grapple rope: sag while swinging, straight while reeling, and the two pieces that fall after a cut. */
+export const ROPE_LOOK = { radius: 0.025, points: 13, wobble: 0.07, swingSag: 0.3, slackSagPerM: 0.5, maxSag: 1.4, snapMs: 550, snapFall: 9, cutHideMs: 300, handOffset: [0.3, -0.32, -0.55] } as const;
+
 export const HIT_FEEL = { damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;

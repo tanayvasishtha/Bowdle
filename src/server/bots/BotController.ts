@@ -13,6 +13,7 @@ import {
   EYE_STAND,
   HEAD_RADIUS,
   GRAPPLE_RANGE,
+  BOT_GRAPPLE,
   BOT_LONG_LINK_M,
   BOULDER_RADIUS,
   PLAYER_WIDTH,
@@ -28,7 +29,7 @@ import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import type { MapData, Vec3Tuple, Waypoint } from "../../shared/maps/types.ts";
 import { mulberry32, type SeededRng } from "../../shared/math/rng.ts";
 import { solveProjectileLead, type AimSolution, type MovingTarget } from "../../shared/bots/aim.ts";
-import { findPath, followPath, nearestWaypoint } from "../../shared/bots/nav.ts";
+import { findPath, followPath, linkTo, nearestWaypoint } from "../../shared/bots/nav.ts";
 import { rampHeightAt } from "../../shared/maps/ramps.ts";
 
 const RAMP_GUIDE_TOLERANCE_M = 0.5;
@@ -93,6 +94,7 @@ export class BotController {
   private readonly targetPose: MovingTarget = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
   private path: Waypoint[] = [];
   private pathIndex = 0;
+  private readonly swingTarget = { x: 0, y: 0, z: 0 };
   private targetId = "";
   private sightedAtMs = 0;
   private releaseAtMs = 0;
@@ -271,13 +273,29 @@ export class BotController {
     }
     this.pathIndex = followPath(player, this.path, this.pathIndex, this.rng, this.input);
     this.watchProgress(player, nowMs);
-    if (player.grappleCooldownMs <= 0) this.useGrappleShortcut(player, map);
+    if (player.grappleActive) this.swing(player);
+    else if (player.grappleCooldownMs <= 0) this.useGrappleShortcut(player, map);
+  }
+
+  /** Reel in first, then swing toward the goal and launch once past the anchor, close to it, or after a while. */
+  private swing(player: PlayerSim): void {
+    const target = this.swingTarget;
+    const anchorX = player.grappleX, anchorZ = player.grappleZ;
+    const ropeLength = Math.hypot(anchorX - player.x, player.grappleY - (player.y + player.height * 0.5), anchorZ - player.z);
+    const pastAnchor = (player.x - anchorX) * (target.x - anchorX) + (player.z - anchorZ) * (target.z - anchorZ) > 0;
+    this.input.yaw = Math.atan2(-(target.x - player.x), -(target.z - player.z)); this.input.pitch = 0;
+    this.input.moveX = 0; this.input.moveZ = 1; this.input.buttons = 0;
+    if (ropeLength > BOT_GRAPPLE.launchDistM && player.grappleMs < BOT_GRAPPLE.reelMs) this.input.buttons = BTN.GRAPPLE;
+    else if ((pastAnchor || ropeLength <= BOT_GRAPPLE.launchDistM || player.grappleMs >= BOT_GRAPPLE.launchMs) && (player.prevButtons & BTN.JUMP) === 0) this.input.buttons = BTN.JUMP;
   }
 
   private useGrappleShortcut(player: PlayerSim, map: MapData): void {
-    const goal = this.path[this.path.length - 1]; if (!goal) return;
+    // A grapple link on the route is taken whenever an anchor gets closer to its end; otherwise only big shortcuts to the goal.
+    const prior = this.path[Math.max(0, this.pathIndex - 1)], next = this.path[this.pathIndex];
+    const onLink = prior && next && linkTo(prior, next.id)?.kind === "grapple";
+    const goal = onLink ? next : this.path[this.path.length - 1]; if (!goal) return;
     const direct = Math.hypot(goal.pos[0] - player.x, goal.pos[1] - player.y, goal.pos[2] - player.z);
-    let bestX = 0, bestY = 0, bestZ = 0, bestSaving = BOT_LONG_LINK_M;
+    let bestX = 0, bestY = 0, bestZ = 0, bestSaving = onLink ? 0 : BOT_LONG_LINK_M;
     for (const box of map.boxes) {
       if (!box.tags.includes("grapple")) continue;
       const x = (box.min[0] + box.max[0]) / 2, y = (box.min[1] + box.max[1]) / 2, z = (box.min[2] + box.max[2]) / 2;
@@ -286,7 +304,8 @@ export class BotController {
       const saving = direct - Math.hypot(goal.pos[0] - x, goal.pos[1] - y, goal.pos[2] - z);
       if (saving > bestSaving) { bestSaving = saving; bestX = x; bestY = y; bestZ = z; }
     }
-    if (bestSaving <= BOT_LONG_LINK_M) return;
+    if (bestSaving <= (onLink ? 0 : BOT_LONG_LINK_M)) return;
+    this.swingTarget.x = goal.pos[0]; this.swingTarget.y = goal.pos[1]; this.swingTarget.z = goal.pos[2];
     const dx = bestX - player.x, dz = bestZ - player.z, horizontal = Math.hypot(dx, dz);
     this.input.yaw = Math.atan2(-dx, -dz); this.input.pitch = Math.atan2(bestY - (player.y + EYE_STAND), horizontal); this.input.buttons |= BTN.GRAPPLE;
   }

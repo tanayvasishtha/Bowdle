@@ -32,7 +32,10 @@ declare global {
       killFeed?(): string;
       cloudCount?(): number;
       grappleActive?(): boolean;
-      aimAtGrapple?(): void;
+      grappleReeling?(): boolean;
+      ropeSnaps?(): number;
+      showRopeCut?(message: import("../net/messages.ts").RopeCutMessage): void;
+      aimAtGrapple?(minDistance?: number): void;
       stats?(): { drawCalls: number; triangles: number; renderScale: number };
       cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
       locker?: LockerTestHooks;
@@ -79,8 +82,12 @@ else if (params.get("scene") === "online") {
       killFeed: () => session.killFeed(),
       cloudCount: () => session.cloudCount(),
       grappleActive: () => session.grappleActive(),
-      aimAtGrapple: () => session.aimAtGrapple(),
+      grappleReeling: () => session.grappleReeling(),
+      ropeSnaps: () => renderer.snapCount(),
+      showRopeCut: (message) => session.showRopeCut(message),
+      aimAtGrapple: (minDistance) => session.aimAtGrapple(minDistance),
       stats: () => renderer.stats(),
+      cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
       showEndScreen: () => session.showEndScreen(),
       showKill: (message, atMs) => session.showKill(message, atMs),
       showHitConfirm: (message) => session.showHitConfirm(message),

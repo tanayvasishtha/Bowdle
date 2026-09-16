@@ -1,7 +1,7 @@
-export type TutorialEvent = "move" | "jump" | "slide" | "shoot10" | "stab";
+export type TutorialEvent = "move" | "jump" | "slide" | "shoot10" | "stab" | "grapple";
 
-const EVENTS: readonly TutorialEvent[] = ["move", "jump", "slide", "shoot10", "stab"];
-const PROMPTS = ["WASD · move through camp", "SPACE · jump", "Run + C · slide", "Hold, then release · shoot the 10 m target", "V · stab a target"] as const;
+const EVENTS: readonly TutorialEvent[] = ["move", "jump", "slide", "shoot10", "stab", "grapple"];
+const PROMPTS = ["WASD · move through camp", "SPACE · jump", "Run + C · slide", "Hold, then release · shoot the 10 m target", "V · stab a target", "E at a gold beam · hold to reel, let go to swing, SPACE to launch"] as const;
 const STORAGE_KEY = "bowdle.practice.complete";
 
 export class PracticeTutorial {

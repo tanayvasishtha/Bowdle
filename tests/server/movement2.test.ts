@@ -34,6 +34,24 @@ describe("movement 2.0 online", () => {
     expect(dodged).toBe(true);
   });
 
+  it("steps the synced player state exactly like the plain simulation through a reel, swing and launch", () => {
+    const synced = new PlayerState(); synced.x = -20; synced.y = 0; synced.z = 5;
+    const direct = createPlayerSim(-20, 0, 5);
+    const buttonsAt = (frame: number): number => (frame < 12 ? BTN.GRAPPLE : 0) | (frame === 40 ? BTN.JUMP : 0);
+    let swung = 0;
+    for (let frame = 0; frame < 60; frame += 1) {
+      const input = { moveX: 0, moveZ: frame >= 12 ? 1 : 0, yaw: -Math.PI / 2, pitch: 0.1, buttons: buttonsAt(frame) };
+      stepPlayer(synced, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(direct, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      if (direct.grappleActive && !direct.grappleReeling) swung += 1;
+      for (const key of ["x", "y", "z", "vx", "vy", "vz", "grappleActive", "grappleLen", "grappleMs", "grappleBlockedMs", "grappleReeling", "grappleCooldownMs", "airJumps"] as const) {
+        expect(synced[key], `${key} at frame ${frame}`).toBe(direct[key]);
+      }
+    }
+    expect(swung).toBeGreaterThan(0);
+    expect(direct.grappleCooldownMs).toBeGreaterThan(0);
+  });
+
   it("sends the new movement state to the client", async () => {
     const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Hopper", test: true });
     await client.waitForInitialState();

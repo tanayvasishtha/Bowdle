@@ -56,6 +56,7 @@ Replaces `MATCH_XP` in `src/shared/progression.ts`. Ink is unchanged.
 | Assist | 25 |
 | Headshot kill (on top of the kill) | 25 |
 | Long shot kill (on top of the kill) | 25 |
+| Rope cut (v2) | 25 |
 | Win | 200 |
 | Each medal, up to 4 | 25 |
 | First win of the UTC day | 100 XP and 20 Ink |
@@ -79,6 +80,7 @@ Computed by a pure function `medalsFor(stats, roomBestKills)` in `src/shared/med
 | `zipline` | Zipline Hero | `zipKills` >= 1 |
 | `teamPlayer` | Team Player | `assists` >= 4 |
 | `untouchable` | Untouchable | `won`, `deaths` = 0, `kills` >= 3 |
+| `snip` | Snip | `ropeCuts` >= 1 (v2) |
 
 ## Challenges
 

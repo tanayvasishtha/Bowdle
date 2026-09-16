@@ -32,6 +32,7 @@ export function matchReward(line: MatchLine & Partial<MatchStats>, medals: reado
     { label: "Assists", xp: MATCH_XP.assist * assists, ink: 0 },
     { label: "Headshots", xp: MATCH_XP.headshot * count(line.headshots ?? 0), ink: 0 },
     { label: "Long shots", xp: MATCH_XP.longShot * count(line.longShots ?? 0), ink: 0 },
+    { label: "Rope cuts", xp: MATCH_XP.ropeCut * count(line.ropeCuts ?? 0), ink: 0 },
     { label: "Win", xp: line.won ? MATCH_XP.win : 0, ink: line.won ? MATCH_INK.win : 0 },
     { label: "Medals", xp: MATCH_XP.medal * Math.min(MATCH_XP.maxMedals, medals.length), ink: 0 },
   ];

@@ -1,5 +1,23 @@
 # Build log
 
+## G3: Swing grapple and rope cutting
+
+Status: done.
+
+Built:
+
+- The grapple is a rope now: press E to attach, hold to reel (12 m/s, pull up to 22 m/s), let go to swing on a length constraint with 0.9 x gravity and sideways push, Space to launch (+2 m/s along, +3 m/s up, vine hop back), crouch to let go. Auto detach after 4.5 s, 300 ms of blocked line of sight, or within 1.5 m. Range 45 m, cooldown 5 s from detach, 1 s after a miss.
+- Rope state is synced (`grappleLen`, `grappleBlockedMs`, `grappleReeling`), so prediction replays reels, swings and launches.
+- The pull back to the rope length moves through collision, so a rope can never drag a body through a wall; a wall makes the rope pay out.
+- Rope cuts on the server: enemy arrow steps within 0.25 m of a rope, placed where the shooter saw its owner. `ropeCut` message, ROPE CUT banner and ticker line, "Rope cuts" reward line (25 XP each), `ropeCuts` stat and the Snip medal.
+- Rendering: ropes are ink-shaded segments (the old line material was drawn in the wrong color by the journal pass and barely showed). The rope hangs a little while swinging and is straight while reeling, the local rope starts at the bow hand, and a cut splits the rope into two pieces that fall and thin away with the snap sound. HUD shows REELING and SWINGING. Practice camp draws the rope too.
+- Bots reel toward an anchor, swing toward their goal and launch once past the anchor, close to it, or after 1.8 s. Grapple links on a route are taken whenever an anchor gets closer to the link's end. In a 3 minute bots-only match they attach 54 to 201 times, most ending in a launch, and cut 6 to 22 ropes.
+- Field lesson gained a last step for the grapple; the controls list says "Grapple (hold to reel)".
+
+Verified: `npm run check` (254 tests), full Playwright suite (39 tests) with the new `grapple.spec.ts` (reel, swing, cut, screenshots in `test-results/qa/g3/`), `npm run soak` (all maps, stuck time 0 to 2 s), `npm run smoke`, `npm run build:portals`. Swing prediction is checked by a schema versus plain simulation test over a reel, swing and launch, plus the online grapple test. Break it: skipping the length constraint while the body moves away fails the rope length and swing tests.
+
+Left: the hook still attaches at once (the drawn hook only shows travel). A human playtest of swing feel on Canopy Village.
+
 ## G2: Movement 2.0
 
 Status: done.

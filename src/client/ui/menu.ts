@@ -7,7 +7,7 @@ import { showPartyPanel } from "./party.ts";
 
 const LABELS: Record<Action, string> = {
   forward: "Move forward", back: "Move back", left: "Move left", right: "Move right", jump: "Jump", crouch: "Crouch / slide",
-  draw: "Draw / fire", aim: "Aim", cancel: "Cancel draw", melee: "Dagger", grapple: "Grapple", ink: "Ink cloud", use: "Use", dodge: "Dodge",
+  draw: "Draw / fire", aim: "Aim", cancel: "Cancel draw", melee: "Dagger", grapple: "Grapple (hold to reel)", ink: "Ink cloud", use: "Use", dodge: "Dodge",
   scoreboard: "Scoreboard", menu: "Menu", debug: "Debug overlay",
 };
 

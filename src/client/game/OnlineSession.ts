@@ -1,15 +1,15 @@
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
-import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, ZIP_SPEED } from "../../shared/constants.ts";
+import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
 import { defaultMatchMap, mapById, matchMaps } from "../../shared/maps/registry.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
-import { stepPlayer } from "../../shared/sim/movement.ts";
+import { createPlayerSim, stepPlayer } from "../../shared/sim/movement.ts";
 import { spawnArrow, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
-import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage, RobinHoodMessage } from "../../net/messages.ts";
+import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage, RobinHoodMessage, RopeCutMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
-import type { Renderer } from "../render/Renderer.ts";
+import { ropeSag, type Renderer } from "../render/Renderer.ts";
 import { MatchHud } from "../ui/hud.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { happyTime } from "../platform/web.ts";
@@ -21,14 +21,15 @@ import { ClipRecorder, clipsSupported, downloadBlob, shareOnXUrl } from "./clips
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { ReplayDirector } from "./ReplayDirector.ts";
-import { spawnAbilityProjectile } from "../../shared/sim/abilities.ts";
+import { spawnAbilityProjectile, tryAttachGrapple } from "../../shared/sim/abilities.ts";
 import { drawFraction } from "../../shared/sim/bow.ts";
 import { KillFeedbackTracker } from "../../shared/killFeedback.ts";
 import { isInWater } from "../../shared/sim/volumes.ts";
 import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
 import { createMotion } from "../render/characters/pose.ts";
+import { ROPE_LOOK } from "../render/look.ts";
 
-export type RenderedPlayer = { id: string; team: number; x: number; y: number; z: number };
+export type RenderedPlayer = { id: string; team: number; x: number; y: number; z: number; grapple?: [number, number, number] };
 type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "grapple" | "ink" };
 type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number };
 
@@ -110,6 +111,7 @@ export class OnlineSession {
     room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
+    room.onMessage<RopeCutMessage>("ropeCut", (payload) => { const parsed = RopeCutMessage.safeParse(payload); if (parsed.success) this.onRopeCut(parsed.data); });
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
@@ -199,7 +201,8 @@ export class OnlineSession {
       );
       this.renderer.setPlayerMotion(id, motionFromSim(this.motionScratch, player, isInWater(this.map, player.x, player.y, player.z, serverNow)));
       if (player.alive) this.renderer.unpinPlayer(id);
-      this.renderer.setGrappleRope(id, player.grappleActive, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"), player.grappleX, player.grappleY, player.grappleZ);
+      const ropeX = this.predict.value(player, "x"), ropeY = this.predict.value(player, "y"), ropeZ = this.predict.value(player, "z");
+      this.renderer.setGrappleRope(id, player.grappleActive && !this.recentlyCut(id, timeMs), ropeX, ropeY, ropeZ, player.grappleX, player.grappleY, player.grappleZ, ropeSag(player, ropeX, ropeY, ropeZ), id === this.sessionId);
       if (capture) this.replay.player(id, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"), this.predict.value(player, "yaw"));
     }
     this.renderArrows(timeMs, capture);
@@ -245,6 +248,25 @@ export class OnlineSession {
     this.lookScratch.bow = player.bowSkin; this.lookScratch.outfit = player.outfit;
     return this.lookScratch;
   }
+
+  private readonly ropeCuts = new Map<string, number>();
+  private recentlyCut(id: string, nowMs: number): boolean {
+    const at = this.ropeCuts.get(id); if (at === undefined) return false;
+    if (nowMs - at < ROPE_LOOK.cutHideMs) return true;
+    this.ropeCuts.delete(id); return false;
+  }
+
+  private onRopeCut(message: RopeCutMessage, nowMs = performance.now()): void {
+    this.renderer.snapRope(message.owner, message.x, message.y, message.z, nowMs);
+    this.ropeCuts.set(message.owner, nowMs);
+    this.sounds.play("ropeSnap");
+    if (message.cutter === this.sessionId) { this.hud.banner("ROPE CUT"); this.hud.tickerLine(`+${RETENTION_XP.ropeCut} Rope cut`); }
+    else if (message.owner === this.sessionId) this.hud.banner("ROPE CUT!");
+  }
+
+  /** Test hook: shows a rope cut as if the server had sent it. */
+  showRopeCut(message: RopeCutMessage): void { this.onRopeCut(RopeCutMessage.parse(message)); }
+  grappleReeling(): boolean { return this.me.state.grappleReeling; }
 
   private onHitConfirm(message: HitConfirmMessage): void {
     this.hud.hit(message.headshot);
@@ -302,6 +324,7 @@ export class OnlineSession {
       x: this.predict.value(player, "x"),
       y: this.predict.value(player, "y"),
       z: this.predict.value(player, "z"),
+      ...(player.grappleActive ? { grapple: [player.grappleX, player.grappleY, player.grappleZ] as [number, number, number] } : {}),
     });
     return result;
   }
@@ -320,16 +343,21 @@ export class OnlineSession {
   killFeed(): string { return this.hud.feedText(); }
   cloudCount(): number { return this.room.state.inkClouds.size; }
   grappleActive(): boolean { return this.me.state.grappleActive; }
-  aimAtGrapple(): void {
-    let x = 0, y = 0, z = 0, bestDistance = Number.POSITIVE_INFINITY;
+  /** Test hook: looks at the nearest grapple anchor the hook really reaches, at least minDistance away. */
+  aimAtGrapple(minDistance = 0): void {
+    const state = this.me.state, probe = createPlayerSim(state.x, state.y, state.z);
+    const anchors: Array<{ distance: number; yaw: number; pitch: number }> = [];
     for (const box of this.map.boxes) {
       if (!box.tags.includes("grapple")) continue;
-      const candidateX = (box.min[0] + box.max[0]) / 2, candidateY = (box.min[1] + box.max[1]) / 2, candidateZ = (box.min[2] + box.max[2]) / 2;
-      const distance = Math.hypot(candidateX - this.me.state.x, candidateY - this.me.state.y, candidateZ - this.me.state.z);
-      if (distance < bestDistance) { bestDistance = distance; x = candidateX; y = candidateY; z = candidateZ; }
+      const x = (box.min[0] + box.max[0]) / 2, y = (box.min[1] + box.max[1]) / 2, z = (box.min[2] + box.max[2]) / 2;
+      const dx = x - state.x, dz = z - state.z;
+      anchors.push({ distance: Math.hypot(dx, y - state.y, dz), yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(y - (state.y + EYE_STAND), Math.hypot(dx, dz)) });
     }
-    if (!Number.isFinite(bestDistance)) return;
-    const dx = x - this.me.state.x, dz = z - this.me.state.z, horizontal = Math.hypot(dx, dz);
-    this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(y - (this.me.state.y + EYE_STAND), horizontal));
+    anchors.sort((left, right) => left.distance - right.distance);
+    for (const anchor of anchors) {
+      probe.grappleActive = false;
+      const hit = tryAttachGrapple(probe, { moveX: 0, moveZ: 0, yaw: anchor.yaw, pitch: anchor.pitch, buttons: 0 }, this.map);
+      if (hit && Math.hypot(hit.anchorX - state.x, hit.anchorY - state.y, hit.anchorZ - state.z) >= minDistance) { this.sampler.setLook(anchor.yaw, anchor.pitch); return; }
+    }
   }
 }

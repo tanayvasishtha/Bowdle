@@ -1,5 +1,5 @@
 // Every gameplay number lives here.
-export const RETENTION_XP = { finish: 100, kill: 50, assist: 25, headshot: 25, longShot: 25, win: 200, medal: 25, maxMedals: 4 } as const;
+export const RETENTION_XP = { finish: 100, kill: 50, assist: 25, headshot: 25, longShot: 25, ropeCut: 25, win: 200, medal: 25, maxMedals: 4 } as const;
 export const MEDAL_LIMITS = { mvp: 5, unstoppable: 6, onARoll: 3, headhunter: 3, eagleEye: 45, teamPlayer: 4, untouchable: 3 } as const;
 export const XP_PER_LEVEL_STEP = 500;
 export const MAX_LEVEL = 100;
@@ -89,14 +89,18 @@ export const MELEE_COOLDOWN_MS = 700;
 export const MAX_HP = 100;
 export const REGEN_DELAY_MS = 4000;
 export const REGEN_PER_S = 30;
-export const GRAPPLE_COOLDOWN_MS = 7000;
+/** Swing grapple (v2). Cooldown starts when the rope detaches. */
+export const GRAPPLE_COOLDOWN_MS = 5000;
 export const GRAPPLE_SPEED = 120;
-export const GRAPPLE_RANGE = 40;
-export const GRAPPLE_PULL_ACCEL = 35;
-export const GRAPPLE_MAX_PULL_SPEED = 22;
-export const GRAPPLE_MAX_MS = 1600;
-export const GRAPPLE_RELEASE_DIST = 1.5;
-export const GRAPPLE_JUMP_BOOST = 2;
+export const GRAPPLE_RANGE = 45;
+export const GRAPPLE = {
+  missCooldownMs: 1000, lengthFactor: 0.95, minLength: 2,
+  reelSpeed: 12, pullAccel: 38, maxPullSpeed: 22,
+  swingGravityMult: 0.9, swingPushAccel: 8,
+  launchAlong: 2, launchUp: 3,
+  maxMs: 4500, blockedMs: 300, releaseDist: 1.5,
+  cutRadius: 0.25,
+} as const;
 export const INK_CLOUD_COOLDOWN_MS = 15000;
 export const INK_CLOUD_SPEED = 35;
 export const INK_CLOUD_GRAVITY = 15;
@@ -186,6 +190,8 @@ export const BOT_STUCK_MOVE_M = 0.03;
 export const BOT_VINE_HOP_GAP_M = 3;
 export const BOT_VINE_HOP_REMAINING_M = 1.5;
 /** Chance a bot dodges right after taking damage. */
+/** Bots reel for a moment, swing toward their goal, and launch once past the anchor or close to it. */
+export const BOT_GRAPPLE = { reelMs: 900, launchMs: 1800, launchDistM: 4 } as const;
 export const BOT_DODGE_CHANCE = 0.2;
 /** A waypoint only counts as reached within this height, so a bot under a deck never "reaches" the deck. */
 export const BOT_WAYPOINT_REACHED_Y_M = 1.3;

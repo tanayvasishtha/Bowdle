@@ -1,12 +1,20 @@
 # Bowdle
 
-A doodle bow shooter for the browser. Two teams of 4, bows and arrows, fast movement, everything drawn in ballpoint on notebook paper.
+A browser bow shooter. Two crews of 4 explorers, bows and arrows, fast Deadshot-style movement, and three jungle maps drawn like an ink and watercolor expedition journal.
 
 Made by Tanay Vasishtha.
 
 ## Status
 
-**M0 done:** pinned dependencies, configs, purity test and a server health test, all passing. Next up: M1, the doodle renderer.
+**v1.0.0.** Everything in the completion plan is built and tested:
+
+- **Maps:** Sun Temple, Canopy Village and Lost River, plus Practice Camp. All mirrored, validated, dense with scenery, and every tall prop is solid.
+- **Movement and combat:** bunny hops, slides, grapple, zip lines, water, tall grass, boulder traps, the ink cloud, charged bow shots with headshots, and dagger stabs, all server authoritative with prediction.
+- **Crews:** Sun and Moon explorers on a skinned rig, with a first-person bow and hands.
+- **Bots:** fill every match and play every map. `npm run soak` runs full bot matches on each map.
+- **Accounts:** guest accounts with optional Discord or Google sign-in, XP and levels, Ink, and seasonal leaderboards.
+- **Cosmetics:** 24 items in a locker with live previews, an Ink shop, and Xsolla checkout on the web build.
+- **Portals:** Poki and CrazyGames builds with ad breaks, plus clip saving, sharing on X, and privacy and terms pages.
 
 ## Run it
 
@@ -19,6 +27,9 @@ Open http://localhost:5173. The game server runs inside the Vite dev server.
 
 ```bash
 npm run check                      # typecheck, tests, build, size budget
+npm run smoke                      # production server smoke test (after build)
+npm run soak                       # full bot matches on every map
+npm run build:portals              # Poki and CrazyGames bundles
 npx playwright install chromium    # once, before the first e2e run
 npm run e2e                        # browser tests
 ```
@@ -45,7 +56,9 @@ npm run e2e                        # browser tests
 | [RUNBOOK-2.md](docs/RUNBOOK-2.md) | Online play and bots (M4a to M6) |
 | [RUNBOOK-3.md](docs/RUNBOOK-3.md) | Abilities to launch (M7 to M12) |
 | [CHARACTERS.md](docs/CHARACTERS.md) | The two explorer crews, rig, poses and first person |
-| [COMPLETION-PLAN.md](docs/COMPLETION-PLAN.md) | Everything left before v1 and who does what |
+| [COMPLETION-PLAN.md](docs/COMPLETION-PLAN.md) | The v1 plan and what only Tanay can do |
+| [DEPLOY.md](docs/DEPLOY.md) | Hosting, environment variables, portal uploads |
+| [BUILD_LOG.md](docs/BUILD_LOG.md) | What each milestone built and how it was checked |
 
 ## Stack
 

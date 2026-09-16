@@ -144,5 +144,10 @@ export const BOULDER_SPAWN_CLEARANCE = 6;
 export const PROP_HIDE_DISTANCE = 90;
 export const BOT_STUCK_MS = 2500;
 export const BOT_STUCK_MOVE_M = 0.03;
+/** A waypoint only counts as reached within this height, so a bot under a deck never "reaches" the deck. */
+export const BOT_WAYPOINT_REACHED_Y_M = 1.3;
+/** A bot that gets no closer to its waypoint for this long drops the route and plans again. */
+export const BOT_PROGRESS_MS = 4000;
+export const BOT_PROGRESS_M = 0.5;
 export const SERVER_METRICS_MS = 10000;
 export const SERVER_TICK_BUDGET_MS = 3;

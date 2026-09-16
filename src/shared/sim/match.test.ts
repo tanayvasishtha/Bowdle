@@ -29,4 +29,18 @@ describe("team deathmatch rules", () => {
     respawnPlayer(player, chooseSpawn(map, 0, [enemy]));
     expect(player.x).toBe(10); expect(player.hp).toBe(100); expect(player.spawnProtectMs).toBe(SPAWN_PROTECT_MS);
   });
+
+  it("spreads teammates over free spawns and ignores the respawning player", () => {
+    const map = emptyMap();
+    map.spawns.sun = [{ pos: [-30, 0, -6], yaw: 0 }, { pos: [-30, 0, -2], yaw: 0 }, { pos: [-30, 0, 2], yaw: 0 }, { pos: [-30, 0, 6], yaw: 0 }];
+    const placed = [];
+    for (let index = 0; index < 4; index += 1) {
+      const player = createPlayerSim();
+      respawnPlayer(player, chooseSpawn(map, 0, placed));
+      placed.push(player);
+    }
+    expect(new Set(placed.map((player) => player.z))).toEqual(new Set([-6, -2, 2, 6]));
+    const self = placed[0]!;
+    expect(chooseSpawn(map, 0, placed, self).pos[2]).toBe(-6);
+  });
 });

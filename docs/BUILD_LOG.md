@@ -1,5 +1,26 @@
 # Build log
 
+## v1.0.0: Release
+
+Status: done.
+
+Final QA found and fixed four bugs that the per-milestone tests had missed:
+
+- **Ramp tops:** a body stepping off a ramp top onto a deck was snapped back down onto the ramp and fell through the deck. This hit players on the Canopy west ramps and the Sun Temple tunnel ramps. A box that already holds the body now wins over the ramp snap.
+- **Ramp sides:** ramps only collided as a surface, so anything could walk under one from the side. Ramps now block as solid wedges, except from the walkable low end.
+- **Bot routes:** waypoints counted as reached from directly below, and replanning could start at a deck overhead, so bots paced under decks. Arrival now needs matching height, planning prefers waypoints the bot can walk to, and a bot that makes no progress for 4 s replans. The ramp guide only steers bots that are on the slope.
+- **Bot targeting:** with several enemies at similar range, bots switched targets every tick, restarted their reaction delay and never shot. Targets now stick unless another enemy is clearly closer. Spawns now spread teammates over free spawn points, and a wedged bot sidesteps for half a second.
+
+Release checks:
+
+- `npm run check`: typecheck, unit and server tests, build, size budget.
+- Full Playwright suite.
+- `npm run soak`: 12 full bot matches over the three maps, all finishing with kills and little stuck time. Before the fixes Canopy bots scored zero.
+- `npm run smoke` against the production build, and a postgres.js run over the Postgres wire protocol.
+- `npm run build:portals`.
+
+Left for Tanay: OAuth apps, the Xsolla project and items, hosting and domain, portal submissions, and the in-hand feel checks. See COMPLETION-PLAN.md.
+
 ## M12: Portals and launch features
 
 Status: done.

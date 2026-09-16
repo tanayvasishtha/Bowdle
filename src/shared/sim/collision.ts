@@ -39,6 +39,25 @@ function tryStep(body: CollisionBody, map: MapData, nextX: number, nextZ: number
   return true;
 }
 
+/**
+ * Ramps are solid wedges. Returns true when a body at (x, y, z) would sit inside a ramp's wedge
+ * more than a step below its surface, which is how a body walking into a ramp from the side is stopped.
+ * The lowest surface point under the body decides, so entering from the low end always works.
+ */
+function blockedByRamp(body: CollisionBody, map: MapData, x: number, z: number): boolean {
+  for (const ramp of map.ramps) {
+    const minX = Math.max(x - HALF_WIDTH, ramp.min[0]), maxX = Math.min(x + HALF_WIDTH, ramp.max[0]);
+    const minZ = Math.max(z - HALF_WIDTH, ramp.min[2]), maxZ = Math.min(z + HALF_WIDTH, ramp.max[2]);
+    if (maxX - minX <= EPSILON || maxZ - minZ <= EPSILON) continue;
+    if (body.y + body.height <= ramp.min[1] + EPSILON || body.y >= ramp.max[1] - EPSILON) continue;
+    const lowX = ramp.up === "+x" ? minX : ramp.up === "-x" ? maxX : minX;
+    const lowZ = ramp.up === "+z" ? minZ : ramp.up === "-z" ? maxZ : minZ;
+    const lowest = rampHeightAt(ramp, lowX, lowZ);
+    if (lowest !== null && body.y + STEP_HEIGHT + EPSILON < lowest) return true;
+  }
+  return false;
+}
+
 function moveX(body: CollisionBody, amount: number, map: MapData): void {
   if (amount === 0) return;
   let destination = body.x + amount;
@@ -103,9 +122,14 @@ export function movePlayer(body: CollisionBody, map: MapData, dt: number): void 
   moveX(body, body.vx * dt, map);
   moveZ(body, body.vz * dt, map);
   moveY(body, body.vy * dt, map);
+  // A box that already holds the body up wins: snapping down onto a ramp here would sink the feet
+  // into a deck that meets the ramp top, and the body would then fall through it.
+  const standingOnBox = body.grounded;
   if (body.vy <= 0) for (const ramp of map.ramps) {
     const surface = rampHeightAt(ramp, body.x, body.z);
-    if (surface !== null && body.y >= surface - GROUND_SNAP && body.y <= surface + GROUND_SNAP) {
+    if (standingOnBox && surface !== null && surface < body.y - EPSILON) continue;
+    // Upward snaps reach a full step, matching what blockedByRamp lets a body walk into.
+    if (surface !== null && body.y >= surface - Math.max(GROUND_SNAP, STEP_HEIGHT) && body.y <= surface + GROUND_SNAP) {
       body.y = surface;
       body.vy = 0;
       body.grounded = true;

@@ -16,6 +16,8 @@ import {
   BOT_LONG_LINK_M,
   BOULDER_RADIUS,
   PLAYER_WIDTH,
+  BOT_PROGRESS_M,
+  BOT_PROGRESS_MS,
   BOT_STUCK_MS,
   BOT_STUCK_MOVE_M,
   ZIP_ATTACH_DIST,
@@ -26,6 +28,11 @@ import type { MapData, Vec3Tuple, Waypoint } from "../../shared/maps/types.ts";
 import { mulberry32, type SeededRng } from "../../shared/math/rng.ts";
 import { solveProjectileLead, type AimSolution, type MovingTarget } from "../../shared/bots/aim.ts";
 import { findPath, followPath, nearestWaypoint } from "../../shared/bots/nav.ts";
+import { rampHeightAt } from "../../shared/maps/ramps.ts";
+
+const RAMP_GUIDE_TOLERANCE_M = 0.5;
+const BOT_TARGET_SWITCH_RATIO = 1.3;
+const BOT_UNSTUCK_MS = 500;
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { sphereBlocksSight, type VisionSphere } from "../../shared/sim/abilities.ts";
@@ -67,9 +74,15 @@ export class BotController {
   private aimPitchError = 0;
   private readonly errorRad: number;
   private routeSerial = 0;
+  private progressIndex = -1;
+  private progressBest = Number.POSITIVE_INFINITY;
+  private progressAtMs = 0;
   private lastX = Number.NaN;
   private lastZ = Number.NaN;
   private movedAtMs = 0;
+  private unstuckUntilMs = 0;
+  private unstuckYaw = 0;
+  private strafeFlip = false;
 
   constructor(id: string, seed: number, difficulty: BotDifficulty = "normal") {
     this.id = id;
@@ -85,12 +98,17 @@ export class BotController {
     else if (target) this.mode = "engage";
     else this.mode = "roam";
     if (this.mode === "engage" && target) this.engage(player, target[1], target[0], nowMs);
-    else this.navigate(player, target?.[1], map);
+    else this.navigate(player, target?.[1], map, nowMs);
     if (this.mode === "retreat" && player.inkCooldownMs <= 0) this.input.buttons |= BTN.INK;
     this.guideRamp(player, map, target?.[1]);
     this.useNearbyZip(player, map);
     this.avoidBoulders(player, map, hazards);
-    if (nowMs - this.movedAtMs >= BOT_STUCK_MS) { this.input.yaw = player.yaw + Math.PI / 2; this.input.pitch = 0; this.input.moveX = 0; this.input.moveZ = 1; this.input.buttons = BTN.JUMP; this.movedAtMs = nowMs; }
+    if (nowMs - this.movedAtMs >= BOT_STUCK_MS) {
+      // Wedged against something: turn aside and hop for a moment, and strafe the other way afterwards.
+      this.unstuckUntilMs = nowMs + BOT_UNSTUCK_MS; this.unstuckYaw = player.yaw + (this.rng() < 0.5 ? 1 : -1) * Math.PI / 2;
+      this.strafeFlip = !this.strafeFlip; this.movedAtMs = nowMs;
+    }
+    if (nowMs < this.unstuckUntilMs) { this.input.yaw = this.unstuckYaw; this.input.pitch = 0; this.input.moveX = 0; this.input.moveZ = 1; this.input.buttons = BTN.JUMP; }
     return this.input;
   }
 
@@ -106,6 +124,9 @@ export class BotController {
   private guideRamp(player: PlayerSim, map: MapData, target: PlayerSim | undefined): void {
     for (const ramp of map.ramps) {
       if (player.x < ramp.min[0] - PLAYER_WIDTH || player.x > ramp.max[0] + PLAYER_WIDTH || player.z < ramp.min[2] - PLAYER_WIDTH || player.z > ramp.max[2] + PLAYER_WIDTH) continue;
+      // Only steer bots that are on the slope; a bot beside or below it follows its route instead.
+      const surface = rampHeightAt(ramp, Math.min(Math.max(player.x, ramp.min[0]), ramp.max[0]), Math.min(Math.max(player.z, ramp.min[2]), ramp.max[2]));
+      if (surface === null || Math.abs(player.y - surface) > RAMP_GUIDE_TOLERANCE_M) continue;
       const destinationX = target ? (target.x < player.x ? ramp.min[0] : ramp.max[0]) : player.team === 0 ? ramp.max[0] : ramp.min[0];
       const destinationZ = (ramp.min[2] + ramp.max[2]) / 2, dx = destinationX - player.x, dz = destinationZ - player.z;
       this.input.yaw = Math.atan2(-dx, -dz); this.input.pitch = 0; this.input.moveX = 0; this.input.moveZ = 1; return;
@@ -114,6 +135,7 @@ export class BotController {
 
   private closestVisibleEnemy(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData, clouds: Iterable<VisionSphere>): readonly [string, PlayerSim] | null {
     let best: readonly [string, PlayerSim] | null = null, distance = Number.POSITIVE_INFINITY;
+    let current: readonly [string, PlayerSim] | null = null, currentDistance = Number.POSITIVE_INFINITY;
     this.origin.x = player.x; this.origin.y = player.y + (player.crouched ? EYE_CROUCH : EYE_STAND); this.origin.z = player.z;
     for (const entry of players) {
       const [id, candidate] = entry; if (id === this.id || !candidate.alive || candidate.team === player.team) continue;
@@ -122,9 +144,11 @@ export class BotController {
       let blocked = false; for (const box of map.boxes) if (box.tags.includes("solid") && segmentHitsBox(this.origin, this.targetPose, box.min, box.max)) { blocked = true; break; }
       if (!blocked) for (const cloud of clouds) if (sphereBlocksSight(this.origin, this.targetPose, cloud)) { blocked = true; break; }
       const candidateDistance = Math.hypot(candidate.x - player.x, candidate.z - player.z);
+      if (!blocked && id === this.targetId) { current = entry; currentDistance = candidateDistance; }
       if (!blocked && candidateDistance < distance) { best = entry; distance = candidateDistance; }
     }
-    return best;
+    // Keep the current target unless another is clearly closer; swapping every tick restarts the reaction delay and the bot never shoots.
+    return current && currentDistance <= distance * BOT_TARGET_SWITCH_RATIO ? current : best;
   }
 
   private avoidBoulders(player: PlayerSim, map: MapData, hazards: Iterable<readonly [string, BoulderThreat]>): void {
@@ -155,7 +179,7 @@ export class BotController {
     this.targetPose.x = target.x; this.targetPose.y = headCenterY(target) + HEAD_RADIUS; this.targetPose.z = target.z; this.targetPose.vx = target.vx; this.targetPose.vy = target.vy; this.targetPose.vz = target.vz;
     solveProjectileLead(this.origin, this.targetPose, ARROW_SPEED_MAX, this.aim);
     this.input.yaw = this.aim.yaw + this.aimYawError; this.input.pitch = this.aim.pitch + this.aimPitchError;
-    this.input.moveZ = 0; this.input.moveX = Math.floor(nowMs / BOT_STRAFE_MS) % 2 === 0 ? -1 : 1; this.input.buttons = 0;
+    this.input.moveZ = 0; this.input.moveX = (Math.floor(nowMs / BOT_STRAFE_MS) % 2 === 0) !== this.strafeFlip ? -1 : 1; this.input.buttons = 0;
     if (Math.hypot(target.x - player.x, target.z - player.z) <= MELEE_RANGE && player.meleeCooldownMs <= 0) { this.input.buttons = BTN.MELEE; return; }
     if (nowMs - this.sightedAtMs < BOT_REACTION_MS) return;
     if (this.releaseFrame) { this.releaseFrame = false; return; }
@@ -167,9 +191,23 @@ export class BotController {
     else { this.releaseAtMs = 0; this.releaseFrame = true; }
   }
 
-  private navigate(player: PlayerSim, target: PlayerSim | undefined, map: MapData): void {
+  /** Drops a route the bot cannot follow, for example a deck it keeps walking under. */
+  private watchProgress(player: PlayerSim, nowMs: number): void {
+    const waypoint = this.path[this.pathIndex];
+    if (!waypoint) return;
+    const distance = Math.hypot(waypoint.pos[0] - player.x, waypoint.pos[1] - player.y, waypoint.pos[2] - player.z);
+    if (this.pathIndex !== this.progressIndex || distance < this.progressBest - BOT_PROGRESS_M) {
+      this.progressIndex = this.pathIndex; this.progressBest = distance; this.progressAtMs = nowMs;
+      return;
+    }
+    if (nowMs - this.progressAtMs < BOT_PROGRESS_MS) return;
+    this.path = []; this.pathIndex = 0; this.progressIndex = -1; this.progressBest = Number.POSITIVE_INFINITY; this.progressAtMs = nowMs;
+    this.input.buttons |= BTN.JUMP;
+  }
+
+  private navigate(player: PlayerSim, target: PlayerSim | undefined, map: MapData, nowMs: number): void {
     if (this.path.length === 0 || this.pathIndex >= this.path.length - 1) {
-      const start = nearestWaypoint(map, player.x, player.y, player.z);
+      const start = nearestWaypoint(map, player.x, player.y, player.z, true);
       let goal: Waypoint;
       if (this.mode === "retreat") {
         let grassX = 0, grassY = 0, grassZ = 0, foundGrass = false;
@@ -188,6 +226,7 @@ export class BotController {
       this.path = findPath(map, start.id, goal.id); this.pathIndex = 0;
     }
     this.pathIndex = followPath(player, this.path, this.pathIndex, this.rng, this.input);
+    this.watchProgress(player, nowMs);
     if (player.grappleCooldownMs <= 0) this.useGrappleShortcut(player, map);
   }
 

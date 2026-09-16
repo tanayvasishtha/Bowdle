@@ -1,4 +1,4 @@
-import { BOT_LONG_LINK_M, BOT_SLIDE_CHANCE, BOT_WAYPOINT_REACHED_M } from "../constants.ts";
+import { BOT_LONG_LINK_M, BOT_SLIDE_CHANCE, BOT_WAYPOINT_REACHED_M, BOT_WAYPOINT_REACHED_Y_M, STEP_HEIGHT } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData, Waypoint, WaypointLink } from "../maps/types.ts";
 import { wrapAngle } from "../math/angles.ts";
@@ -9,10 +9,17 @@ export type BotMove = PlayerInputFrame;
 
 function distance(a: Waypoint, b: Waypoint): number { return Math.hypot(b.pos[0] - a.pos[0], b.pos[1] - a.pos[1], b.pos[2] - a.pos[2]); }
 
-export function nearestWaypoint(map: MapData, x: number, y: number, z: number): Waypoint {
+/** Height gained counts heavily when a bot plans from where it stands: it cannot walk straight up to a deck overhead. */
+const CLIMB_COST = 4;
+const CLIMB_PENALTY_M = 10;
+
+export function nearestWaypoint(map: MapData, x: number, y: number, z: number, reachable = false): Waypoint {
   let best = map.waypoints[0]!, bestDistance = Number.POSITIVE_INFINITY;
   for (const point of map.waypoints) {
-    const candidate = Math.hypot(point.pos[0] - x, point.pos[1] - y, point.pos[2] - z);
+    const rise = point.pos[1] - y;
+    const candidate = reachable
+      ? Math.hypot(point.pos[0] - x, point.pos[2] - z) + (rise > STEP_HEIGHT ? rise * CLIMB_COST + CLIMB_PENALTY_M : Math.abs(rise))
+      : Math.hypot(point.pos[0] - x, rise, point.pos[2] - z);
     if (candidate < bestDistance) { best = point; bestDistance = candidate; }
   }
   return best;
@@ -47,7 +54,8 @@ function linkTo(point: Waypoint, targetId: string): WaypointLink | undefined {
 export function followPath(player: PlayerSim, path: readonly Waypoint[], index: number, rng: SeededRng, out: BotMove): number {
   if (path.length === 0) { out.moveX = 0; out.moveZ = 0; out.buttons = 0; return index; }
   let nextIndex = Math.min(index, path.length - 1); let target = path[nextIndex]!;
-  if (Math.hypot(target.pos[0] - player.x, target.pos[2] - player.z) < BOT_WAYPOINT_REACHED_M && nextIndex < path.length - 1) target = path[nextIndex += 1]!;
+  const reached = Math.hypot(target.pos[0] - player.x, target.pos[2] - player.z) < BOT_WAYPOINT_REACHED_M && Math.abs(target.pos[1] - player.y) < BOT_WAYPOINT_REACHED_Y_M;
+  if (reached && nextIndex < path.length - 1) target = path[nextIndex += 1]!;
   const yaw = Math.atan2(-(target.pos[0] - player.x), -(target.pos[2] - player.z));
   const delta = wrapAngle(yaw - player.yaw); out.yaw = yaw; out.pitch = 0; out.moveZ = Math.max(0, Math.cos(delta)); out.moveX = Math.sin(delta);
   out.buttons = 0;

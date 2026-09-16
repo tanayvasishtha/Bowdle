@@ -5,17 +5,26 @@ import type { PlayerSim } from "./movement.ts";
 export type MatchPhase = "warmup" | "live" | "end";
 export type MatchCore = { phase: MatchPhase; phaseEndsAtMs: number; scoreSun: number; scoreMoon: number };
 
-export function chooseSpawn(map: MapData, team: number, players: Iterable<PlayerSim>): SpawnPoint {
+const SPAWN_OCCUPIED_M = 1.5;
+/** Past this distance every enemy counts as equally far, so teammates spread over the free spawns. */
+const SPAWN_SAFE_M = 30;
+
+/** Picks the spawn farthest from living enemies, skipping spawns a living teammate is standing on. */
+export function chooseSpawn(map: MapData, team: number, players: Iterable<PlayerSim>, self?: PlayerSim): SpawnPoint {
   const spawns = team === 0 ? map.spawns.sun : map.spawns.moon;
+  const living = [...players].filter((player) => player.alive && player !== self);
   let best = spawns[0]!;
-  let bestDistance = -1;
+  let bestScore = Number.NEGATIVE_INFINITY;
   for (const spawn of spawns) {
-    let closest = Number.POSITIVE_INFINITY;
-    for (const enemy of players) {
-      if (!enemy.alive || enemy.team === team) continue;
-      closest = Math.min(closest, Math.hypot(spawn.pos[0] - enemy.x, spawn.pos[2] - enemy.z));
+    let closest = SPAWN_SAFE_M;
+    let occupied = false;
+    for (const other of living) {
+      const distance = Math.hypot(spawn.pos[0] - other.x, spawn.pos[2] - other.z);
+      if (other.team === team) occupied ||= distance < SPAWN_OCCUPIED_M;
+      else closest = Math.min(closest, distance);
     }
-    if (closest > bestDistance) { bestDistance = closest; best = spawn; }
+    const score = closest - (occupied ? SPAWN_SAFE_M * 2 : 0);
+    if (score > bestScore) { bestScore = score; best = spawn; }
   }
   return best;
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FLOOD_MS, JUMP_VELOCITY, MAX_HORIZONTAL_SPEED, RUN_SPEED, SLIDE_BOOST, WATER_SPEED_MULT } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData } from "../maps/types.ts";
+import { matchMaps } from "../maps/registry.ts";
 import { createPlayerSim, stepPlayer, type PlayerSim } from "./movement.ts";
 
 const idle: PlayerInputFrame = { moveX: 0, moveZ: 0, yaw: -Math.PI / 2, pitch: 0, buttons: 0 };
@@ -91,6 +92,51 @@ describe("movement", () => {
     run(state, { ...idle, moveZ: -1 }, 25, map);
     expect(state.y).toBeCloseTo(0, 5);
     expect(state.grounded).toBe(true);
+  });
+
+  it("walks off a ramp top onto a deck without dropping through it", () => {
+    const map = {
+      ...arena(),
+      ramps: [{ id: "ramp", min: [1, 0, -2], max: [5, 2, 2], up: "+x", material: "earth", tags: ["solid"] }],
+      boxes: [...arena().boxes, { id: "deck", min: [5, 1.7, -2], max: [9, 2, 2], material: "wood", tags: ["solid"] }],
+    } as MapData;
+    const state = createPlayerSim();
+    run(state, { ...idle, moveZ: 1 }, 30, map);
+    expect(state.x).toBeGreaterThan(6);
+    expect(state.y).toBeCloseTo(2, 5);
+    expect(state.grounded).toBe(true);
+  });
+
+  it("climbs every launch-map ramp that ends at a deck", () => {
+    const yawFor = { "+x": -Math.PI / 2, "-x": Math.PI / 2, "+z": Math.PI, "-z": 0 } as const;
+    let checked = 0;
+    for (const map of matchMaps) {
+      for (const ramp of map.ramps) {
+        const axis = ramp.up.endsWith("x") ? 0 : 2;
+        const high = ramp.up.startsWith("+") ? ramp.max[axis] : ramp.min[axis];
+        const low = ramp.up.startsWith("+") ? ramp.min[axis] : ramp.max[axis];
+        const cross = axis === 0 ? 2 : 0;
+        const middle = (ramp.min[cross] + ramp.max[cross]) / 2;
+        const deck = map.boxes.find((box) => box.tags.includes("solid") && Math.abs(box.max[1] - ramp.max[1]) < 0.01
+          && (ramp.up.startsWith("+") ? Math.abs(box.min[axis] - high) < 0.01 : Math.abs(box.max[axis] - high) < 0.01)
+          && middle > box.min[cross] && middle < box.max[cross]);
+        if (!deck) continue;
+        const direction = ramp.up.startsWith("+") ? 1 : -1;
+        const start = low - direction * 0.6;
+        const state = axis === 0 ? createPlayerSim(start, ramp.min[1], middle) : createPlayerSim(middle, ramp.min[1], start);
+        const input = { ...idle, yaw: yawFor[ramp.up], moveZ: 1 };
+        for (let tick = 0; tick < 90; tick += 1) {
+          stepPlayer(state, input, map, { nowMs: tick * 1000 / 30 });
+          const along = axis === 0 ? state.x : state.z;
+          if ((along - high) * direction > 0.8) break;
+        }
+        const along = axis === 0 ? state.x : state.z;
+        expect((along - high) * direction, `${map.id} ${ramp.id} reached the deck`).toBeGreaterThan(0.5);
+        expect(state.y, `${map.id} ${ramp.id} stands on the deck`).toBeGreaterThan(deck.max[1] - 0.05);
+        checked += 1;
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(4);
   });
 
   it("slows water movement, prevents slides, and applies flood only in its window", () => {

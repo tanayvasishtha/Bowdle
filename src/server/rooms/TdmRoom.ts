@@ -145,7 +145,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
     for (const player of this.state.players.values()) {
       if (player.alive) stepRegen(player, nowMs, context.dt);
-      else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values()));
+      else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values(), player));
     }
     } finally { serverMetrics.tick(performance.now() - tickStarted); }
   }
@@ -300,7 +300,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.arrowOrigins.clear(); this.damage.clear();
     if (!this.fixedMap) this.loadMap(this.votedMap(), this.simulationNowMs);
     else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
-    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values())); player.spawnProtectMs = 0; }
+    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; }
     this.mapVotes.clear();
   }
 

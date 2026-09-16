@@ -35,6 +35,22 @@ describe("computer-controlled navigation and aim", () => {
 });
 
 describe("computer-controlled abilities", () => {
+  it("keeps one target when two enemies trade places as the closest, and fires", () => {
+    const player = createPlayerSim(-25, 0, -8); player.team = 0;
+    const a = createPlayerSim(-15, 0, -8.5); a.team = 1;
+    const b = createPlayerSim(-15, 0, -7.5); b.team = 1;
+    const controller = new BotController("bot", 11);
+    let fired = false;
+    for (let frame = 0; frame < 90; frame += 1) {
+      // The enemies swap which one is nearer every frame.
+      a.x = frame % 2 === 0 ? -15 : -14.9; b.x = frame % 2 === 0 ? -14.9 : -15;
+      const input = controller.update(player, [["bot", player], ["a", a], ["b", b]], defaultMatchMap, 1000 + frame * 33);
+      if (input.buttons & BTN.FIRE) fired = true;
+    }
+    expect(fired).toBe(true);
+  });
+
+
   it("loses an enemy hidden by an ink cloud", () => {
     const player = createPlayerSim(-25, 0, -8); player.team = 0;
     const enemy = createPlayerSim(-15, 0, -8); enemy.team = 1;

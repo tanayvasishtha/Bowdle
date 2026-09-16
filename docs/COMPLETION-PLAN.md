@@ -4,13 +4,7 @@ Goal: a finished v1 where every map, character, system and screen is defined, bu
 
 ## Where it stands (2026-09-16)
 
-| Area | State |
-|---|---|
-| Rendering, movement, bow, online play, bots, replays, abilities, menus | Done (M1 to M8) |
-| Journal look, map kit, props, three jungle maps, camp, scenery density | Done (W1 to W7) |
-| Deploy and performance | Code landed, closing checks never run (M9) |
-| Characters | Placeholder: a cylinder with a ball for a head, no limbs, no animation |
-| Accounts, progression, cosmetics, shop, portals | Not started (M10 to M12) |
+All seven phases are done and tagged (`m9` to `m12`, `c1`, `w8`, `v1.0.0`). Details per phase are in [BUILD_LOG.md](BUILD_LOG.md). What remains needs Tanay's accounts and keys (below).
 
 ## Phases
 

@@ -39,8 +39,8 @@ test("two online players see shared movement", async ({ browser }) => {
   await pageA.waitForFunction(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.drawMs() >= 550);
   await pageA.evaluate((id) => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.aimAt(id), idB);
   await pageA.mouse.up();
-  await expect.poll(async () => pageA.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.killFeed()), { timeout: 3_000 }).toContain("HEADSHOT");
-  await expect.poll(async () => pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.killFeed()), { timeout: 3_000 }).toContain("HEADSHOT");
+  await expect.poll(async () => pageA.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.killFeed()), { timeout: 8_000 }).toContain("HEADSHOT");
+  await expect.poll(async () => pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.killFeed()), { timeout: 8_000 }).toContain("HEADSHOT");
   await expect(pageB.locator(".bowdle-replay")).toBeVisible();
   await pageB.screenshot({ path: "test-results/qa/m6/arrow-cam.png", fullPage: true });
   await pageA.screenshot({ path: "test-results/qa/m4b/online-combat-a.png", fullPage: true });

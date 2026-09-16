@@ -31,7 +31,8 @@ test("M switches the music bus, and an enemy shot nearby shows a sound indicator
   await peer.locator("#game-canvas").click();
   await peer.evaluate((target) => (window as unknown as { __bowdleTest: { aimAt(id: string): void } }).__bowdleTest.aimAt(target), me);
   await peer.mouse.down();
-  await peer.waitForTimeout(700);
+  // Hold until the draw is full; a loaded machine renders the second page slowly.
+  await expect.poll(() => peer.evaluate(() => (window as unknown as { __bowdleTest: { drawMs(): number } }).__bowdleTest.drawMs()), { timeout: 10_000 }).toBeGreaterThanOrEqual(550);
   await peer.mouse.up();
   await expect.poll(async () => (await audio(page)).cues, { timeout: 8_000 }).toBeGreaterThan(before);
   await expect(page.locator("[data-testid=sound-cues] [data-cue=shot]").first()).toBeAttached();

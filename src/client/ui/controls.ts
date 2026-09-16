@@ -1,4 +1,5 @@
 import { ACTION_LABELS, ACTIONS, keyLabel, loadSettings } from "../settings.ts";
+import { firstPad } from "../game/gamepad.ts";
 
 const OVERLAY_KEY = "F1";
 
@@ -33,7 +34,8 @@ export function attachControlsHelp(container: HTMLElement, canvas: HTMLCanvasEle
   });
   const updateHint = (): void => {
     const pauseOpen = [...container.querySelectorAll<HTMLElement>(".bowdle-pause,.bowdle-settings,.bowdle-course-done")].some((panel) => panel.style.display !== "none");
-    hint.style.display = document.pointerLockElement === canvas || pauseOpen ? "none" : "block";
+    // Pad players never capture the mouse, so they do not need the hint.
+    hint.style.display = document.pointerLockElement === canvas || pauseOpen || firstPad() ? "none" : "block";
   };
   document.addEventListener("pointerlockchange", updateHint);
   window.setInterval(updateHint, 500);

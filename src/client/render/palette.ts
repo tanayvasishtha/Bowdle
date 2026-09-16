@@ -9,6 +9,15 @@ export const PALETTE = {
   legacyRuled: 0xa9c4e8, legacyInk: 0x233c9b,
 } as const;
 
+/** Team wash and outline colors per color vision setting. Everything else in the palette stays the same. */
+export const TEAM_PALETTES = {
+  default: { sunWash: 0xf2a05a, sunInk: 0xd2531f, moonWash: 0x8c99e6, moonInk: 0x3346b8 },
+  deuteranopia: { sunWash: 0xf0c04a, sunInk: 0x9a6200, moonWash: 0x6f9ee8, moonInk: 0x1f3f9e },
+  protanopia: { sunWash: 0xe8d45a, sunInk: 0x806c00, moonWash: 0x72b8f0, moonInk: 0x1c4f8c },
+  tritanopia: { sunWash: 0xef7a8a, sunInk: 0xa3162c, moonWash: 0x5cc8bd, moonInk: 0x11645c },
+} as const;
+export type TeamPalette = typeof TEAM_PALETTES[keyof typeof TEAM_PALETTES];
+
 export const MATERIAL_ID = {
   background: 0, stone: 1, carvedStone: 2, wood: 3, canopy: 4, fern: 5, earth: 6,
   water: 7, rope: 8, gold: 9, teamSun: 10, teamMoon: 11, hazard: 12, canvas: 13, foliageDark: 14,

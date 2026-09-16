@@ -32,7 +32,7 @@ import { killEffect } from "../../shared/cosmetics.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
 import { InkMaterial } from "./InkMaterial.ts";
-import { MATERIAL_ID, PALETTE } from "./palette.ts";
+import { MATERIAL_ID, PALETTE, TEAM_PALETTES } from "./palette.ts";
 import { rampHeightAt } from "../../shared/maps/ramps.ts";
 import { PropsRenderer } from "./props/PropsRenderer.ts";
 import { Ambience } from "../audio/ambience.ts";
@@ -232,7 +232,7 @@ export class Renderer {
   }
 
   private applySettings(settings: GameSettings): void {
-    this.settings = settings; this.camera.fov = settings.fov; this.camera.updateProjectionMatrix(); this.composite.setBoil(settings.boil);
+    this.settings = settings; this.camera.fov = settings.fov; this.camera.updateProjectionMatrix(); this.composite.setBoil(settings.boil); this.composite.setTeamPalette(TEAM_PALETTES[settings.teamPalette]);
     for (const symbol of this.playerSymbols.values()) symbol.element.style.display = settings.colorblindSymbols ? "block" : "none";
   }
 

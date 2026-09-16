@@ -21,6 +21,10 @@ export const compositeFragmentShader = /* glsl */ `
   uniform float cameraYaw;
   uniform float hurt;
   uniform float streaks;
+  uniform vec3 sunWash;
+  uniform vec3 moonWash;
+  uniform vec3 sunInk;
+  uniform vec3 moonInk;
   in vec2 vUv;
   out vec4 outColor;
 
@@ -44,8 +48,8 @@ export const compositeFragmentShader = /* glsl */ `
     if (id < 7.5) return vec3(0.247, 0.561, 0.549);
     if (id < 8.5) return vec3(0.718, 0.608, 0.416);
     if (id < 9.5) return vec3(0.890, 0.698, 0.235);
-    if (id < 10.5) return vec3(0.949, 0.627, 0.353);
-    if (id < 11.5) return vec3(0.549, 0.600, 0.902);
+    if (id < 10.5) return sunWash;
+    if (id < 11.5) return moonWash;
     if (id < 12.5) return vec3(0.788, 0.275, 0.239);
     if (id < 13.5) return vec3(0.902, 0.843, 0.690);
     return vec3(0.247, 0.420, 0.173);
@@ -55,8 +59,8 @@ export const compositeFragmentShader = /* glsl */ `
     if (id > 3.5 && id < 5.5) return vec3(0.184, 0.290, 0.133);
     if (id > 6.5 && id < 7.5) return vec3(0.122, 0.337, 0.329);
     if (id > 8.5 && id < 9.5) return vec3(0.541, 0.353, 0.071);
-    if (id > 9.5 && id < 10.5) return vec3(0.824, 0.325, 0.122);
-    if (id > 10.5 && id < 11.5) return vec3(0.200, 0.275, 0.722);
+    if (id > 9.5 && id < 10.5) return sunInk;
+    if (id > 10.5 && id < 11.5) return moonInk;
     if (id > 11.5 && id < 12.5) return vec3(0.478, 0.118, 0.090);
     if (id > 13.5) return vec3(0.145, 0.251, 0.106);
     return SEPIA;

@@ -1,5 +1,6 @@
 import {
   BufferAttribute,
+  Color,
   BufferGeometry,
   DepthFormat,
   DepthTexture,
@@ -15,6 +16,7 @@ import {
   WebGLRenderer,
 } from "three";
 import { compositeFragmentShader, compositeVertexShader } from "./shaders/composite.ts";
+import { TEAM_PALETTES, type TeamPalette } from "./palette.ts";
 
 function target(width: number, height: number): WebGLRenderTarget {
   const renderTarget = new WebGLRenderTarget(width, height, {
@@ -60,6 +62,10 @@ export class CompositePass {
         cameraYaw: { value: 0 },
         hurt: { value: 0 },
         streaks: { value: 0 },
+        sunWash: { value: new Color() },
+        moonWash: { value: new Color() },
+        sunInk: { value: new Color() },
+        moonInk: { value: new Color() },
       },
       vertexShader: compositeVertexShader,
       fragmentShader: compositeFragmentShader,
@@ -67,6 +73,13 @@ export class CompositePass {
       depthWrite: false,
     });
     this.scene.add(new Mesh(geometry, this.material));
+    this.setTeamPalette(TEAM_PALETTES.default);
+  }
+
+  /** Team washes and outlines for the chosen color vision palette. */
+  setTeamPalette(palette: TeamPalette): void {
+    const uniforms = this.material.uniforms;
+    for (const key of ["sunWash", "moonWash", "sunInk", "moonInk"] as const) (uniforms[key]!.value as Color).setHex(palette[key]);
   }
 
   setSunShafts(enabled: boolean): void { this.material.uniforms.sunShafts!.value = enabled ? 1 : 0; }

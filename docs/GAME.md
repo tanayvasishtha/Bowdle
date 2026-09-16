@@ -65,6 +65,27 @@ All sound is generated in the browser; there are no recorded files. One audio co
 - **Other players:** a grapple or zip start within 30 m plays at its position, and so does the first sight of an enemy arrow.
 - **Sound indicators** (setting, off by default): an ink arc near the screen edge toward each enemy footstep, nearby enemy shot and starting boulder roll.
 
+## Gamepad and accessibility (v2)
+
+Standard-mapping gamepads work in matches and menus (`src/client/game/gamepad.ts`). Numbers are in `PAD` there.
+
+| Input | Action |
+|---|---|
+| Left stick | Move (radial deadzone 0.12) |
+| Right stick | Look (deadzone 0.12, response curve exponent 1.8, 3.2 rad/s at full tilt times the gamepad sensitivity) |
+| RT / LT | Draw and fire / aim |
+| A / B | Jump / slide |
+| X / Y | Previous / next arrow |
+| RB / LB | Grapple / ink cloud |
+| R3 / L3 | Dagger / dodge |
+| D-pad down | Use |
+| Start | Menu |
+
+- **Aim slowdown:** stick look turns at 60 % while an enemy within 40 m is drawn within 70 px of the screen center. It only changes turning speed; nothing snaps.
+- **Menus:** while a menu or panel is open, the D-pad or left stick moves focus (left and right nudge sliders), A presses, B goes back. During play with no panel open the pad belongs to the game, and the "Click the page to aim" hint is hidden when a pad is connected.
+- **Options:** invert vertical look, aim sensitivity (look speed while aiming, mouse and pad), gamepad sensitivity, trackpad mode (draw and aim toggle on each press), crosshair style (circle, dot, cross), size (12 to 48 px) and color (ink brown, sun orange, gold, moon blue, paper).
+- **Team colors:** standard, deuteranopia, protanopia and tritanopia palettes (`TEAM_PALETTES` in `src/client/render/palette.ts`). A palette changes only the two team washes and their outlines, through composite shader uniforms.
+
 ## Units and conventions
 
 - Meters, seconds, radians. +Y is up.

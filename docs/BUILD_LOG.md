@@ -1,5 +1,24 @@
 # Build log
 
+## G7: Gamepad, input options, accessibility
+
+Status: done.
+
+Built:
+
+- Gamepad play through the Gamepad API standard mapping (`src/client/game/gamepad.ts`): left stick moves, right stick looks with a radial deadzone of 0.12 and a 1.8 response curve, and the layout from the design (D-pad down is Use, which the design left unassigned). Keyboard and pad work together; the stronger move input wins. Start opens the menu.
+- Aim slowdown: stick look turns at 60 % while an enemy within 40 m is drawn near the screen center. It is decided on the client from rendered positions and only scales turning.
+- Settings: invert vertical look, aim sensitivity, gamepad sensitivity, trackpad mode (draw and aim toggle on each press), crosshair style, size and color, and team colors. The settings panel now starts at the top and scrolls; with the new rows it no longer fit one screen.
+- Crosshair component shared by the camp and matches. Matches had no crosshair before; now both use the chosen style, and the circle narrows with the draw as the camp one did.
+- Gamepad menu navigation (`src/client/ui/padNav.ts`): focus moves with the D-pad or stick, A presses, B goes back, sliders nudge left and right, with a visible focus ring. It only acts while a menu or panel is open. Locker items can take focus.
+- Colorblind team palettes (deuteranopia, protanopia, tritanopia) as composite shader uniforms that change only the team washes and outlines.
+- The "Click the page to aim" hint stays hidden while a pad is connected.
+- Test fixes: an enemy shot is now heard the first frame it comes within 30 m rather than only at first sight (the test players stand right at that range), the online grapple test brings its page to the front before pressing E, and the audio test holds the other player's draw until it is full.
+
+Verified: `npm run check` (287 tests, new `gamepad.test.ts` for the stick curve, deadzone, mapping, menu actions and trackpad toggles), full Playwright suite (47 tests) with the new `gamepad.spec.ts` (a mocked `navigator.getGamepads` moves, looks, draws and opens and closes the pause panel; the menu and settings are driven by the pad; each palette is screenshotted and the snapshot hue bands change for tritanopia; screenshots in `test-results/qa/g7/`), `npm run smoke`, `npm run build:portals`. Break it: without the deadzone the stick curve test fails.
+
+Left: a test with a real controller. The online grapple prediction test and the server tick budget test each failed once under heavy machine load and passed on rerun.
+
 ## G6: Music and directional audio
 
 Status: done.

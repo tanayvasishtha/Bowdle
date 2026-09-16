@@ -87,7 +87,7 @@ export function startLocker(app: HTMLElement): void {
         else if ("sku" in item.price && paid) action = `<button data-checkout="${item.price.sku}">Buy ${priceLabel(item)}</button>`;
         else action = `<button disabled>Web store only</button>`;
         const hint = "level" in item.price && !owns(item) ? `<small>Your level: ${level} / ${item.price.level}</small>` : "";
-        return `<div class="item" data-item="${item.id}" data-selected="${selected}"><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.blurb)}</small>${hint}${action}</div>`;
+        return `<div class="item" tabindex="0" data-item="${item.id}" data-selected="${selected}"><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.blurb)}</small>${hint}${action}</div>`;
       }).join("")}
       <button class="back" data-action="back">Back to camp</button>`;
   };

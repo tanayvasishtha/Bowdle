@@ -18,6 +18,7 @@ import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
 import { attachControlsHelp } from "./ui/controls.ts";
 import { installAudioMix } from "./audio/mixer.ts";
+import { attachPadNavigation } from "./ui/padNav.ts";
 import { attachUiSounds } from "./audio/uiSounds.ts";
 import { isPartyCode, normalizePartyCode } from "../shared/party.ts";
 import { startLocker, type LockerTestHooks } from "./ui/locker.ts";
@@ -64,6 +65,7 @@ const params = new URLSearchParams(location.search);
 // Starts the portal SDK (a no-op on the web build) before anything else loads.
 platform();
 installAudioMix();
+attachPadNavigation();
 installMenuStyles(app);
 attachUiSounds();
 const touchOnly = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)").matches;

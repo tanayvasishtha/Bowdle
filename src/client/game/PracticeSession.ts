@@ -27,6 +27,7 @@ import type { Vec3 } from "../../shared/math/vec3.ts";
 import { spawnArrow, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { ARROW_SLOTS, arrowSpeed, bodyDamage, drawFraction, fullDrawMs, type FireEvent } from "../../shared/sim/bow.ts";
 import { QuiverStrip } from "../ui/quiver.ts";
+import { Crosshair } from "../ui/crosshair.ts";
 import { applyDamage } from "../../shared/sim/health.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
 import { inSwatWindow, meleeHit, swatHits } from "../../shared/sim/melee.ts";
@@ -72,7 +73,7 @@ export class PracticeSession {
   private readonly sounds = new SoundEffects();
   private readonly targets = campTargets.map(targetState);
   private readonly arrows: ArrowEntry[] = [];
-  private readonly crosshair: HTMLDivElement;
+  private readonly crosshair: Crosshair;
   private readonly hitText: HTMLDivElement;
   private readonly replayCard: HTMLDivElement;
   private readonly course: CourseGuide;
@@ -92,16 +93,14 @@ export class PracticeSession {
   constructor(renderer: Renderer, sampler: InputSampler, container: HTMLElement, courseMode: CourseMode = "auto") {
     this.renderer = renderer;
     this.sampler = sampler;
-    this.crosshair = document.createElement("div");
-    this.crosshair.id = "crosshair";
-    this.crosshair.style.cssText = "position:absolute;left:50%;top:50%;width:36px;height:36px;border:3px solid #4a3527;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none";
+    this.crosshair = new Crosshair(container);
     this.hitText = document.createElement("div");
     this.hitText.id = "hit-marker";
     this.hitText.style.cssText = "position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font:34px 'Permanent Marker',cursive;color:#d2531f;text-shadow:1px 1px #efe3c6;pointer-events:none";
     this.replayCard = document.createElement("div");
     this.replayCard.className = "bowdle-practice-replay";
     this.replayCard.style.cssText = "display:none;position:absolute;right:24px;bottom:24px;width:320px;height:180px;border:4px solid #4a3527;background-size:cover;background-position:center;color:#d2531f;font:24px 'Permanent Marker';padding:8px;box-sizing:border-box;pointer-events:none";
-    container.append(this.crosshair, this.hitText, this.replayCard);
+    container.append(this.hitText, this.replayCard);
     this.courseMode = courseMode;
     this.marker = document.createElement("div");
     this.marker.className = "bowdle-course-marker";
@@ -316,6 +315,7 @@ export class PracticeSession {
   private frame(timeMs: number): void {
     const elapsed = Math.min(100, timeMs - this.lastFrameMs);
     this.lastFrameMs = timeMs;
+    this.sampler.frame(elapsed);
     this.accumulatorMs += elapsed;
     const tickMs = 1000 / TICK_HZ;
     while (this.accumulatorMs >= tickMs) { this.tick(); this.accumulatorMs -= tickMs; }
@@ -329,9 +329,7 @@ export class PracticeSession {
     this.renderer.setLocalArrowKind(ARROW_SLOTS[this.player.arrowSlot] ?? "arrow");
     this.quiver.update(this.player);
     this.renderer.setMeleeSwing(stabProgress(this.player.meleeCooldownMs));
-    const radius = 18 - fraction * 12;
-    this.crosshair.style.width = `${radius * 2}px`;
-    this.crosshair.style.height = `${radius * 2}px`;
+    this.crosshair.update(fraction);
     this.renderer.setGrappleRope("practice", this.player.grappleActive, this.player.x, this.player.y, this.player.z, this.player.grappleX, this.player.grappleY, this.player.grappleZ, ropeSag(this.player, this.player.x, this.player.y, this.player.z), true);
     this.renderer.setGrappleHighlights(this.player.grappleCooldownMs <= 0 && !this.player.grappleActive);
     this.renderer.setDebugMovement(this.player);

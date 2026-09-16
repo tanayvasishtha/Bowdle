@@ -38,10 +38,12 @@ import { music } from "../audio/music.ts";
 import { busTarget } from "../audio/bus.ts";
 import { cueAngle, footstepGain, musicIntensity, strideLength } from "../audio/spatial.ts";
 import { SoundCues, type CueKind } from "../ui/soundCues.ts";
+import { Crosshair } from "../ui/crosshair.ts";
+import { PAD } from "./gamepad.ts";
 import { boulderPosition } from "../../shared/sim/hazards.ts";
 import type { GameSettings } from "../settings.ts";
 
-export type RenderedPlayer = { id: string; team: number; x: number; y: number; z: number; grapple?: [number, number, number] };
+export type RenderedPlayer = { id: string; team: number; x: number; y: number; z: number; yaw?: number; grapple?: [number, number, number] };
 type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "scatter" | "tether" | "grapple" | "ink" };
 type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number };
 
@@ -88,6 +90,7 @@ export class OnlineSession {
     this.replay = new ReplayDirector(renderer.canvas.parentElement!);
     this.quiver = new QuiverStrip(renderer.canvas.parentElement!);
     this.cues = new SoundCues(renderer.canvas.parentElement!);
+    this.crosshair = new Crosshair(renderer.canvas.parentElement!);
     this.indicators = loadSettings().soundIndicators;
     window.addEventListener("bowdle-settings", (event) => { this.indicators = (event as CustomEvent<GameSettings>).detail.soundIndicators; });
     this.cameraRig.onMove = (kind) => this.sounds.play(kind);
@@ -197,6 +200,7 @@ export class OnlineSession {
     }
     const elapsed = Math.min(100, timeMs - this.lastFrameMs);
     this.lastFrameMs = timeMs;
+    this.sampler.frame(elapsed);
     const steps = this.predict.tick(timeMs);
     for (let step = 0; step < steps; step += 1) {
       this.sampler.sample(this.input.data);
@@ -208,6 +212,7 @@ export class OnlineSession {
     const serverNow = this.room.clock.serverNow();
     const capture = this.replay.beginCapture(timeMs);
     this.enemyInView = false;
+    this.enemyUnderCrosshair = false;
     for (const [id, player] of this.room.state.players) {
       this.names.set(id, player.name);
       if (id !== this.sessionId) this.listenTo(id, player, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"));
@@ -237,7 +242,10 @@ export class OnlineSession {
     this.renderer.setLocalArrowKind(ARROW_SLOTS[this.me.state.arrowSlot] ?? "arrow");
     this.quiver.update(this.me.state);
     for (const [id, tether] of this.room.state.tethers) this.renderer.setTether(id, tether.fromX, tether.fromY, tether.fromZ, tether.toX, tether.toY, tether.toZ);
-    this.renderer.setDrawFraction(drawFraction(this.me.state.drawMs, fullDrawMs(this.me.state.arrowSlot)));
+    const drawn = drawFraction(this.me.state.drawMs, fullDrawMs(this.me.state.arrowSlot));
+    this.renderer.setDrawFraction(drawn);
+    this.crosshair.update(drawn);
+    this.sampler.setAimSlowdown(this.enemyUnderCrosshair);
     this.renderer.setMeleeSwing(stabProgress(this.me.state.meleeCooldownMs));
     if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
     else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); this.hud.setReplay(false); }
@@ -259,17 +267,17 @@ export class OnlineSession {
       if (!source) continue;
       if (!render) {
         const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        this.hearShot(source);
         render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
       }
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
+      if (!this.heardShots.has(entry.id) && this.hearShot(source, render.sim)) this.heardShots.add(entry.id);
       render.sim.vx = source.vx; render.sim.vy = source.vy; render.sim.vz = source.vz; this.renderer.updateArrowVisual(render.visual, render.sim);
       if (capture) this.replay.arrow(entry.id, render.sim.x, render.sim.y, render.sim.z);
     }
     for (const [id, render] of this.arrowRenders) {
       if (this.arrows.alive(id)) continue;
       if (render.removedAtMs === 0) render.removedAtMs = timeMs;
-      if (timeMs - render.removedAtMs >= render.stuckForMs) { this.renderer.removeVisual(render.visual); this.arrowRenders.delete(id); }
+      if (timeMs - render.removedAtMs >= render.stuckForMs) { this.renderer.removeVisual(render.visual); this.arrowRenders.delete(id); this.heardShots.delete(id); }
     }
   }
 
@@ -286,9 +294,16 @@ export class OnlineSession {
   private indicators = false;
   private lastDamageAtMs = Number.NEGATIVE_INFINITY;
   private enemyInView = false;
+  private enemyUnderCrosshair = false;
+  private readonly crosshair: Crosshair;
   private readonly heard = new Map<string, { x: number; z: number; stride: number; grapple: boolean; zip: string }>();
   private readonly hazardPhases = new Map<string, string>();
   private readonly boulderPoint = { x: 0, y: 0, z: 0 };
+
+  private nearCenter(point: { x: number; y: number }): boolean {
+    const rect = this.renderer.canvas.getBoundingClientRect();
+    return Math.hypot(point.x - rect.width / 2, point.y - rect.height / 2) <= PAD.aimSlowdownPx;
+  }
 
   private cue(kind: CueKind, x: number, z: number): void {
     if (!this.indicators) return;
@@ -305,7 +320,9 @@ export class OnlineSession {
     memo.x = x; memo.z = z;
     const distance = Math.hypot(x - me.x, y - me.y, z - me.z);
     if (player.alive && player.team !== me.team) {
-      if (distance < AUDIO_MIX.enemyViewM && this.renderer.screenPoint(x, y + 1, z)) this.enemyInView = true;
+      const onScreen = distance < Math.max(AUDIO_MIX.enemyViewM, PAD.aimSlowdownRangeM) ? this.renderer.screenPoint(x, y + 1.2, z) : undefined;
+      if (onScreen && distance < AUDIO_MIX.enemyViewM) this.enemyInView = true;
+      if (onScreen && distance < PAD.aimSlowdownRangeM && this.nearCenter(onScreen)) this.enemyUnderCrosshair = true;
       const speed = Math.hypot(player.vx, player.vz);
       const loudness = player.grounded && !player.zipId ? footstepGain(distance, speed, player.crouched) : 0;
       if (loudness > 0 && moved < 5) {
@@ -319,14 +336,20 @@ export class OnlineSession {
     memo.grapple = player.grappleActive; memo.zip = player.zipId;
   }
 
-  /** The first sight of an enemy arrow: a shot sound and cue when it is close. */
-  private hearShot(arrow: LocalArrow | ArrowState): void {
+  private readonly heardShots = new Set<string | number>();
+
+  /**
+   * An enemy arrow is heard once, the first frame it is within range. Returns true when it was heard
+   * or never can be (an own arrow, a teammate arrow or an ability projectile).
+   */
+  private hearShot(arrow: LocalArrow | ArrowState, at: { x: number; y: number; z: number }): boolean {
     const me = this.me.state;
-    if (arrow.owner === this.sessionId || arrow.team === me.team || (arrow.kind !== "arrow" && arrow.kind !== "scatter" && arrow.kind !== "tether")) return;
-    const distance = Math.hypot(arrow.x - me.x, arrow.z - me.z);
-    if (distance > AUDIO_MIX.shotCueRangeM) return;
-    this.sounds.playAt("twang", arrow.x, arrow.y, arrow.z, 1 - distance / AUDIO_MIX.shotCueRangeM);
-    this.cue("shot", arrow.x, arrow.z);
+    if (arrow.owner === this.sessionId || arrow.team === me.team || (arrow.kind !== "arrow" && arrow.kind !== "scatter" && arrow.kind !== "tether")) return true;
+    const distance = Math.hypot(at.x - me.x, at.z - me.z);
+    if (distance > AUDIO_MIX.shotCueRangeM) return false;
+    this.sounds.playAt("twang", at.x, at.y, at.z, 1 - distance / AUDIO_MIX.shotCueRangeM);
+    this.cue("shot", at.x, at.z);
+    return true;
   }
 
   private hearHazards(): void {
@@ -467,6 +490,7 @@ export class OnlineSession {
       x: this.predict.value(player, "x"),
       y: this.predict.value(player, "y"),
       z: this.predict.value(player, "z"),
+      yaw: this.predict.value(player, "yaw"),
       ...(player.grappleActive ? { grapple: [player.grappleX, player.grappleY, player.grappleZ] as [number, number, number] } : {}),
     });
     return result;

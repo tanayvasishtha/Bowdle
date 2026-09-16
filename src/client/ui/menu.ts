@@ -3,7 +3,7 @@ import { consumeSignInFragment, ensureAccount, reportFunnel } from "../account.t
 import { courseDone } from "../game/course.ts";
 import { music } from "../audio/music.ts";
 import { musicIntensity } from "../audio/spatial.ts";
-import { ACTION_LABELS, ACTIONS, keyLabel, loadName, loadSettings, nameError, saveName, saveSettings, type Action, type GameSettings } from "../settings.ts";
+import { ACTION_LABELS, ACTIONS, CROSSHAIR_COLORS, CROSSHAIR_SIZE, CROSSHAIR_STYLES, TEAM_PALETTE_NAMES, keyLabel, loadName, loadSettings, nameError, saveName, saveSettings, type Action, type GameSettings } from "../settings.ts";
 import { showLeaderboard, showProfile } from "./profile.ts";
 import { platform } from "../platform/sdk.ts";
 import { showPartyPanel } from "./party.ts";
@@ -15,7 +15,13 @@ export function installMenuStyles(container: HTMLElement): void {
   if (document.querySelector("#bowdle-menu-style")) return;
   const style = document.createElement("style"); style.id = "bowdle-menu-style";
   style.textContent = `.bowdle-menu,.bowdle-panel{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#4a3527;font-family:'Gochi Hand',cursive;background:linear-gradient(#acd9df,#efe3c6)}.bowdle-menu:before,.bowdle-panel:before{content:'';position:absolute;inset:0;background-image:linear-gradient(#4a352712 1px,transparent 1px),linear-gradient(90deg,#4a352712 1px,transparent 1px);background-size:32px 32px;pointer-events:none}.bowdle-menu>* ,.bowdle-panel>*{position:relative}.bowdle-menu h1{font:84px 'Permanent Marker';margin:0;transform:rotate(-2deg)}.bowdle-menu p{font-size:25px;margin:0 0 24px}.bowdle-menu button,.bowdle-panel button{display:block;min-width:260px;margin:10px auto;padding:10px 28px;border:3px solid #4a3527;background:#efe3c6;color:#4a3527;font:28px 'Gochi Hand';cursor:pointer;box-shadow:5px 5px 0 #d2531f}.bowdle-panel{z-index:20;background:#efe3c6f5;overflow:auto;padding:24px;box-sizing:border-box}.bowdle-panel h2{font:48px 'Permanent Marker';margin:8px}.bowdle-panel label{display:block;font-size:22px;margin:10px}.bowdle-panel input[type=range]{width:280px;margin-left:12px}.bowdle-bindings{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:6px;max-width:720px}.bowdle-bindings .bowdle-binding{font-size:18px;min-width:0;margin:0;box-shadow:none}.bowdle-name input{font:28px 'Gochi Hand';padding:8px;border:3px solid #4a3527;background:#fffaf0}.bowdle-error{min-height:25px;color:#d2531f;font-size:20px}.bowdle-level{font:34px 'Permanent Marker'}.bowdle-xp{width:320px;height:14px;margin:6px auto;border:3px solid #4a3527;background:#fffaf0}.bowdle-xp>div{height:100%;background:#e3b23c}.bowdle-small{font-size:19px;margin:4px}.bowdle-ink{font-size:26px;margin:6px;color:#8a5a12}.bowdle-table{margin:8px auto;border-collapse:collapse;font-size:21px;min-width:420px}.bowdle-table td,.bowdle-table th{border-bottom:2px dashed #4a352755;padding:4px 12px}.bowdle-profile input[data-field]{font:24px 'Gochi Hand';padding:4px 8px;border:3px solid #4a3527;background:#fffaf0}.bowdle-legal{margin-top:18px;font-size:20px}.bowdle-legal a{color:#4a3527}.bowdle-party h3{font-size:26px;margin:12px 0 0}.bowdle-party-code{font:56px 'Permanent Marker';letter-spacing:10px;margin:8px}.bowdle-party input[data-field]{display:block;justify-self:center;margin:6px auto;font:30px 'Gochi Hand';letter-spacing:6px;text-transform:uppercase;width:220px;text-align:center;padding:6px;border:3px solid #4a3527;background:#fffaf0}.bowdle-toast{position:absolute;left:50%;top:18px;transform:translateX(-50%);padding:8px 18px;border:3px solid #4a3527;background:#efe3c6;font-size:22px;z-index:30}`;
+  // Settings grew past one screen: it starts at the top and scrolls.
+  style.textContent += ".bowdle-settings{place-content:start center;overflow-y:auto;padding:24px 0}";
   container.append(style);
+}
+
+function choice<T extends string>(name: string, options: readonly T[], current: T, labels: Record<T, string>): string {
+  return `<select data-setting="${name}">${options.map((option) => `<option value="${option}"${option === current ? " selected" : ""}>${labels[option]}</option>`).join("")}</select>`;
 }
 
 export function showSettings(container: HTMLElement, onClose: () => void): void {
@@ -37,6 +43,15 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     <label><input data-setting="music" type="checkbox" ${settings.music ? "checked" : ""}> Music (M)</label>
     <label><input data-setting="soundIndicators" type="checkbox" ${settings.soundIndicators ? "checked" : ""}> Sound indicators</label>
     <label><input data-setting="tips" type="checkbox" ${settings.tips ? "checked" : ""}> Tips for new players</label>
+    <h3>Aim and controls</h3>
+    <label><input data-setting="invertY" type="checkbox" ${settings.invertY ? "checked" : ""}> Invert vertical look</label>
+    <label>Aim sensitivity <input data-setting="aimSensitivity" type="range" min="0.3" max="1.5" step="0.05" value="${settings.aimSensitivity}"></label>
+    <label>Gamepad sensitivity <input data-setting="gamepadSensitivity" type="range" min="0.3" max="2" step="0.05" value="${settings.gamepadSensitivity}"></label>
+    <label><input data-setting="trackpadMode" type="checkbox" ${settings.trackpadMode ? "checked" : ""}> Trackpad mode (click to draw, click to release)</label>
+    <label>Crosshair ${choice("crosshairStyle", CROSSHAIR_STYLES, settings.crosshairStyle, { circle: "Circle", dot: "Dot", cross: "Cross" })}</label>
+    <label>Crosshair size <input data-setting="crosshairSize" type="range" min="${CROSSHAIR_SIZE.min}" max="${CROSSHAIR_SIZE.max}" step="2" value="${settings.crosshairSize}"></label>
+    <label>Crosshair color ${choice("crosshairColor", CROSSHAIR_COLORS, settings.crosshairColor, { sepia: "Ink brown", sunInk: "Sun orange", gold: "Gold", moonInk: "Moon blue", parchment: "Paper" })}</label>
+    <label>Team colors ${choice("teamPalette", TEAM_PALETTE_NAMES, settings.teamPalette, { default: "Standard", deuteranopia: "Deuteranopia", protanopia: "Protanopia", tritanopia: "Tritanopia" })}</label>
     <h3>Bindings</h3><div class="bowdle-bindings"></div><button data-action="done">Done</button>`;
   const bindings = panel.querySelector<HTMLDivElement>(".bowdle-bindings")!;
   for (const action of ACTIONS) {
@@ -57,7 +72,8 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
   const update = (): void => {
     const number = (name: string): number => Number(panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.value);
     const checked = (name: string): boolean => panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.checked;
-    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), musicVolume: number("musicVolume"), effectsVolume: number("effectsVolume"), ambienceVolume: number("ambienceVolume"), music: checked("music"), soundIndicators: checked("soundIndicators"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
+    const picked = <T extends string>(name: string): T => panel.querySelector<HTMLSelectElement>(`[data-setting=${name}]`)!.value as T;
+    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), musicVolume: number("musicVolume"), effectsVolume: number("effectsVolume"), ambienceVolume: number("ambienceVolume"), music: checked("music"), soundIndicators: checked("soundIndicators"), invertY: checked("invertY"), aimSensitivity: number("aimSensitivity"), gamepadSensitivity: number("gamepadSensitivity"), trackpadMode: checked("trackpadMode"), crosshairStyle: picked("crosshairStyle"), crosshairSize: number("crosshairSize"), crosshairColor: picked("crosshairColor"), teamPalette: picked("teamPalette"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
     panel.querySelector("output")!.textContent = String(settings.fov); saveSettings(settings);
   };
   panel.addEventListener("input", update);

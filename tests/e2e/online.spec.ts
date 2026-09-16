@@ -69,6 +69,8 @@ test("grapple and ink cloud are visible online", async ({ page }) => {
   const peerErrors = collectErrors(peer);
   await peer.goto(onlineUrl("map=lost-river"));
   await peer.waitForFunction(() => "__bowdleTest" in window);
+  // Opening the second page sent this one to the background, where it samples no input.
+  await page.bringToFront();
   await expect.poll(async () => page.locator(".bowdle-timer").textContent(), { timeout: 8_000 }).not.toContain("DRAW IN");
   await page.evaluate(() => (window as unknown as { __bowdleTest: AbilityTestApi }).__bowdleTest.aimAtGrapple(8));
   await page.keyboard.down("e");

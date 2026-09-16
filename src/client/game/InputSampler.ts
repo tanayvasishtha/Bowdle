@@ -2,6 +2,7 @@ import { lockPointer } from "./pointerLock.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { PITCH_LIMIT, clamp, wrapAngle } from "../../shared/math/angles.ts";
 import { loadSettings, type GameSettings } from "../settings.ts";
+import { PAD, TrackpadToggles, emptyPad, firstPad, readPad } from "./gamepad.ts";
 
 export class InputSampler {
   private readonly canvas: HTMLCanvasElement;
@@ -14,18 +15,23 @@ export class InputSampler {
   /** Wheel steps not sent yet. Each step becomes one press, with a released sample between presses. */
   private wheelSteps = 0;
   private wheelSent = false;
+  private readonly pad = emptyPad();
+  private padStartWasDown = false;
+  private readonly toggles = new TrackpadToggles();
+  /** True while an enemy is under the crosshair; stick look slows down, nothing else changes. */
+  private aimSlowdown = false;
 
   constructor(canvas: HTMLCanvasElement, initialYaw = -Math.PI / 2) {
     this.canvas = canvas;
     this.yaw = initialYaw;
-    window.addEventListener("keydown", (event) => this.keys.add(event.code));
+    window.addEventListener("keydown", (event) => { this.keys.add(event.code); this.toggle(event.code); });
     window.addEventListener("keyup", (event) => this.keys.delete(event.code));
-    window.addEventListener("mousedown", (event) => { this.mouseButtons |= 1 << event.button; });
+    window.addEventListener("mousedown", (event) => { this.mouseButtons |= 1 << event.button; this.toggle(`Mouse${event.button}`); });
     window.addEventListener("mouseup", (event) => { this.mouseButtons &= ~(1 << event.button); });
     window.addEventListener("mousemove", (event) => {
       if (document.pointerLockElement !== this.canvas) return;
-      this.yaw = wrapAngle(this.yaw - event.movementX * this.settings.sensitivity);
-      this.pitch = clamp(this.pitch - event.movementY * this.settings.sensitivity, -PITCH_LIMIT, PITCH_LIMIT);
+      const scale = this.settings.sensitivity * (this.aiming() ? this.settings.aimSensitivity : 1);
+      this.turn(-event.movementX * scale, -event.movementY * scale);
     });
     window.addEventListener("contextmenu", (event) => event.preventDefault());
     window.addEventListener("wheel", (event) => {
@@ -33,21 +39,59 @@ export class InputSampler {
       this.wheelSteps = Math.max(-3, Math.min(3, this.wheelSteps + Math.sign(event.deltaY)));
     }, { passive: true });
     this.canvas.addEventListener("click", () => lockPointer(this.canvas));
-    window.addEventListener("bowdle-settings", (event) => { this.settings = (event as CustomEvent<GameSettings>).detail; });
+    window.addEventListener("bowdle-settings", (event) => {
+      this.settings = (event as CustomEvent<GameSettings>).detail;
+      if (!this.settings.trackpadMode) this.toggles.reset();
+    });
+  }
+
+  /** In trackpad mode the draw and aim bindings flip a toggle on each press instead of acting while held. */
+  private toggle(code: string): void {
+    if (!this.settings.trackpadMode || this.paused) return;
+    if (code === this.settings.keys.draw) this.toggles.press("draw");
+    if (code === this.settings.keys.aim) this.toggles.press("aim");
+  }
+
+  private turn(yawDelta: number, pitchDelta: number): void {
+    this.yaw = wrapAngle(this.yaw + yawDelta);
+    this.pitch = clamp(this.pitch + pitchDelta * (this.settings.invertY ? -1 : 1), -PITCH_LIMIT, PITCH_LIMIT);
   }
 
   private bound(action: keyof GameSettings["keys"]): boolean {
+    if (this.settings.trackpadMode && (action === "draw" || action === "aim")) return this.toggles.held(action);
     const code = this.settings.keys[action];
     if (code.startsWith("Mouse")) return (this.mouseButtons & (1 << Number(code.slice(5)))) !== 0;
     return this.keys.has(code);
   }
 
+  private aiming(): boolean { return this.bound("aim") || (this.pad.buttons & BTN.AIM) !== 0; }
+
+  /**
+   * Once per rendered frame: reads the pad, turns with the right stick, and presses the menu key for Start.
+   * Stick look turns at the gamepad sensitivity, slower while aiming at an enemy.
+   */
+  frame(elapsedMs: number): void {
+    readPad(firstPad(), this.pad);
+    if (this.pad.start && !this.padStartWasDown) window.dispatchEvent(new KeyboardEvent("keydown", { code: this.settings.keys.menu }));
+    this.padStartWasDown = this.pad.start;
+    if (this.paused || !this.pad.connected) return;
+    const speed = PAD.lookRadPerS * this.settings.gamepadSensitivity * (this.aimSlowdown ? PAD.aimSlowdown : 1) * (this.aiming() ? this.settings.aimSensitivity : 1);
+    const seconds = Math.min(0.1, elapsedMs / 1000);
+    this.turn(-this.pad.lookX * speed * seconds, -this.pad.lookY * speed * seconds);
+  }
+
+  setAimSlowdown(active: boolean): void { this.aimSlowdown = active; }
+  gamepadConnected(): boolean { return this.pad.connected; }
+
   sample(out: PlayerInputFrame): void {
-    out.moveX = this.paused ? 0 : Number(this.bound("right")) - Number(this.bound("left"));
-    out.moveZ = this.paused ? 0 : Number(this.bound("forward")) - Number(this.bound("back"));
+    const keyboardX = Number(this.bound("right")) - Number(this.bound("left"));
+    const keyboardZ = Number(this.bound("forward")) - Number(this.bound("back"));
+    const usePad = Math.hypot(this.pad.moveX, this.pad.moveZ) > Math.hypot(keyboardX, keyboardZ);
+    out.moveX = this.paused ? 0 : usePad ? this.pad.moveX : keyboardX;
+    out.moveZ = this.paused ? 0 : usePad ? this.pad.moveZ : keyboardZ;
     out.yaw = this.yaw;
     out.pitch = this.pitch;
-    let buttons = 0;
+    let buttons = this.paused ? 0 : this.pad.buttons;
     if (!this.paused && this.bound("jump")) buttons |= BTN.JUMP;
     if (!this.paused && this.bound("crouch")) buttons |= BTN.CROUCH;
     if (!this.paused && this.bound("aim")) buttons |= BTN.AIM;
@@ -73,6 +117,6 @@ export class InputSampler {
     this.yaw = yaw;
     this.pitch = clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
   }
-  setPaused(paused: boolean): void { this.paused = paused; if (paused) { this.keys.clear(); this.mouseButtons = 0; } }
+  setPaused(paused: boolean): void { this.paused = paused; if (paused) { this.keys.clear(); this.mouseButtons = 0; this.toggles.reset(); } }
   actionCode(action: keyof GameSettings["keys"]): string { return this.settings.keys[action]; }
 }

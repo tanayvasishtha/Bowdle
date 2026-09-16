@@ -297,19 +297,19 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const snapshot = [...this.accounts].flatMap(([sessionId, pending]) => {
       const player = this.state.players.get(sessionId);
       const stats = this.humanStats.get(sessionId); let bestKills = 0; for (const other of this.state.players.values()) bestKills = Math.max(bestKills, other.kills);
-      return player && !player.isBot && stats ? [{ sessionId, pending, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, won: winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
+      return player && !player.isBot && stats ? [{ sessionId, pending, mapId: this.map.id, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, won: winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
     });
     for (const entry of snapshot) {
       const accountId = await entry.pending;
       if (!accountId || sessionsByAccount.has(accountId)) continue;
       sessionsByAccount.set(accountId, entry.sessionId);
-      lines.push({ accountId, kills: entry.kills, assists: entry.assists, won: entry.won, stats: entry.stats, medals: entry.medals });
+      lines.push({ accountId, kills: entry.kills, assists: entry.assists, won: entry.won, stats: entry.stats, medals: entry.medals, mapId: entry.mapId });
     }
     if (lines.length === 0) return;
     const granted = await (await gameDatabase()).recordMatch(matchId, lines);
     for (const reward of granted) {
       const sessionId = sessionsByAccount.get(reward.accountId)!;
-      this.clientById(sessionId)?.send("rewards", { xp: reward.xp, ink: reward.ink, breakdown: reward.breakdown, level: reward.after.level, intoLevel: reward.after.intoLevel, levelSize: reward.after.levelSize, levelUp: reward.after.level > reward.before.level });
+      this.clientById(sessionId)?.send("rewards", { xp: reward.xp, ink: reward.ink, breakdown: reward.breakdown, before: reward.before, challenges: reward.challenges, streakDays: reward.streakDays, level: reward.after.level, intoLevel: reward.after.intoLevel, levelSize: reward.after.levelSize, levelUp: reward.after.level > reward.before.level });
     }
   }
   private resetPlayers(): void {

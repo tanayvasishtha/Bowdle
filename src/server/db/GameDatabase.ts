@@ -2,16 +2,42 @@ import { createHash, randomBytes } from "node:crypto";
 import { levelProgress, matchReward, seasonId, type LevelProgress, type MatchReward } from "../../shared/progression.ts";
 import { nameError } from "../../shared/name.ts";
 import { migrate } from "./migrations.ts";
-import { openSql, type SqlClient } from "./sql.ts";
+import { openSql, type SqlClient, type SqlQuery } from "./sql.ts";
 import { PROVIDERS, type BuyResult, type LeaderboardRow, type Locker, type Profile, type Provider } from "../../shared/api.ts";
 import { DEFAULT_LOADOUT, cosmeticById, cosmeticBySku, sanitizeLoadout, type Loadout } from "../../shared/cosmetics.ts";
 import type { MatchStats } from "../../shared/matchStats.ts";
+import { createMatchStats } from "../../shared/matchStats.ts";
+import { DAILY_POOL, WEEKLY_POOL, challengeReward, dailyChallenges, weeklyChallenges, periodKeys, resetTimes, progressFrom, type ChallengeChange, type Challenges, type ChallengeState } from "../../shared/challenges.ts";
+import { PLAY_STREAK, UTC_DAY_MS } from "../../shared/constants.ts";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
-export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean; stats?: MatchStats; medals?: readonly string[] };
-export type GrantedReward = MatchReward & { accountId: string; before: LevelProgress; after: LevelProgress };
+export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean; stats?: MatchStats; medals?: readonly string[]; mapId?: string };
+export type GrantedReward = MatchReward & { accountId: string; before: LevelProgress; after: LevelProgress; challenges: ChallengeChange[]; streakDays: number };
 
-type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null };
+type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null; streak_days: number; last_play_day: string; first_win_day: string; reroll_day: string };
+type ChallengeRow = { period_key: string; challenge_id: string; progress: number; done: boolean; maps: string };
+
+async function challengeRows(query: SqlQuery, accountId: string, now: Date): Promise<ChallengeRow[]> {
+  const keys = periodKeys(now);
+  const rows = await query<ChallengeRow>("SELECT * FROM account_challenges WHERE account_id = $1 AND period_key IN ($2, $3) ORDER BY challenge_id", [accountId, keys.daily, keys.weekly]);
+  for (const [key, picks] of [[keys.daily, dailyChallenges(now)], [keys.weekly, weeklyChallenges(now)]] as const) {
+    if (rows.some((row) => row.period_key === key)) continue;
+    for (const challenge of picks) {
+      await query("INSERT INTO account_challenges (account_id, period_key, challenge_id) VALUES ($1, $2, $3)", [accountId, key, challenge.id]);
+      rows.push({ period_key: key, challenge_id: challenge.id, progress: 0, done: false, maps: "" });
+    }
+  }
+  return rows.sort((a, b) => a.challenge_id.localeCompare(b.challenge_id));
+}
+
+function challengeView(rows: ChallengeRow[], now: Date, rerollDay: string): Challenges {
+  const keys = periodKeys(now);
+  const states = (key: string): ChallengeState[] => rows.filter((row) => row.period_key === key).sort((a, b) => a.challenge_id.localeCompare(b.challenge_id)).map((row) => {
+    const challenge = [...DAILY_POOL, ...WEEKLY_POOL].find((entry) => entry.id === row.challenge_id)!;
+    return { id: challenge.id, text: challenge.text, target: challenge.target, progress: row.progress, done: row.done, reward: challengeReward(challenge.id) };
+  });
+  return { daily: states(keys.daily), weekly: states(keys.weekly), ...resetTimes(now), rerollAvailable: rerollDay !== keys.daily.slice(2) };
+}
 
 const TOKEN_BYTES = 24;
 const ID_BYTES = 9;
@@ -71,6 +97,7 @@ export class GameDatabase {
       id: account.id, name: account.name, xp: account.xp, ink: account.ink, progress: levelProgress(account.xp), season,
       seasonKills: stats?.kills ?? 0, seasonMatches: stats?.matches ?? 0, seasonWins: stats?.wins ?? 0,
       linked: PROVIDERS.filter((provider) => account[`${provider}_id`] !== null),
+      streakDays: account.streak_days,
     };
   }
 
@@ -82,10 +109,12 @@ export class GameDatabase {
 
   /** Grants each account its reward once per match id. Repeating a match id grants nothing new. */
   async recordMatch(matchId: string, lines: readonly MatchResultLine[]): Promise<GrantedReward[]> {
-    const season = seasonId(this.now());
+    const now = this.now(); const season = seasonId(now); const day = periodKeys(now).daily.slice(2);
     return this.sql.transaction(async (query) => {
       const granted: GrantedReward[] = [];
       for (const line of lines) {
+        const account = (await query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR UPDATE", [line.accountId]))[0];
+        if (!account) continue;
         const reward = matchReward(line.stats ?? line, line.medals);
         const inserted = await query<{ account_id: string }>(
           `INSERT INTO match_rewards (match_id, account_id, xp, ink)
@@ -94,6 +123,32 @@ export class GameDatabase {
           [matchId, line.accountId, reward.xp, reward.ink],
         );
         if (inserted.length === 0) continue;
+        const changes: ChallengeChange[] = [];
+        const stats = { ...(line.stats ?? { ...createMatchStats(), kills: line.kills, assists: line.assists, won: line.won }), medals: line.medals };
+        const firstWinDay = stats.won ? day : account.first_win_day;
+        if (stats.won && account.first_win_day !== day) reward.breakdown.push({ label: "First win of the day", xp: PLAY_STREAK.firstWinXp, ink: PLAY_STREAK.firstWinInk });
+        const rows = await challengeRows(query, line.accountId, now);
+        for (const row of rows) {
+          if (row.done) continue;
+          const challenge = [...DAILY_POOL, ...WEEKLY_POOL].find((entry) => entry.id === row.challenge_id)!;
+          const maps = row.maps ? row.maps.split(",") : [];
+          if (challenge.stat === "mapsWon" && stats.won && line.mapId && !maps.includes(line.mapId)) maps.push(line.mapId);
+          const after = Math.min(challenge.target, challenge.stat === "mapsWon" ? maps.length : row.progress + progressFrom(stats, challenge));
+          const done = after >= challenge.target;
+          await query("UPDATE account_challenges SET progress = $1, done = $2, maps = $3 WHERE account_id = $4 AND period_key = $5 AND challenge_id = $6", [after, done, maps.join(","), line.accountId, row.period_key, row.challenge_id]);
+          if (after !== row.progress) changes.push({ id: challenge.id, text: challenge.text, before: row.progress, after, target: challenge.target, done });
+          if (done) reward.breakdown.push({ label: `${challenge.id.startsWith("d.") ? "Daily" : "Weekly"}: ${challenge.text}`, ...challengeReward(challenge.id) });
+        }
+        let streakDays = account.streak_days;
+        if (account.last_play_day !== day) {
+          const yesterday = periodKeys(new Date(now.getTime() - UTC_DAY_MS)).daily.slice(2);
+          streakDays = account.last_play_day === yesterday ? streakDays + 1 : 1;
+          reward.breakdown.push({ label: `Streak day ${streakDays}`, xp: 0, ink: PLAY_STREAK.inkPerDay * Math.min(streakDays, PLAY_STREAK.capDays) });
+        }
+        reward.xp = reward.breakdown.reduce((sum, row) => sum + row.xp, 0);
+        reward.ink = reward.breakdown.reduce((sum, row) => sum + row.ink, 0);
+        await query("UPDATE accounts SET streak_days = $1, last_play_day = $2, first_win_day = $3 WHERE id = $4", [streakDays, day, firstWinDay, line.accountId]);
+        await query("UPDATE match_rewards SET xp = $1, ink = $2, created_at = $3 WHERE match_id = $4 AND account_id = $5", [reward.xp, reward.ink, now, matchId, line.accountId]);
         const updated = await query<{ xp: number }>("UPDATE accounts SET xp = xp + $1, ink = ink + $2 WHERE id = $3 RETURNING xp", [reward.xp, reward.ink, line.accountId]);
         await query(
           `INSERT INTO season_stats (season, account_id, kills, matches, wins) VALUES ($1, $2, $3, 1, $4)
@@ -102,9 +157,34 @@ export class GameDatabase {
           [season, line.accountId, Math.max(0, Math.floor(line.kills) || 0), line.won ? 1 : 0],
         );
         const after = updated[0]!.xp;
-        granted.push({ accountId: line.accountId, ...reward, before: levelProgress(after - reward.xp), after: levelProgress(after) });
+        granted.push({ accountId: line.accountId, ...reward, before: levelProgress(after - reward.xp), after: levelProgress(after), challenges: changes, streakDays });
       }
       return granted;
+    });
+  }
+
+  async challenges(accountId: string, now: Date = this.now()): Promise<Challenges> {
+    return this.sql.transaction(async (query) => {
+      const account = (await query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR UPDATE", [accountId]))[0];
+      if (!account) throw new Error("Account unavailable");
+      return challengeView(await challengeRows(query, accountId, now), now, account.reroll_day);
+    });
+  }
+
+  async rerollDaily(accountId: string, id: string): Promise<Challenges | undefined> {
+    const now = this.now(); const key = periodKeys(now).daily; const day = key.slice(2);
+    return this.sql.transaction(async (query) => {
+      const account = (await query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR UPDATE", [accountId]))[0];
+      if (!account || account.reroll_day === day) return undefined;
+      const rows = await challengeRows(query, accountId, now);
+      const row = rows.find((entry) => entry.period_key === key && entry.challenge_id === id);
+      if (!row || row.done) return undefined;
+      const replacement = DAILY_POOL.find((entry) => !rows.some((current) => current.period_key === key && current.challenge_id === entry.id))!;
+      await query("DELETE FROM account_challenges WHERE account_id = $1 AND period_key = $2 AND challenge_id = $3", [accountId, key, id]);
+      await query("INSERT INTO account_challenges (account_id, period_key, challenge_id) VALUES ($1, $2, $3)", [accountId, key, replacement.id]);
+      await query("UPDATE accounts SET reroll_day = $1 WHERE id = $2", [day, accountId]);
+      row.challenge_id = replacement.id; row.progress = 0; row.done = false; row.maps = "";
+      return challengeView(rows, now, day);
     });
   }
 

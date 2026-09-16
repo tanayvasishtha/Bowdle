@@ -115,6 +115,7 @@ export class MatchHud {
     const list = document.createElement("ul");
     for (const line of reward.breakdown) { const item = document.createElement("li"); item.textContent = `${line.label}: +${line.xp} XP · +${line.ink} Ink`; list.append(item); }
     this.rewardLine.append(list);
+    for (const challenge of reward.challenges) { const item = document.createElement("li"); item.textContent = `${challenge.text}: ${challenge.before} → ${challenge.after}/${challenge.target}${challenge.done ? " Done" : ""}`; list.append(item); }
   }
   matchStats(message: MatchStatsMessage): void {
     this.medalList.replaceChildren();

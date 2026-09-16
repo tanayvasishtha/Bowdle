@@ -19,7 +19,7 @@ describe("GameDatabase over the Postgres wire protocol", () => {
     server = new PGLiteSocketServer({ db: pglite, port: PORT, host: "127.0.0.1" });
     await server.start();
     const sql = await openSql({ DATABASE_URL: `postgres://postgres:postgres@127.0.0.1:${PORT}/postgres` });
-    db = await GameDatabase.open({ sql });
+    db = await GameDatabase.open({ sql, now: () => new Date("2026-09-16") });
   });
 
   afterAll(async () => {
@@ -32,10 +32,10 @@ describe("GameDatabase over the Postgres wire protocol", () => {
     const { token, profile } = await db.createGuest("Wire");
     expect(await db.authenticate(token)).toBe(profile.id);
     const granted = await db.recordMatch("wire:1", [{ accountId: profile.id, kills: 10, assists: 0, won: true }]);
-    expect(granted[0]).toMatchObject({ xp: 800, ink: 30 });
+    expect(granted[0]).toMatchObject({ xp: 900, ink: 55, streakDays: 1 });
     expect(await db.recordMatch("wire:1", [{ accountId: profile.id, kills: 10, assists: 0, won: true }])).toEqual([]);
     for (let match = 2; match <= 12; match += 1) await db.recordMatch(`wire:${match}`, [{ accountId: profile.id, kills: 10, assists: 0, won: true }]);
-    expect(await db.buyWithInk(profile.id, "bow.jade")).toMatchObject({ ok: true, locker: { ink: 60 } });
+    expect(await db.buyWithInk(profile.id, "bow.jade")).toMatchObject({ ok: true, locker: { ink: 85 } });
     expect(await db.setLoadout(profile.id, { bow: "bow.jade" })).toMatchObject({ bow: "bow.jade" });
     expect(await db.fulfillOrder("wire-order", profile.id, ["trail-gold-leaf"])).toEqual(["trail.gold"]);
     expect(await db.fulfillOrder("wire-order", profile.id, ["trail-gold-leaf"])).toEqual([]);
@@ -50,9 +50,16 @@ describe("GameDatabase over the Postgres wire protocol", () => {
     const stats = { ...createMatchStats(), kills: 3, headshots: 3, longShots: 2, longestShotM: 45, won: true };
     const line = { accountId: profile.id, kills: 3, assists: 0, won: true, stats, medals: ["headhunter", "eagleEye"] };
     const result = await db.recordMatch("wire:precision", [line]);
-    expect(result[0]).toMatchObject({ xp: 625, ink: 23 });
+    expect(result[0]).toMatchObject({ xp: 875, ink: 78 });
     expect(result[0]!.breakdown.find((row) => row.label === "Headshots")).toEqual({ label: "Headshots", xp: 75, ink: 0 });
     expect(await db.recordMatch("wire:precision", [line])).toEqual([]);
-    expect(await db.profile(profile.id)).toMatchObject({ xp: 625, ink: 23 });
+    expect(await db.profile(profile.id)).toMatchObject({ xp: 875, ink: 78 });
+    expect((await db.challenges(profile.id)).daily.find((entry) => entry.id === "d.longshots")).toMatchObject({ progress: 2, done: true });
+    expect(await db.rerollDaily(profile.id, "d.longshots")).toBeUndefined();
+    expect((await db.rerollDaily(profile.id, "d.zip"))?.rerollAvailable).toBe(false);
+    expect(await db.rerollDaily(profile.id, "d.streak")).toBeUndefined();
+    const next = (await db.recordMatch("wire:precision:2", [line]))[0]!;
+    expect(next.breakdown.some((entry) => entry.label.startsWith("Daily:"))).toBe(false);
+    expect(next.breakdown.some((entry) => entry.label === "First win of the day")).toBe(false);
   });
 });

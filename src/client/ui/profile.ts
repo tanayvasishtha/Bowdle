@@ -1,9 +1,12 @@
 import type { Profile, Provider } from "../../shared/api.ts";
-import { deleteAccount, enabledProviders, ensureAccount, fetchLeaderboard, fetchProfile, renameAccount, startProviderSignIn } from "../account.ts";
+import { deleteAccount, enabledProviders, ensureAccount, fetchChallenges, fetchLeaderboard, fetchProfile, renameAccount, rerollChallenge, startProviderSignIn } from "../account.ts";
+import type { Challenges, ChallengeState } from "../../shared/challenges.ts";
+import { PLAY_STREAK, TIME_UNITS } from "../../shared/constants.ts";
 import { loadName, nameError, saveName } from "../settings.ts";
 import { portalPolicy } from "../platform/platform.ts";
 
 const PROVIDER_LABELS: Record<Provider, string> = { discord: "Discord", google: "Google" };
+const CHALLENGE_PERIODS = ["daily", "weekly"] as const;
 
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
@@ -30,17 +33,21 @@ function progressBar(profile: Profile): string {
 
 export async function showProfile(container: HTMLElement, onClose: () => void): Promise<void> {
   const section = panel(container, "bowdle-profile", onClose);
+  section.style.alignContent = "start";
   const profile = await fetchProfile() ?? await ensureAccount(loadName() || "Explorer");
   if (!profile) {
     section.innerHTML = `<h2>Field notes offline</h2><p>The camp server is out of reach. You can still play as a guest.</p><button data-action="close">Back</button>`;
     return;
   }
   const providers = await enabledProviders();
+  let challenges = await fetchChallenges();
   const unlinked = !portalPolicy().providerSignIn ? [] : providers.filter((provider) => !profile.linked.includes(provider));
   section.innerHTML = `<h2>${escapeHtml(profile.name)}</h2>
     ${progressBar(profile)}
     <p class="bowdle-ink" data-testid="ink">${profile.ink} Ink</p>
     <p class="bowdle-small">Season ${escapeHtml(profile.season)}: ${profile.seasonKills} kills, ${profile.seasonWins} wins in ${profile.seasonMatches} matches</p>
+    <p data-testid="play-streak">Play streak: ${profile.streakDays} days. Tomorrow's bonus: ${PLAY_STREAK.inkPerDay * Math.min(profile.streakDays + 1, PLAY_STREAK.capDays)} Ink</p>
+    <div data-testid="challenges"></div>
     <label>Explorer name <input data-field="name" maxlength="16" value="${escapeHtml(profile.name)}"></label><div class="bowdle-error"></div>
     <button data-action="rename">Save name</button>
     ${profile.linked.length > 0 ? `<p class="bowdle-small">Saved with ${profile.linked.map((provider) => PROVIDER_LABELS[provider]).join(" and ")}</p>` : ""}
@@ -48,6 +55,34 @@ export async function showProfile(container: HTMLElement, onClose: () => void): 
     <button data-action="delete">Delete account</button>
     <button data-action="close">Back</button>`;
   const error = section.querySelector<HTMLDivElement>(".bowdle-error")!;
+  const challengePanel = section.querySelector<HTMLDivElement>("[data-testid=challenges]")!;
+  const renderChallenges = (state: Challenges | undefined): void => {
+    if (!state) { challengePanel.textContent = "Challenge notes offline"; return; }
+    const rows = (list: ChallengeState[], daily: boolean): string => list.map((entry) => `<li data-challenge="${escapeHtml(entry.id)}"><span>${escapeHtml(entry.text)}</span> <progress max="${entry.target}" value="${entry.progress}"></progress> ${entry.progress}/${entry.target} ${entry.done ? "Done" : ""} · ${entry.reward.ink} Ink + ${entry.reward.xp} XP ${daily ? `<button data-reroll="${escapeHtml(entry.id)}" ${!state.rerollAvailable || entry.done ? "disabled" : ""}>Reroll</button>` : ""}</li>`).join("");
+    challengePanel.innerHTML = `<h3>Daily challenges</h3><p data-reset="daily"></p><ul data-testid="daily-challenges">${rows(state.daily, true)}</ul><h3>Weekly challenges</h3><p data-reset="weekly"></p><ul data-testid="weekly-challenges">${rows(state.weekly, false)}</ul>`;
+    for (const button of challengePanel.querySelectorAll<HTMLButtonElement>("[data-reroll]")) button.addEventListener("click", async () => {
+      for (const current of challengePanel.querySelectorAll<HTMLButtonElement>("[data-reroll]")) current.disabled = true;
+      const result = await rerollChallenge(button.dataset.reroll!);
+      challenges = result ?? await fetchChallenges(); renderChallenges(challenges);
+      if (!result) error.textContent = "That challenge could not be rerolled.";
+    });
+  };
+  renderChallenges(challenges);
+  let lastSecond = -1;
+  const updateReset = (): void => {
+    if (!section.isConnected) return;
+    const second = Math.floor(Date.now() / TIME_UNITS.msPerSecond);
+    if (second !== lastSecond && challenges) {
+      lastSecond = second;
+      for (const period of CHALLENGE_PERIODS) {
+        const remaining = Math.max(0, Math.ceil((challenges[period === "daily" ? "dailyResetAt" : "weeklyResetAt"] - Date.now()) / TIME_UNITS.msPerSecond));
+        const label = challengePanel.querySelector(`[data-reset=${period}]`);
+        if (label) label.textContent = `Resets in ${Math.floor(remaining / TIME_UNITS.secondsPerHour)}h ${Math.floor(remaining % TIME_UNITS.secondsPerHour / TIME_UNITS.secondsPerMinute)}m ${remaining % TIME_UNITS.secondsPerMinute}s (UTC)`;
+      }
+    }
+    requestAnimationFrame(updateReset);
+  };
+  requestAnimationFrame(updateReset);
   section.querySelector("[data-action=rename]")!.addEventListener("click", async () => {
     const input = section.querySelector<HTMLInputElement>("[data-field=name]")!;
     const issue = nameError(input.value); error.textContent = issue;

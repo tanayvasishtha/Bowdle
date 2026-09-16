@@ -15,24 +15,24 @@ const sign = (body: string): string => `Signature ${createHash("sha1").update(bo
 
 describe("locker and Ink shop", () => {
   let db: GameDatabase;
-  beforeAll(async () => { db = await GameDatabase.open(); });
+  beforeAll(async () => { db = await GameDatabase.open({ now: () => new Date("2026-09-16") }); });
   afterAll(async () => { await db.close(); });
 
   it("buys with Ink once, refuses when poor, and equips only owned items", async () => {
     const { profile } = await db.createGuest("Shopper");
     await db.recordMatch("shop:1", [{ accountId: profile.id, kills: 10, assists: 0, won: true }]);
-    expect((await db.locker(profile.id))?.ink).toBe(30);
+    expect((await db.locker(profile.id))?.ink).toBe(55);
     expect(await db.buyWithInk(profile.id, "bow.jade")).toEqual({ ok: false, reason: "poor" });
     for (let match = 2; match <= 12; match += 1) await db.recordMatch(`shop:${match}`, [{ accountId: profile.id, kills: 10, assists: 0, won: true }]);
-    expect((await db.locker(profile.id))?.ink).toBe(360);
+    expect((await db.locker(profile.id))?.ink).toBe(385);
     const bought = await db.buyWithInk(profile.id, "bow.jade");
-    expect(bought).toMatchObject({ ok: true, locker: { ink: 60, owned: ["bow.jade"] } });
+    expect(bought).toMatchObject({ ok: true, locker: { ink: 85, owned: ["bow.jade"] } });
     expect(await db.buyWithInk(profile.id, "bow.jade")).toEqual({ ok: false, reason: "owned" });
     expect(await db.buyWithInk(profile.id, "bow.gilded")).toEqual({ ok: false, reason: "not_for_ink" });
     expect(await db.buyWithInk(profile.id, "bow.nothing")).toEqual({ ok: false, reason: "unknown_item" });
     expect(await db.setLoadout(profile.id, { bow: "bow.jade", outfit: "outfit.idol" })).toEqual({ bow: "bow.jade", trail: "trail.default", outfit: "outfit.default", effect: "effect.default" });
     expect(await db.loadout(profile.id)).toMatchObject({ bow: "bow.jade" });
-    expect((await db.locker(profile.id))?.ink).toBe(60);
+    expect((await db.locker(profile.id))?.ink).toBe(85);
   });
 
   it("grants paid orders once and removes them on refund", async () => {
@@ -59,7 +59,7 @@ describe("Xsolla shop API", () => {
   }) as typeof fetch;
 
   beforeAll(async () => {
-    db = await GameDatabase.open();
+    db = await GameDatabase.open({ now: () => new Date("2026-09-16") });
     const xsolla = new Xsolla({ XSOLLA_MERCHANT_ID: "678", XSOLLA_PROJECT_ID: "12345", XSOLLA_API_KEY: "api-key", XSOLLA_WEBHOOK_SECRET_KEY: SECRET, XSOLLA_SANDBOX: "1" }, fakeFetch);
     const app = express();
     app.use("/api", apiRouter({ database: async () => db, xsolla }));
@@ -121,7 +121,7 @@ describe("Xsolla shop API", () => {
     const poor = await fetch(`${base}/shop/ink`, { method: "POST", headers, body: JSON.stringify({ itemId: "outfit.raider" }) });
     expect(poor.status).toBe(409);
     const bought = await fetch(`${base}/shop/ink`, { method: "POST", headers, body: JSON.stringify({ itemId: "trail.rope" }) });
-    expect(await bought.json()).toMatchObject({ ok: true, locker: { ink: 110, owned: ["trail.rope"] } });
+    expect(await bought.json()).toMatchObject({ ok: true, locker: { ink: 135, owned: ["trail.rope"] } });
     const equipped = await fetch(`${base}/loadout`, { method: "PUT", headers, body: JSON.stringify({ trail: "trail.rope", bow: "bow.gilded" }) });
     expect(await equipped.json()).toEqual({ bow: "bow.default", trail: "trail.rope", outfit: "outfit.default", effect: "effect.default" });
   });

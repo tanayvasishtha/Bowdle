@@ -58,6 +58,21 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE accounts ADD COLUMN loadout_outfit TEXT NOT NULL DEFAULT 'outfit.default';
   ALTER TABLE accounts ADD COLUMN loadout_effect TEXT NOT NULL DEFAULT 'effect.default'
   `,
+  `
+  CREATE TABLE account_challenges (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    period_key TEXT NOT NULL,
+    challenge_id TEXT NOT NULL,
+    progress INTEGER NOT NULL DEFAULT 0,
+    done BOOLEAN NOT NULL DEFAULT false,
+    maps TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (account_id, period_key, challenge_id)
+  );
+  ALTER TABLE accounts ADD COLUMN streak_days INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE accounts ADD COLUMN last_play_day TEXT NOT NULL DEFAULT '';
+  ALTER TABLE accounts ADD COLUMN first_win_day TEXT NOT NULL DEFAULT '';
+  ALTER TABLE accounts ADD COLUMN reroll_day TEXT NOT NULL DEFAULT ''
+  `,
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

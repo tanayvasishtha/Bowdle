@@ -7,6 +7,7 @@ export const PROVIDERS: readonly Provider[] = ["discord", "google"];
 export type Profile = {
   id: string; name: string; xp: number; ink: number; progress: LevelProgress; season: string;
   seasonKills: number; seasonMatches: number; seasonWins: number; linked: Provider[];
+  streakDays: number;
 };
 
 export type LeaderboardRow = { rank: number; name: string; kills: number; wins: number; matches: number; level: number };

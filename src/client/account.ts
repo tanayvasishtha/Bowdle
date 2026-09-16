@@ -53,6 +53,13 @@ export async function fetchProfile(): Promise<Profile | undefined> {
   try { return loadToken() ? await request<Profile>("/profile") : undefined; } catch { return undefined; }
 }
 
+export async function fetchChallenges(): Promise<Challenges | undefined> {
+  try { return await request<Challenges>("/challenges"); } catch { return undefined; }
+}
+export async function rerollChallenge(id: string): Promise<Challenges | undefined> {
+  try { return await request<Challenges>("/challenges/reroll", { method: "POST", body: JSON.stringify({ id }) }); } catch { return undefined; }
+}
+
 export async function renameAccount(name: string): Promise<Profile | undefined> {
   try { return await request<Profile>("/profile", { method: "PATCH", body: JSON.stringify({ name }) }); } catch { return undefined; }
 }
@@ -111,3 +118,4 @@ export async function startCheckout(sku: string): Promise<CheckoutResult> {
     return body.url ? { url: body.url } : { error: "failed" };
   } catch { return { error: "failed" }; }
 }
+import type { Challenges } from "../shared/challenges.ts";

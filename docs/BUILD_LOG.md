@@ -1,5 +1,15 @@
 # Build log
 
+## R2: Challenges, play streak and first win
+
+Status: done.
+
+Built: deterministic daily and ISO-week challenge pools, UTC reset times, distinct selection and derived progress. Migration 3 appends challenge rows and play-day fields without changing earlier migrations. Match grants update challenges, completion payouts, first-win rewards and capped play streak bonuses atomically behind account row locks and match-id idempotency. Rerolls replace one unfinished daily, preserve other progress, and persist the once-per-day limit. Authenticated challenge routes, Profile progress/reward lists and reset countdowns, streak bonus preview, and match-end challenge changes are connected. Map identity is captured before asynchronous reward work.
+
+Verified: npm run check passed 197 tests in 47 files, type checks, production build and size. Client JS gzipped: 280 KB (budget 900 KB). All 29 browser tests passed using installed Chrome. npm run build, npm run smoke and npm run soak passed; soak covered three seeds on every launch map. Removing the completion guard paid a daily twice and failed the named paid-once test; restoration passed. Tests cover ISO-year boundaries, reproducible distinct selection, incremental progress, completion idempotency, reroll persistence/refusals/reset, consecutive play days and gaps, the seven-day cap, first win after a loss, distinct weekly maps, Monday resets and authenticated routes. Postgres wire coverage includes challenge payout, reroll and repeated-match checks. Screenshot: test-results/qa/r2/profile.png (not committed). Existing economy expectations include the new rewards, with fixed clocks where challenge selection affects balances.
+
+Left: manually play two matches, check Profile progress and UTC countdowns, and confirm a reroll changes only one daily. The existing nonfatal schema buffer growth warning appeared in the passing soak. No dependencies added and no design deviations.
+
 ## R1: Match stats, medals and XP breakdown
 
 Status: done.

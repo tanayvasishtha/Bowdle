@@ -64,6 +64,19 @@ export function apiRouter(options: ApiOptions): Router {
     response.json(Object.fromEntries(PROVIDERS.map((provider) => [provider, oauth.enabled(provider)])));
   });
 
+  router.get("/challenges", async (request, response) => {
+    const auth = await signedIn(request, response); if (!auth) return;
+    response.json(await auth.db.challenges(auth.accountId));
+  });
+  router.post("/challenges/reroll", async (request, response) => {
+    const auth = await signedIn(request, response); if (!auth) return;
+    const body = z.object({ id: z.string() }).safeParse(request.body);
+    if (!body.success) { response.status(400).json({ error: "bad_challenge" }); return; }
+    const result = await auth.db.rerollDaily(auth.accountId, body.data.id);
+    if (!result) { response.status(409).json({ error: "reroll_unavailable" }); return; }
+    response.json(result);
+  });
+
   router.post("/auth/:provider/start", async (request, response) => {
     const provider = request.params.provider;
     if (!isProvider(provider) || !oauth.enabled(provider)) { response.status(404).json({ error: "provider_off" }); return; }

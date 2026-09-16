@@ -24,5 +24,8 @@ export const RewardMessage = z.object({
   xp: z.number().int().nonnegative(), ink: z.number().int().nonnegative(),
   level: z.number().int().positive(), intoLevel: z.number().int().nonnegative(), levelSize: z.number().int().nonnegative(), levelUp: z.boolean(),
   breakdown: z.array(z.object({ label: z.string(), xp: z.number().nonnegative(), ink: z.number().nonnegative() })),
+  before: z.object({ level: z.number().int().positive(), intoLevel: z.number().int().nonnegative(), levelSize: z.number().int().nonnegative() }),
+  challenges: z.array(z.object({ id: z.string(), text: z.string(), before: z.number().nonnegative(), after: z.number().nonnegative(), target: z.number().positive(), done: z.boolean() })),
+  streakDays: z.number().int().nonnegative(),
 });
 export type RewardMessage = z.infer<typeof RewardMessage>;

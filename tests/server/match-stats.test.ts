@@ -5,6 +5,7 @@ import { closeGameDatabase, gameDatabase } from "../../src/server/db/GameDatabas
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import { MAX_HP, SCORE_LIMIT } from "../../src/shared/constants.ts";
 import { MatchStatsMessage, RewardMessage } from "../../src/net/messages.ts";
+import { DAILY_POOL, WEEKLY_POOL, progressFrom } from "../../src/shared/challenges.ts";
 
 describe("room match statistics", () => {
   let colyseus: ColyseusTestServer<typeof server>;
@@ -13,6 +14,7 @@ describe("room match statistics", () => {
   it("sends human and guest stats, resets a death streak and stores precision and weapon XP", async () => {
     const db = await gameDatabase();
     const { token, profile } = await db.createGuest("Archer");
+    const challenges = await db.challenges(profile.id);
     const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Archer", token, test: true });
     const guest = await colyseus.sdk.joinOrCreate("tdm", { name: "Guest", test: true });
     await client.waitForInitialState(); await guest.waitForInitialState();
@@ -38,9 +40,12 @@ describe("room match statistics", () => {
     expect(message.stats).toEqual({ kills: 3, deaths: 1, assists: 0, headshots: 1, longShots: 1, longestShotM: 45, daggerKills: 1, boulderKills: 1, zipKills: 0, robinHoods: 0, streak: 1, bestStreak: 2, won: true });
     expect(message.medals).toEqual(["eagleEye", "upClose", "trapper"]);
     expect(MatchStatsMessage.parse(await guestMessage).stats).toMatchObject({ kills: 1, deaths: 3, streak: 0, bestStreak: 1, won: false });
-    expect(RewardMessage.parse(await rewardMessage)).toMatchObject({ xp: 575, ink: 23 });
+    const completed = [...challenges.daily, ...challenges.weekly].filter((entry) => progressFrom(message.stats, [...DAILY_POOL, ...WEEKLY_POOL].find((definition) => definition.id === entry.id)!) >= entry.target);
+    const xp = 575 + 100 + completed.reduce((sum, entry) => sum + entry.reward.xp, 0);
+    const ink = 23 + 25 + completed.reduce((sum, entry) => sum + entry.reward.ink, 0);
+    expect(RewardMessage.parse(await rewardMessage)).toMatchObject({ xp, ink, streakDays: 1 });
     await room.rewardsSettled;
-    expect(await db.profile(profile.id)).toMatchObject({ xp: 575, ink: 23 });
+    expect(await db.profile(profile.id)).toMatchObject({ xp, ink });
     damage.resetPlayers();
     const map = (room as unknown as { humanStats: Map<string, { kills: number; headshots: number; bestStreak: number }> }).humanStats;
     expect(map.get(client.sessionId)).toMatchObject({ kills: 0, headshots: 0, bestStreak: 0 });

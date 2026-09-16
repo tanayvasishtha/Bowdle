@@ -10,7 +10,7 @@ test("the end screen lists medals and an exact reward breakdown", async ({ page 
   await page.waitForFunction(() => "__bowdleTest" in window);
   const stats = { ...createMatchStats(), kills: 3, headshots: 3, longShots: 1, longestShotM: 45, won: true };
   const medals: MatchStatsMessage["medals"] = ["headhunter", "eagleEye"];
-  const reward: RewardMessage = { ...matchReward(stats, medals), level: 2, intoLevel: 100, levelSize: 1000, levelUp: true };
+  const reward: RewardMessage = { ...matchReward(stats, medals), before: { level: 1, intoLevel: 0, levelSize: 500 }, challenges: [], streakDays: 1, level: 2, intoLevel: 100, levelSize: 1000, levelUp: true };
   await page.evaluate(({ stats, medals, reward }) => {
     const hook = (window as unknown as { __bowdleTest: { showEndScreen(): void; showMatchRewards(stats: MatchStatsMessage, reward: RewardMessage): void } }).__bowdleTest;
     hook.showEndScreen(); hook.showMatchRewards({ stats, medals }, reward);

@@ -34,10 +34,10 @@ describe("match rewards", () => {
     await rewardReceived;
     expect(rewards).toHaveLength(1);
     const reward = RewardMessage.parse(rewards[0]);
-    expect(reward).toMatchObject({ xp: 100 + 4 * 50 + 25 + 200 + 25, ink: 24, level: 2, levelUp: true });
+    expect(reward).toMatchObject({ xp: 100 + 4 * 50 + 25 + 200 + 25 + 100, ink: 49, level: 2, levelUp: true, streakDays: 1 });
     expect(reward.breakdown.find((line) => line.label === "Medals")).toEqual({ label: "Medals", xp: 25, ink: 0 });
     expect(guestRewards).toEqual([]);
-    expect(await db.profile(profile.id)).toMatchObject({ xp: 550, ink: 24, seasonKills: 4, seasonWins: 1, seasonMatches: 1 });
+    expect(await db.profile(profile.id)).toMatchObject({ xp: 650, ink: 49, seasonKills: 4, seasonWins: 1, seasonMatches: 1 });
     await client.leave(); await guest.leave();
   });
 });

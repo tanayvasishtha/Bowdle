@@ -1,6 +1,8 @@
 import { lockPointer } from "../game/pointerLock.ts";
 import type { MatchState } from "../../net/schema.ts";
-import type { KillMessage, MatchEndMessage, RewardMessage } from "../../net/messages.ts";
+import type { KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage } from "../../net/messages.ts";
+import { MEDALS } from "../../shared/medals.ts";
+import { HUD_END_MAX_HEIGHT_VH } from "../render/look.ts";
 import { GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS } from "../../shared/constants.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { loadSettings } from "../settings.ts";
@@ -27,6 +29,7 @@ export class MatchHud {
   private readonly abilities: HTMLDivElement;
   private readonly endPanel: HTMLDivElement;
   private readonly rewardLine = Object.assign(document.createElement("p"), { className: "bowdle-rewards" });
+  private readonly medalList = Object.assign(document.createElement("ul"), { className: "bowdle-medals" });
   private readonly onVote: (mapId: string) => void;
   private readonly actions: HudActions;
   /** Test hook: keeps the end screen open outside the end phase. */
@@ -47,6 +50,9 @@ export class MatchHud {
     this.moment = this.root.querySelector(".bowdle-moment")!;
     this.abilities = this.root.querySelector(".bowdle-abilities")!;
     this.endPanel = this.root.querySelector(".bowdle-end")!;
+    this.endPanel.style.maxHeight = `${HUD_END_MAX_HEIGHT_VH}vh`;
+    this.endPanel.style.overflowY = "auto";
+    this.endPanel.style.boxSizing = "border-box";
     window.addEventListener("keydown", (event) => { if (event.code === loadSettings().keys.scoreboard) { event.preventDefault(); this.scoreboard.style.display = "block"; } });
     window.addEventListener("keyup", (event) => { if (event.code === loadSettings().keys.scoreboard) this.scoreboard.style.display = "none"; });
   }
@@ -77,7 +83,8 @@ export class MatchHud {
     const summary = document.createElement("p"); summary.textContent = `${stats.kills} kills · ${stats.deaths} deaths · best shot ${Math.round(stats.bestShot)} m\nMVP: ${names.get(message.mvp) ?? message.mvp}`;
     const vote = document.createElement("p"); vote.textContent = "Vote for the next expedition";
     this.rewardLine.textContent = ""; this.rewardLine.dataset.testid = "rewards";
-    this.endPanel.append(title, summary, this.rewardLine, vote);
+    this.medalList.replaceChildren(); this.medalList.dataset.testid = "medals";
+    this.endPanel.append(title, summary, this.medalList, this.rewardLine, vote);
     for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); this.endPanel.append(button); }
     const extras = document.createElement("div"); extras.className = "bowdle-end-extras";
     if (this.actions.saveClip) {
@@ -105,6 +112,13 @@ export class MatchHud {
   rewards(reward: RewardMessage): void {
     const progress = reward.levelSize > 0 ? `${reward.intoLevel} / ${reward.levelSize} XP` : "top level";
     this.rewardLine.textContent = `+${reward.xp} XP · +${reward.ink} Ink · ${reward.levelUp ? `LEVEL UP! Level ${reward.level}` : `Level ${reward.level}`} (${progress})`;
+    const list = document.createElement("ul");
+    for (const line of reward.breakdown) { const item = document.createElement("li"); item.textContent = `${line.label}: +${line.xp} XP · +${line.ink} Ink`; list.append(item); }
+    this.rewardLine.append(list);
+  }
+  matchStats(message: MatchStatsMessage): void {
+    this.medalList.replaceChildren();
+    for (const id of message.medals) { const item = document.createElement("li"); item.textContent = MEDALS.find((medal) => medal.id === id)?.name ?? id; this.medalList.append(item); }
   }
   banner(text: string): void { this.moment.textContent = text; this.moment.animate([{ opacity: 0, transform: "translateX(-50%) scale(.7) rotate(-5deg)" }, { opacity: 1, transform: "translateX(-50%) scale(1.08) rotate(2deg)" }, { opacity: 0 }], { duration: 1800 }); }
   setReplay(active: boolean): void { this.center.style.visibility = active ? "hidden" : "visible"; }

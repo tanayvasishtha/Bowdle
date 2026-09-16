@@ -1,5 +1,15 @@
 # Build log
 
+## R1: Match stats, medals and XP breakdown
+
+Status: done.
+
+Built: human match statistics track lethal weapon, arrow-origin distance, headshots, zip kills, clashes and death streak resets. All eleven medals follow the retention thresholds and ordered payout cap. Match-end messages include guest statistics, and account rewards store precision and medal XP once per match. The end screen lists medals and exact XP/Ink lines in a viewport-bounded, scrollable panel. Match completion logs contain map, counts, duration and team scores only. Progression tuning now lives in shared constants, with existing exports preserved.
+
+Verified: npm run check passed 188 tests in 45 files, type checks, production build and size. Client JS gzipped: 279 KB (budget 900 KB). npm run e2e passed all 28 tests using installed Chrome. npm run build and npm run smoke passed. npm run soak passed three seeds on each launch map. Disabling headshot recording failed both the Headhunter and XP breakdown tests; restored code passed. Added shared statistics/medal coverage, room messages and restart coverage, Postgres precision reward idempotency, and browser reward-list/bounds checks. Screenshot: test-results/qa/r1/end-screen.png (not committed). The existing winner fixture now explicitly expects Untouchable's 25 XP and awaits its reward event instead of a fixed delay. No test limits were relaxed.
+
+Left: manually finish a match and compare the breakdown total with Profile; check scrolling to Play again on a short viewport. A nonfatal schema encoder buffer growth warning appeared during the passing soak. Initial concurrent verification caused test-port contention and performance timeouts; final gates ran sequentially without source edits. No design deviations or new dependencies.
+
 ## v1.0.0: Release
 
 Status: done.

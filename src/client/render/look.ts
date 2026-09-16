@@ -29,3 +29,4 @@ export const CHARACTER_LOOK = {
 } as const;
 
 export const DYNAMIC_RESOLUTION = { frameBudgetMs: 20, sampleWindowMs: 2000, step: 0.1, minScale: 0.6 } as const;
+export const HUD_END_MAX_HEIGHT_VH = 90;

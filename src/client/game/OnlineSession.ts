@@ -7,7 +7,7 @@ import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { spawnArrow, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
-import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, RewardMessage, RobinHoodMessage } from "../../net/messages.ts";
+import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage, RobinHoodMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import type { Renderer } from "../render/Renderer.ts";
 import { MatchHud } from "../ui/hud.ts";
@@ -104,6 +104,7 @@ export class OnlineSession {
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); });
     room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot }, matchMaps); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
+    room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
@@ -142,6 +143,11 @@ export class OnlineSession {
   showEndScreen(): void {
     this.hud.endPinned = true;
     this.hud.end({ winner: "draw", mvp: this.sessionId }, this.names, { kills: this.me.state.kills, deaths: this.me.state.deaths, bestShot: this.bestShot }, matchMaps);
+  }
+
+  showMatchRewards(stats: MatchStatsMessage, reward: RewardMessage): void {
+    this.hud.matchStats(MatchStatsMessage.parse(stats));
+    this.hud.rewards(RewardMessage.parse(reward));
   }
 
   private async saveClip(): Promise<boolean> {

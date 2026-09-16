@@ -1,13 +1,12 @@
-/** Level n takes 500 * n XP to clear, so reaching level L costs 250 * L * (L - 1) XP in total. */
-export const XP_PER_LEVEL_STEP = 500;
-export const MAX_LEVEL = 100;
-
-export const MATCH_XP = { finish: 100, kill: 50, assist: 25, win: 200 } as const;
-export const MATCH_INK = { finish: 10, win: 10, perKill: 1, maxKillInk: 10 } as const;
+import { MATCH_INK, MAX_LEVEL, RETENTION_XP, XP_PER_LEVEL_STEP } from "./constants.ts";
+import type { MatchStats } from "./matchStats.ts";
+export { MATCH_INK, MAX_LEVEL, XP_PER_LEVEL_STEP } from "./constants.ts";
+export const MATCH_XP = RETENTION_XP;
 
 export type LevelProgress = { level: number; intoLevel: number; levelSize: number };
 export type MatchLine = { kills: number; assists: number; won: boolean };
-export type MatchReward = { xp: number; ink: number };
+export type RewardBreakdown = { label: string; xp: number; ink: number };
+export type MatchReward = { xp: number; ink: number; breakdown: RewardBreakdown[] };
 
 export function xpToReach(level: number): number {
   const clamped = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level)));
@@ -24,13 +23,19 @@ export function levelProgress(totalXp: number): LevelProgress {
 
 function count(value: number): number { return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0; }
 
-export function matchReward(line: MatchLine): MatchReward {
+export function matchReward(line: MatchLine & Partial<MatchStats>, medals: readonly string[] = []): MatchReward {
   const kills = count(line.kills);
   const assists = count(line.assists);
-  return {
-    xp: MATCH_XP.finish + MATCH_XP.kill * kills + MATCH_XP.assist * assists + (line.won ? MATCH_XP.win : 0),
-    ink: MATCH_INK.finish + (line.won ? MATCH_INK.win : 0) + Math.min(MATCH_INK.maxKillInk, kills * MATCH_INK.perKill),
-  };
+  const breakdown: RewardBreakdown[] = [
+    { label: "Finish the match", xp: MATCH_XP.finish, ink: MATCH_INK.finish },
+    { label: "Kills", xp: MATCH_XP.kill * kills, ink: Math.min(MATCH_INK.maxKillInk, kills * MATCH_INK.perKill) },
+    { label: "Assists", xp: MATCH_XP.assist * assists, ink: 0 },
+    { label: "Headshots", xp: MATCH_XP.headshot * count(line.headshots ?? 0), ink: 0 },
+    { label: "Long shots", xp: MATCH_XP.longShot * count(line.longShots ?? 0), ink: 0 },
+    { label: "Win", xp: line.won ? MATCH_XP.win : 0, ink: line.won ? MATCH_INK.win : 0 },
+    { label: "Medals", xp: MATCH_XP.medal * Math.min(MATCH_XP.maxMedals, medals.length), ink: 0 },
+  ];
+  return { xp: breakdown.reduce((sum, row) => sum + row.xp, 0), ink: breakdown.reduce((sum, row) => sum + row.ink, 0), breakdown };
 }
 
 /** Seasons follow calendar quarters in UTC, for example "2026-S3". */

@@ -3,6 +3,7 @@ import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GameDatabase } from "../../src/server/db/GameDatabase.ts";
 import { openSql } from "../../src/server/db/sql.ts";
+import { createMatchStats } from "../../src/shared/matchStats.ts";
 
 // Production talks to Postgres through postgres.js. PGlite's socket server speaks the Postgres wire
 // protocol, so this runs the real production client, migrations and queries without Docker.
@@ -43,5 +44,15 @@ describe("GameDatabase over the Postgres wire protocol", () => {
     expect(await db.signInWithProvider("discord", "wire-discord", "Wire", profile.id)).toEqual({ accountId: profile.id });
     expect(await db.deleteAccount(profile.id)).toBe(true);
     expect(await db.authenticate(token)).toBeUndefined();
+  });
+  it("stores medal and precision XP once through postgres.js", async () => {
+    const { profile } = await db.createGuest("Precision");
+    const stats = { ...createMatchStats(), kills: 3, headshots: 3, longShots: 2, longestShotM: 45, won: true };
+    const line = { accountId: profile.id, kills: 3, assists: 0, won: true, stats, medals: ["headhunter", "eagleEye"] };
+    const result = await db.recordMatch("wire:precision", [line]);
+    expect(result[0]).toMatchObject({ xp: 625, ink: 23 });
+    expect(result[0]!.breakdown.find((row) => row.label === "Headshots")).toEqual({ label: "Headshots", xp: 75, ink: 0 });
+    expect(await db.recordMatch("wire:precision", [line])).toEqual([]);
+    expect(await db.profile(profile.id)).toMatchObject({ xp: 625, ink: 23 });
   });
 });

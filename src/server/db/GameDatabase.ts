@@ -5,9 +5,10 @@ import { migrate } from "./migrations.ts";
 import { openSql, type SqlClient } from "./sql.ts";
 import { PROVIDERS, type BuyResult, type LeaderboardRow, type Locker, type Profile, type Provider } from "../../shared/api.ts";
 import { DEFAULT_LOADOUT, cosmeticById, cosmeticBySku, sanitizeLoadout, type Loadout } from "../../shared/cosmetics.ts";
+import type { MatchStats } from "../../shared/matchStats.ts";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
-export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean };
+export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean; stats?: MatchStats; medals?: readonly string[] };
 export type GrantedReward = MatchReward & { accountId: string; before: LevelProgress; after: LevelProgress };
 
 type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null };
@@ -85,7 +86,7 @@ export class GameDatabase {
     return this.sql.transaction(async (query) => {
       const granted: GrantedReward[] = [];
       for (const line of lines) {
-        const reward = matchReward(line);
+        const reward = matchReward(line.stats ?? line, line.medals);
         const inserted = await query<{ account_id: string }>(
           `INSERT INTO match_rewards (match_id, account_id, xp, ink)
            SELECT $1, id, $3, $4 FROM accounts WHERE id = $2

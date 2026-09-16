@@ -35,6 +35,7 @@ declare global {
       cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
       locker?: LockerTestHooks;
       showEndScreen?(): void;
+      showMatchRewards?(stats: import("../net/messages.ts").MatchStatsMessage, reward: import("../net/messages.ts").RewardMessage): void;
     };
   }
 }
@@ -71,6 +72,7 @@ else if (params.get("scene") === "online") {
       aimAtGrapple: () => session.aimAtGrapple(),
       stats: () => renderer.stats(),
       showEndScreen: () => session.showEndScreen(),
+      showMatchRewards: (stats, reward) => session.showMatchRewards(stats, reward),
     };
   }).catch((error: unknown) => {
     const reason = error instanceof Error ? error.message : "Connection failed";

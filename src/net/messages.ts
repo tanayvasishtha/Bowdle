@@ -17,8 +17,12 @@ export type RobinHoodMessage = z.infer<typeof RobinHoodMessage>;
 export type MatchEndMessage = z.infer<typeof MatchEndMessage>;
 export type MapVoteMessage = z.infer<typeof MapVoteMessage>;
 
+export const MatchStatsMessage = z.object({ stats: z.object({ kills: z.number(), deaths: z.number(), assists: z.number(), headshots: z.number(), longShots: z.number(), longestShotM: z.number(), daggerKills: z.number(), boulderKills: z.number(), zipKills: z.number(), robinHoods: z.number(), streak: z.number(), bestStreak: z.number(), won: z.boolean() }), medals: z.array(z.enum(["mvp", "unstoppable", "onARoll", "headhunter", "eagleEye", "robinHood", "upClose", "trapper", "zipline", "teamPlayer", "untouchable"])) });
+export type MatchStatsMessage = z.infer<typeof MatchStatsMessage>;
+
 export const RewardMessage = z.object({
   xp: z.number().int().nonnegative(), ink: z.number().int().nonnegative(),
   level: z.number().int().positive(), intoLevel: z.number().int().nonnegative(), levelSize: z.number().int().nonnegative(), levelUp: z.boolean(),
+  breakdown: z.array(z.object({ label: z.string(), xp: z.number().nonnegative(), ink: z.number().nonnegative() })),
 });
 export type RewardMessage = z.infer<typeof RewardMessage>;

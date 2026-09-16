@@ -15,8 +15,14 @@ describe("progression", () => {
   });
 
   it("rewards finishing, fighting and winning", () => {
-    expect(matchReward({ kills: 0, assists: 0, won: false })).toEqual({ xp: 100, ink: 10 });
-    expect(matchReward({ kills: 4, assists: 2, won: true })).toEqual({ xp: 100 + 200 + 50 + 200, ink: 24 });
+    expect(matchReward({ kills: 0, assists: 0, won: false })).toEqual({ xp: 100, ink: 10, breakdown: [
+      { label: "Finish the match", xp: 100, ink: 10 }, { label: "Kills", xp: 0, ink: 0 }, { label: "Assists", xp: 0, ink: 0 },
+      { label: "Headshots", xp: 0, ink: 0 }, { label: "Long shots", xp: 0, ink: 0 }, { label: "Win", xp: 0, ink: 0 }, { label: "Medals", xp: 0, ink: 0 },
+    ] });
+    expect(matchReward({ kills: 4, assists: 2, won: true })).toEqual({ xp: 100 + 200 + 50 + 200, ink: 24, breakdown: [
+      { label: "Finish the match", xp: 100, ink: 10 }, { label: "Kills", xp: 200, ink: 4 }, { label: "Assists", xp: 50, ink: 0 },
+      { label: "Headshots", xp: 0, ink: 0 }, { label: "Long shots", xp: 0, ink: 0 }, { label: "Win", xp: 200, ink: 10 }, { label: "Medals", xp: 0, ink: 0 },
+    ] });
     expect(matchReward({ kills: 40, assists: 0, won: false }).ink).toBe(20);
     expect(matchReward({ kills: -3, assists: Number.NaN, won: false }).xp).toBeGreaterThanOrEqual(100);
   });

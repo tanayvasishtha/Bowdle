@@ -46,9 +46,12 @@ import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../
 import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
 import { nameError } from "../../shared/name.ts";
 import { serverMetrics } from "../metrics.ts";
+import { createMatchStats, recordDeath, recordKill, recordRobinHood, type MatchStats } from "../../shared/matchStats.ts";
+import { medalsFor } from "../../shared/medals.ts";
+import type { MatchStatsMessage } from "../../net/messages.ts";
 
 type JoinOptions = { name?: string; token?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; rewards: RewardMessage };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
 type ArrowOrigin = { x: number; z: number };
@@ -80,12 +83,15 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private cloudSerial = 0;
   private botSerial = 0;
   private simulationNowMs = 0;
+  private matchLiveAtMs = WARMUP_MS;
   private testMode = false;
   private readonly bots = new Map<string, BotController>();
   private readonly mapVotes = new Map<string, string>();
   private reportedPlayers = 0;
   private botSeedBase = 0;
   private readonly accounts = new Map<string, Promise<string | undefined>>();
+  private readonly humanStats = new Map<string, MatchStats>();
+  private readonly killStatsEvent: Parameters<typeof recordKill>[1] = { weapon: "arrow", headshot: false, distance: 0, onZip: false };
   private matchSerial = 0;
   private rewardedSerial = -1;
   rewardsSettled: Promise<void> = Promise.resolve();
@@ -222,6 +228,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       this.clashB0.x = arrowB.prevX; this.clashB0.y = arrowB.prevY; this.clashB0.z = arrowB.prevZ; this.clashB1.x = arrowB.x; this.clashB1.y = arrowB.y; this.clashB1.z = arrowB.z;
       if (segmentDistance(this.clashA0, this.clashA1, this.clashB0, this.clashB1) >= ARROW_RADIUS * 2) continue;
       this.removeArrows.push(idA, idB); this.xpEvents.push({ type: "robinHood", player: arrowA.owner }, { type: "robinHood", player: arrowB.owner });
+      const firstStats = this.humanStats.get(arrowA.owner), secondStats = this.humanStats.get(arrowB.owner); if (firstStats) recordRobinHood(firstStats); if (secondStats) recordRobinHood(secondStats);
       this.broadcast("robinHood", { shooterA: arrowA.owner, shooterB: arrowB.owner, x: (arrowA.x + arrowB.x) / 2, y: (arrowA.y + arrowB.y) / 2, z: (arrowA.z + arrowB.z) / 2 });
     }
     for (const id of this.removeArrows) this.deleteArrow(id); this.removeArrows.length = 0;
@@ -256,6 +263,13 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (const record of ledger.values()) if (record.attacker !== attackerId && record.damage >= ASSIST_MIN_DAMAGE && this.simulationNowMs - record.atMs <= ASSIST_WINDOW_MS) this.state.players.get(record.attacker)!.assists += 1;
     this.damage.delete(targetId);
     const distance = origin ? Math.hypot(target.x - origin.x, target.z - origin.z) : Math.hypot(target.x - attacker.x, target.z - attacker.z);
+    const attackerStats = this.humanStats.get(attackerId), victimStats = this.humanStats.get(targetId);
+    if (attackerStats) {
+      this.killStatsEvent.weapon = weapon; this.killStatsEvent.headshot = headshot;
+      this.killStatsEvent.distance = distance; this.killStatsEvent.onZip = attacker.zipId !== "";
+      recordKill(attackerStats, this.killStatsEvent);
+    }
+    if (victimStats) recordDeath(victimStats);
     this.broadcast("kill", { killer: attackerId, victim: targetId, weapon, headshot, distance });
     if (scoreKill(this.state, attacker.team, this.simulationNowMs)) this.sendMatchEnd();
   }
@@ -265,9 +279,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private sendMatchEnd(): void {
     const winner = this.state.scoreSun === this.state.scoreMoon ? "draw" : this.state.scoreSun > this.state.scoreMoon ? "sun" : "moon";
     let mvp = "", kills = -1; for (const [id, player] of this.state.players) if (player.kills > kills) { kills = player.kills; mvp = id; }
-    this.broadcast("matchEnd", { winner, mvp });
     if (this.rewardedSerial === this.matchSerial) return;
     this.rewardedSerial = this.matchSerial;
+    this.broadcast("matchEnd", { winner, mvp });
+    let humans = 0; for (const [id, player] of this.state.players) { const stats = this.humanStats.get(id); if (!stats || player.isBot) continue; humans += 1; stats.kills = player.kills; stats.deaths = player.deaths; stats.assists = player.assists; stats.won = winner !== "draw" && player.team === (winner === "sun" ? 0 : 1); this.clientById(id)?.send("matchStats", { stats: { ...stats }, medals: medalsFor(stats, kills) }); }
+    console.log(JSON.stringify({ event: "matchFinished", mapId: this.map.id, humans, bots: this.state.players.size - humans, durationS: Math.max(0, (this.simulationNowMs - this.matchLiveAtMs) / 1000), scoreSun: this.state.scoreSun, scoreMoon: this.state.scoreMoon }));
     this.rewardsSettled = this.grantRewards(`${this.roomId}:${this.matchSerial}`, winner).catch((error: unknown) => {
       console.error(JSON.stringify({ event: "rewardError", roomId: this.roomId, message: error instanceof Error ? error.message : String(error) }));
     });
@@ -280,23 +296,26 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     // Copy the scoreboard before any await: the next match resets it.
     const snapshot = [...this.accounts].flatMap(([sessionId, pending]) => {
       const player = this.state.players.get(sessionId);
-      return player && !player.isBot ? [{ sessionId, pending, kills: player.kills, assists: player.assists, won: winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
+      const stats = this.humanStats.get(sessionId); let bestKills = 0; for (const other of this.state.players.values()) bestKills = Math.max(bestKills, other.kills);
+      return player && !player.isBot && stats ? [{ sessionId, pending, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, won: winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
     });
     for (const entry of snapshot) {
       const accountId = await entry.pending;
       if (!accountId || sessionsByAccount.has(accountId)) continue;
       sessionsByAccount.set(accountId, entry.sessionId);
-      lines.push({ accountId, kills: entry.kills, assists: entry.assists, won: entry.won });
+      lines.push({ accountId, kills: entry.kills, assists: entry.assists, won: entry.won, stats: entry.stats, medals: entry.medals });
     }
     if (lines.length === 0) return;
     const granted = await (await gameDatabase()).recordMatch(matchId, lines);
     for (const reward of granted) {
       const sessionId = sessionsByAccount.get(reward.accountId)!;
-      this.clientById(sessionId)?.send("rewards", { xp: reward.xp, ink: reward.ink, level: reward.after.level, intoLevel: reward.after.intoLevel, levelSize: reward.after.levelSize, levelUp: reward.after.level > reward.before.level });
+      this.clientById(sessionId)?.send("rewards", { xp: reward.xp, ink: reward.ink, breakdown: reward.breakdown, level: reward.after.level, intoLevel: reward.after.intoLevel, levelSize: reward.after.levelSize, levelUp: reward.after.level > reward.before.level });
     }
   }
   private resetPlayers(): void {
     this.matchSerial += 1;
+    this.matchLiveAtMs = this.simulationNowMs + WARMUP_MS;
+    for (const id of this.humanStats.keys()) this.humanStats.set(id, createMatchStats());
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.arrowOrigins.clear(); this.damage.clear();
     if (!this.fixedMap) this.loadMap(this.votedMap(), this.simulationNowMs);
     else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
@@ -355,6 +374,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private killByWildBoulder(targetId: string, fromX: number, fromZ: number): void {
     const target = this.state.players.get(targetId); if (!target || !applyDamage(target, MAX_HP, this.simulationNowMs)) return;
     target.deaths += 1; target.respawnAtMs = this.simulationNowMs + RESPAWN_MS;
+    const stats = this.humanStats.get(targetId); if (stats) recordDeath(stats);
     this.broadcast("kill", { killer: "Jungle", victim: targetId, weapon: "boulder", headshot: false, distance: Math.hypot(target.x - fromX, target.z - fromZ) });
   }
 
@@ -380,7 +400,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   replacePlayerWithBot(id: string): void {
     const player = this.state.players.get(id); if (!player || player.isBot) return;
-    this.state.players.delete(id); this.addBot(player.team, player);
+    this.humanStats.delete(id); this.state.players.delete(id); this.addBot(player.team, player);
   }
 
   /** Cosmetics come from the database, never from the client, so nobody can wear an item they do not own. */
@@ -420,6 +440,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       player.y = 0; player.z = TEST_DUEL_LANE_Z; player.yaw = team === 0 ? -Math.PI / 2 : Math.PI / 2;
     }
     this.state.players.set(client.sessionId, player);
+    this.humanStats.set(client.sessionId, createMatchStats());
     if (options?.token) {
       const sessionId = client.sessionId;
       const account = gameDatabase().then((db) => db.authenticate(options.token)).catch(() => undefined);
@@ -435,7 +456,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   onLeave(client: GameClient): void {
-    const player = this.state.players.get(client.sessionId); this.state.players.delete(client.sessionId); this.accounts.delete(client.sessionId);
+    const player = this.state.players.get(client.sessionId); this.state.players.delete(client.sessionId); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId);
     if (player && !this.testMode) this.addBot(player.team, player);
     this.reportPlayers();
   }

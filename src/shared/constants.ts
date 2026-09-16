@@ -1,4 +1,9 @@
 // Every gameplay number lives here.
+export const RETENTION_XP = { finish: 100, kill: 50, assist: 25, headshot: 25, longShot: 25, win: 200, medal: 25, maxMedals: 4 } as const;
+export const MEDAL_LIMITS = { mvp: 5, unstoppable: 6, onARoll: 3, headhunter: 3, eagleEye: 45, teamPlayer: 4, untouchable: 3 } as const;
+export const XP_PER_LEVEL_STEP = 500;
+export const MAX_LEVEL = 100;
+export const MATCH_INK = { finish: 10, win: 10, perKill: 1, maxKillInk: 10 } as const;
 export const TICK_HZ = 30;
 export const SUBSTEPS = 2;
 export const GRAVITY = 20;

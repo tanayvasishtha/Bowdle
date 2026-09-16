@@ -45,8 +45,8 @@ Two explorer crews with identical silhouettes and hitboxes, told apart by color 
 - Tests: a landmark is visible from both spawns; no tall prop stands inside a lane.
 
 ### 4. M10 Accounts and progression
-- GameDatabase: pglite in dev and tests, Postgres in production.
-- Anonymous accounts. Discord and Google linking switch on only when their keys are set.
+- GameDatabase: PGlite in dev and tests, Postgres (postgres.js) in production, plain SQL with numbered migrations. No ORM and no @colyseus/auth: the account model is small enough to own.
+- Anonymous accounts with per-device tokens (only hashes stored). Discord and Google linking switch on only when their keys are set.
 - XP and levels (level n needs 500 × n XP), Ink rewards granted once per match, profile panel, seasonal kills leaderboard, account deletion.
 
 ### 5. M11 Cosmetics and shop

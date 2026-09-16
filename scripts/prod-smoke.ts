@@ -4,6 +4,7 @@ import { Client } from "@colyseus/sdk";
 
 process.env.NODE_ENV = "production";
 const { server } = await import("../src/server/app.config.ts");
+const { closeGameDatabase } = await import("../src/server/db/GameDatabase.ts");
 
 const port = Number(process.env.SMOKE_PORT ?? 2599);
 const base = `http://localhost:${port}`;
@@ -24,6 +25,13 @@ const page = await fetch(`${base}/`);
 const html = await page.text();
 report("GET / serves the built client", page.ok && html.includes("<title>Bowdle</title>") && html.includes("/assets/"));
 
+const guest = await fetch(`${base}/api/auth/guest`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "Smoke" }) });
+const guestBody = await guest.json() as { token?: string };
+report("POST /api/auth/guest", guest.status === 201 && typeof guestBody.token === "string");
+const profile = await fetch(`${base}/api/profile`, { headers: { Authorization: `Bearer ${guestBody.token}` } });
+report("GET /api/profile", profile.ok);
+await fetch(`${base}/api/profile`, { method: "DELETE", headers: { Authorization: `Bearer ${guestBody.token}` } });
+
 try {
   const client = new Client(base);
   const room = await client.joinOrCreate("tdm", { name: "Smoke" });
@@ -34,5 +42,6 @@ try {
 }
 
 await server.gracefullyShutdown(false);
+await closeGameDatabase();
 console.log(failures === 0 ? "production smoke passed" : `production smoke failed: ${failures} check(s)`);
 process.exitCode = failures === 0 ? 0 : 1;

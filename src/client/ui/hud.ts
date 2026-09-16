@@ -1,6 +1,6 @@
 import { lockPointer } from "../game/pointerLock.ts";
 import type { MatchState } from "../../net/schema.ts";
-import type { KillMessage, MatchEndMessage } from "../../net/messages.ts";
+import type { KillMessage, MatchEndMessage, RewardMessage } from "../../net/messages.ts";
 import { GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS } from "../../shared/constants.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { loadSettings } from "../settings.ts";
@@ -19,6 +19,7 @@ export class MatchHud {
   private readonly moment: HTMLDivElement;
   private readonly abilities: HTMLDivElement;
   private readonly endPanel: HTMLDivElement;
+  private readonly rewardLine = Object.assign(document.createElement("p"), { className: "bowdle-rewards" });
   private readonly onVote: (mapId: string) => void;
 
   constructor(container: HTMLElement, onVote: (mapId: string) => void) {
@@ -64,9 +65,15 @@ export class MatchHud {
     const title = document.createElement("h2"); title.textContent = message.winner === "draw" ? "Draw in the dust" : `${message.winner.toUpperCase()} WINS`;
     const summary = document.createElement("p"); summary.textContent = `${stats.kills} kills · ${stats.deaths} deaths · best shot ${Math.round(stats.bestShot)} m\nMVP: ${names.get(message.mvp) ?? message.mvp}`;
     const vote = document.createElement("p"); vote.textContent = "Vote for the next expedition";
-    this.endPanel.append(title, summary, vote);
+    this.rewardLine.textContent = ""; this.rewardLine.dataset.testid = "rewards";
+    this.endPanel.append(title, summary, this.rewardLine, vote);
     for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); this.endPanel.append(button); }
     const again = document.createElement("button"); again.className = "play-again"; again.textContent = "Play again"; again.addEventListener("click", () => { this.endPanel.style.display = "none"; lockPointer(document.querySelector<HTMLCanvasElement>("#game-canvas")); }); this.endPanel.append(again);
+  }
+  /** Rewards arrive just after the end screen, once the server has stored them. */
+  rewards(reward: RewardMessage): void {
+    const progress = reward.levelSize > 0 ? `${reward.intoLevel} / ${reward.levelSize} XP` : "top level";
+    this.rewardLine.textContent = `+${reward.xp} XP · +${reward.ink} Ink · ${reward.levelUp ? `LEVEL UP! Level ${reward.level}` : `Level ${reward.level}`} (${progress})`;
   }
   banner(text: string): void { this.moment.textContent = text; this.moment.animate([{ opacity: 0, transform: "translateX(-50%) scale(.7) rotate(-5deg)" }, { opacity: 1, transform: "translateX(-50%) scale(1.08) rotate(2deg)" }, { opacity: 0 }], { duration: 1800 }); }
   setReplay(active: boolean): void { this.center.style.visibility = active ? "hidden" : "visible"; }

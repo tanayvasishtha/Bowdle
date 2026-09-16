@@ -31,6 +31,9 @@ npm run smoke
 4. Choose a paid instance with at least 1 GB memory so the real-time server does not sleep between matches.
 5. Set the health-check path to `/health`.
 6. Add `NODE_ENV=production`. Render provides `PORT`; do not hard-code or override it.
+   - `DATABASE_URL`: a Render Postgres internal URL. Without it, accounts live in memory and vanish on restart (the server logs `databaseInMemory`).
+   - `TRUST_PROXY=1`, so the guest sign-up rate limit sees real client addresses behind the Render proxy.
+   - Optional sign-in: `PUBLIC_URL=https://bowdle.io` plus `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET`, and/or `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Register `https://bowdle.io/api/auth/discord/callback` and `https://bowdle.io/api/auth/google/callback` as redirect URLs. A provider stays hidden until all three of its values are set.
 7. Turn on auto-deploy only after the first manual deploy passes. Deploy the service.
 
 The client defaults to its own origin, so this single-host deployment needs no `VITE_SERVER_URL`. For a separately hosted portal build, set `VITE_SERVER_URL` at build time to the public HTTPS origin; the client will use the corresponding secure WebSocket connection.

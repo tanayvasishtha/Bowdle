@@ -1,5 +1,22 @@
 # Build log
 
+## M10: Accounts and progression
+
+Status: done.
+
+Built:
+
+- `GameDatabase` on a small SQL layer: PGlite in dev and tests (in memory unless `PGLITE_DIR` is set), Postgres through postgres.js when `DATABASE_URL` is set. Numbered migrations in `src/server/db/migrations.ts`.
+- Anonymous accounts created on first Play or first Profile visit. Tokens are `id.secret`, one per device, stored only as SHA-256 hashes. Guest sign-up is rate limited per IP.
+- Discord and Google sign-in with the OAuth code flow. A provider appears only when its client id, secret and `PUBLIC_URL` are set. State values are single use and expire after 10 minutes. New-device tokens come back in the URL fragment so they never reach access logs.
+- Progression in `src/shared/progression.ts`: level n takes 500 x n XP, max level 100. A match gives 100 XP, 50 per kill, 25 per assist and 200 for a win, plus 10 Ink, 10 for a win and 1 per kill up to 10.
+- The room grants rewards once per match id, even if the end screen fires twice, and sends each signed-in player a `rewards` message shown on the end screen.
+- Quarterly seasons (`2026-S3`) with a kills leaderboard.
+- Menu Profile panel (level bar, Ink, season stats, rename, provider linking, two-step account deletion) and a Leaderboard panel. Deleting an account removes its tokens, rewards and season rows.
+- `/api` routes: `POST /auth/guest`, `GET /auth/providers`, `POST /auth/:provider/start`, `GET /auth/:provider/callback`, `GET|PATCH|DELETE /profile`, `GET /leaderboard`.
+
+Verified: `npm run check`, the full Playwright suite (accounts spec added), and `npm run smoke` (guest and profile API included). Not yet run against a real Postgres server: the SQL is standard and PGlite runs the same Postgres engine, but run `npm run smoke` once with `DATABASE_URL` set before launch.
+
 ## W8: World finish
 
 Status: done.
@@ -220,7 +237,7 @@ Tests added:
 - Canopy map validation for mirrored geometry, supported ramp ends, 20-degree central climbs, grounded volumes, rope clearance, hidden spawns, complete graph connectivity, valid walk sweeps, and foot access to every required deck.
 - Full eight-player authoritative match simulation through the end phase, with at least three zip rides and a watchdog rejecting any living unprotected player stationary for more than three seconds.
 - A focused nearby-zip navigation test.
-- Four browser views—spawn tree, high ring, midway along a zip line, and inside floor grass—with zero console errors and a 150-draw-call ceiling. Screenshots are in `test-results/qa/w5/`.
+- Four browser views (spawn tree, high ring, midway along a zip line, and inside floor grass) with zero console errors and a 150-draw-call ceiling. Screenshots are in `test-results/qa/w5/`.
 
 QA:
 
@@ -259,7 +276,7 @@ Tests added:
 
 - Sun Temple map validation, including mirrored geometry, grounded volumes, hidden spawns, trap clearance, safe alcoves, spawn distance, graph connectivity, traversable walk links, and walk access to the altar.
 - Full eight-player authoritative match simulation through the end phase, with a boulder roll observed and a movement watchdog rejecting any living unprotected player stationary for more than three seconds.
-- Four browser views—spawn, altar, tunnel, and courtyard—with zero console errors and a 150-draw-call ceiling. Screenshots are in `test-results/qa/w4/`.
+- Four browser views (spawn, altar, tunnel, and courtyard) with zero console errors and a 150-draw-call ceiling. Screenshots are in `test-results/qa/w4/`.
 
 QA:
 

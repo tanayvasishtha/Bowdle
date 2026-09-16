@@ -16,3 +16,9 @@ export type DamagedMessage = z.infer<typeof DamagedMessage>;
 export type RobinHoodMessage = z.infer<typeof RobinHoodMessage>;
 export type MatchEndMessage = z.infer<typeof MatchEndMessage>;
 export type MapVoteMessage = z.infer<typeof MapVoteMessage>;
+
+export const RewardMessage = z.object({
+  xp: z.number().int().nonnegative(), ink: z.number().int().nonnegative(),
+  level: z.number().int().positive(), intoLevel: z.number().int().nonnegative(), levelSize: z.number().int().nonnegative(), levelUp: z.boolean(),
+});
+export type RewardMessage = z.infer<typeof RewardMessage>;

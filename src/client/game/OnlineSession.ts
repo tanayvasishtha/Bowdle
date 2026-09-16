@@ -7,12 +7,13 @@ import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { spawnArrow, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
-import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, RobinHoodMessage } from "../../net/messages.ts";
+import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, RewardMessage, RobinHoodMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import type { Renderer } from "../render/Renderer.ts";
 import { MatchHud } from "../ui/hud.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { happyTime } from "../platform/web.ts";
+import { loadToken } from "../account.ts";
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { ReplayDirector } from "./ReplayDirector.ts";
@@ -91,12 +92,13 @@ export class OnlineSession {
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.hud.hit(parsed.data.headshot); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); });
     room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (parsed.success && me) this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot }, matchMaps); });
+    room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
   static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string): Promise<OnlineSession> {
     const endpoint = import.meta.env.VITE_SERVER_URL || location.origin;
-    const room = await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, test: testing, testMapId }, MatchState);
+    const room = await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, token: loadToken(), test: testing, testMapId }, MatchState);
     if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {

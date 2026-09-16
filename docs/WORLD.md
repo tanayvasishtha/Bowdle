@@ -159,9 +159,10 @@ Numbers every map must hit before it ships. They exist because the first pass re
 | Props per map | 120 or more, placed by seeded scatter, never inside colliders, lanes or spawn boxes |
 | Boundary | A 6 m deep tree line of instanced trunks and canopy blobs with a silhouette band behind it, plus an invisible collider wall for the play bounds. Never a flat slab |
 | Ground | At least 4 material patches (earth path, moss, fern undergrowth, sand or gravel near water) plus ground detail: leaf litter, roots, small rocks |
-| Landmark | One structure 8 m or taller, visible from both spawns, that gives the map its name |
+| Landmark | One structure 8 m or taller, declared as `landmark` in the map data, with a clear sight line from at least 2 spawns per team (`spawnsSeeingLandmark`) |
+| Solid scenery | Every tall prop inside the play area (trees, pillars, heads, tents, braziers, crates) stands on a collider that starts at its base (`unbackedTallProps`). Props never collide on their own |
 | Wash variation | Per box and per prop instance, value jitter of plus or minus 8 percent from a seeded id |
 | Contact shading | Wash darkens by 20 percent within 0.6 m of where geometry meets the ground |
-| Silhouette weight | Outline width follows the depth gap: 2.4 CSS px across a large gap, 1.2 px on interior creases |
+| Silhouette weight | Ink strength follows the depth gap: full ink across a gap of 4 or more times the edge threshold, 55 percent on interior creases and color edges |
 | Horizon | Canopy silhouette band with haze behind the boundary, plus a few drifting birds |
 | Screenshot test | Background 45 percent of pixels or less, washes 25 percent or more, sepia 3 percent or more |

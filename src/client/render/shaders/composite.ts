@@ -17,6 +17,8 @@ export const compositeFragmentShader = /* glsl */ `
   uniform float time;
   uniform float sunShafts;
   uniform float stainSeed;
+  uniform float horizon;
+  uniform float cameraYaw;
   in vec2 vUv;
   out vec4 outColor;
 
@@ -24,6 +26,8 @@ export const compositeFragmentShader = /* glsl */ `
   const vec3 PARCHMENT_SHADE = vec3(0.851, 0.780, 0.624);
   const vec3 SKY = vec3(0.659, 0.812, 0.847);
   const vec3 SEPIA = vec3(0.290, 0.208, 0.153);
+  const vec3 CANOPY_HAZE = vec3(0.420, 0.557, 0.408);
+  const vec3 CANOPY_INK = vec3(0.184, 0.290, 0.133);
 
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
   vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(17.2, 91.7))); }
@@ -85,6 +89,21 @@ export const compositeFragmentShader = /* glsl */ `
     float axes = max(1.0 - smoothstep(0.6, 1.8, abs(rose.x)), 1.0 - smoothstep(0.6, 1.8, abs(rose.y)));
     float diagonal = max(1.0 - smoothstep(0.6, 1.8, abs(rose.x - rose.y)), 1.0 - smoothstep(0.6, 1.8, abs(rose.x + rose.y)));
     base = mix(base, SEPIA, max(circle, max(axes, diagonal * 0.6)) * ${L.compassOpacity} * smoothstep(60.0, 42.0, length(rose)));
+    // Jungle horizon: two crown lines that pan with yaw and sit on the true horizon for the current pitch.
+    float horizonPx = horizon * cssHeight, pan = cameraYaw * ${L.horizonPanCssPxPerRad}.0;
+    float fx = p.x + pan * 0.6, nx = p.x + pan;
+    float farCrown = horizonPx + ${L.horizonFarCssPx}.0 * (0.55 + 0.45 * abs(sin(fx * 0.019 + stainSeed)) + 0.25 * abs(sin(fx * 0.047 + stainSeed * 1.7)));
+    float nearCrown = horizonPx + ${L.horizonNearCssPx}.0 * (0.35 + 0.5 * abs(sin(nx * 0.011 + stainSeed * 0.3)) + 0.3 * abs(sin(nx * 0.029 + stainSeed * 2.3)));
+    base = mix(base, mix(CANOPY_HAZE, SKY, 0.45), step(p.y, farCrown) * ${L.horizonFarHaze});
+    base = mix(base, CANOPY_HAZE, step(p.y, nearCrown) * ${L.horizonNearHaze});
+    base = mix(base, CANOPY_INK, (1.0 - smoothstep(0.4, 1.6, abs(p.y - nearCrown))) * 0.45);
+    for (int index = 0; index < ${L.birdCount}; index++) {
+      float fi = float(index);
+      vec2 bird = vec2(mod(hash(vec2(fi, stainSeed)) * 2000.0 + time * ${L.birdDriftCssPxPerSecond}.0 * (0.7 + 0.3 * fi) - pan, resolution.x / devicePixelRatio / renderScale + 80.0) - 40.0, horizonPx + 150.0 + fi * 46.0 + sin(time * 0.4 + fi) * 10.0);
+      vec2 d = p - bird; float wing = ${L.birdCssPx}.0, lift = 0.35 + 0.35 * sin(time * ${L.birdFlapHz}.0 * 6.2832 + fi * 2.0);
+      float v = abs(d.x) > wing ? 99.0 : abs(d.y - abs(d.x) * lift);
+      base = mix(base, SEPIA, (1.0 - smoothstep(0.5, 1.3, v)) * 0.7);
+    }
     if (sunShafts > 0.5) {
       float shafts = 0.0;
       for (int index = 0; index < ${L.sunShaftCount}; index++) shafts = max(shafts, stroke(p.x + p.y * 0.55 + time * 3.0 + float(index) * 87.0, 348.0, 22.0));
@@ -97,15 +116,21 @@ export const compositeFragmentShader = /* glsl */ `
     vec4 center = texture(colorTex, uv); float centerId = floor(center.a * 255.0 + 0.5); float depth = linearDepth(texture(depthTex, uv).r);
     float outlineWidth = mix(${L.outlineCssPx}, ${L.farOutlineCssPx}.0, smoothstep(${L.thinOutlineM}.0, ${L.fadeFarM}.0, depth));
     vec2 texel = outlineWidth * devicePixelRatio * renderScale / resolution;
-    float edgeStrength = 0.0, nearestDepth = depth, nearestId = centerId;
+    float edgeStrength = 0.0, depthEdge = 0.0, nearestDepth = depth, nearestId = centerId;
     for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
       vec2 sampleUv = uv + vec2(float(x), float(y)) * texel; vec4 sampleColor = texture(colorTex, sampleUv); float sampleDepth = linearDepth(texture(depthTex, sampleUv).r);
-      edgeStrength = max(edgeStrength, max(abs(sampleDepth - depth) / max(depth, 0.01) / 0.08, length(sampleColor.rg - center.rg) / 0.35));
+      float gap = abs(sampleDepth - depth) / max(depth, 0.01) / 0.08; depthEdge = max(depthEdge, gap);
+      edgeStrength = max(edgeStrength, max(gap, length(sampleColor.rg - center.rg) / 0.35));
       if (sampleDepth < nearestDepth) { nearestDepth = sampleDepth; nearestId = floor(sampleColor.a * 255.0 + 0.5); }
     }
     if (centerId < 0.5 && edgeStrength < 1.0) return vec4(0.0);
     float id = edgeStrength >= 1.0 ? nearestId : centerId; vec3 ink = outline(max(id, 1.0));
-    if (edgeStrength >= 1.0) return vec4(mix(ink, background, smoothstep(${L.fadeNearM}.0, ${L.fadeFarM}.0, nearestDepth)), 1.0);
+    if (edgeStrength >= 1.0) {
+      // Silhouettes against far things get full ink; creases inside one surface stay lighter.
+      float weight = mix(${L.colorEdgeWeight}, 1.0, smoothstep(1.0, ${L.depthEdgeFullRatio}.0, depthEdge));
+      vec3 under = centerId < 0.5 ? background : mix(PARCHMENT, wash(centerId), ${L.washLight} + ${L.washShade} * (1.0 - center.b));
+      return vec4(mix(mix(under, ink, weight), background, smoothstep(${L.fadeNearM}.0, ${L.fadeFarM}.0, nearestDepth)), 1.0);
+    }
     float noise = (hash(floor((p + boil) / 4.0)) - 0.5) * granulation(id) * 0.18;
     vec3 color = mix(PARCHMENT, wash(id), ${L.washLight} + ${L.washShade} * (1.0 - center.b)); color *= 1.0 + noise;
     color *= 1.0 - smoothstep(0.0, 1.0, edgeStrength) * ${L.pigmentEdgeDarken};

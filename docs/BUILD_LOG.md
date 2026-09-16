@@ -1,5 +1,21 @@
 # Build log
 
+## W8: World finish
+
+Status: done.
+
+Built:
+
+- Scenery rules in `src/shared/maps/scenery.ts`: tall props in the arena must stand on a collider, and each map declares a landmark that both spawn areas can see. Both run as unit tests for every launch map and Practice Camp.
+- Invisible colliders under every tall prop that lacked one: Sun Temple camp trees and tents, Lost River bank trees, the Practice Camp tent. The Sun Temple tree that hung over the ravine moved to solid ground.
+- Sun Temple: pillar props on all 20 pillars, braziers by the altar stairs, stone heads on the tier corners and vine walls on the vine climbs. The z = -8 firing lane stays open.
+- Canopy Village: supply tents behind each spawn and lanterns on the decks.
+- Lost River: serpent stone heads moved out of the aqueduct stair and the south walk link, now beside each spawn.
+- Tree lines start 2.8 m outside the play bounds so no trunk stands inside the arena.
+- Composite pass: a two-layer canopy horizon with haze that sits on the true horizon for the camera pitch and pans with yaw, drifting birds, and outline ink weighted by depth gap.
+
+Verified: `npm run check` (142 tests), full Playwright suite (21 passed), screenshots in `test-results/qa/w7`.
+
 ## C1: Characters
 
 Status: done.

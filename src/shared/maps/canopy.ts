@@ -84,6 +84,17 @@ connect("sun-zip-north-high","sun-north-deck","zip",false); connect("sun-zip-sou
 connect("center-high","center-low","drop"); connect("sun-west-low-center","center-high","grapple"); connect("moon-west-low-center","center-high","grapple");
 for (let i = 0; i < waypoints.length; i += 1) waypoints[i] = { ...waypoints[i]!, links: links.get(waypoints[i]!.id) ?? [] };
 
+for (const z of [-8.5, 8.5]) {
+  const tent: Prop = { kind: "tent", pos: [-32, 0, z], yaw: 0.4, scale: 1, seed: 960 + z };
+  const hut: Box = { id: `sun-hut-${z}`, min: [-33.4, 0, z - 1.4], max: [-30.6, 2.2, z + 1.4], material: "canvas", tags: ["solid", "invisible"] };
+  props.push(tent, mirrorX(tent));
+  boxes.push(hut, mirrorX(hut, hut.id.replace("sun", "moon")));
+}
+for (const [x, z] of [[-17.5, -2.8], [-12.5, 2.8], [-17.5, 13], [-17.5, -13]] as const) {
+  const lantern: Prop = { kind: "lantern", pos: [x, 4.8, z], yaw: 0, scale: 0.8, seed: 980 + x + z };
+  props.push(lantern, mirrorX(lantern));
+}
+
 const dressing = jungleDressing({
   idPrefix: "canopy",
   seed: 5501,
@@ -97,4 +108,4 @@ const dressing = jungleDressing({
 props.push(...dressing.props);
 boxes.push(...dressing.patches);
 
-export const canopyMap: MapData = { id: "canopy", name: "Canopy Village", bounds: { min: [-36,-2,-26], max: [36,17,26] }, boxes, ramps, volumes, zipLines, boulders: [], props, spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "high ground", pos: [0,10,4] }, { text: "zip line", pos: [-7,9,8] }], look: { sunShafts: true, stainSeed: 5501 } };
+export const canopyMap: MapData = { id: "canopy", name: "Canopy Village", bounds: { min: [-36,-2,-26], max: [36,17,26] }, boxes, ramps, volumes, zipLines, boulders: [], props, spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "high ground", pos: [0,10,4] }, { text: "zip line", pos: [-7,9,8] }], look: { sunShafts: true, stainSeed: 5501 }, landmark: [0, 15, 0] };

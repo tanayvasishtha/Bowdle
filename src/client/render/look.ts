@@ -9,6 +9,9 @@ export const JOURNAL_LOOK = {
   sunShaftCount: 4, sunShaftLighten: 0.12,
   hitMarkerMs: 900,
   washJitter: 0.16, contactShade: 0.2, contactHeightM: 0.6,
+  horizonNearCssPx: 70, horizonFarCssPx: 34, horizonNearHaze: 0.5, horizonFarHaze: 0.28, horizonPanCssPxPerRad: 520,
+  birdCount: 3, birdCssPx: 7, birdFlapHz: 3, birdDriftCssPxPerSecond: 18,
+  colorEdgeWeight: 0.55, depthEdgeFullRatio: 4,
 } as const;
 
 /** Explorer body proportions and animation feel. Hip height plus pelvis, torso and head radius

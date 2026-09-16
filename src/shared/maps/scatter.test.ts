@@ -80,8 +80,8 @@ describe("treeLineProps", () => {
     expect(treeLineProps(options)).toEqual(props);
     for (const prop of props) {
       const outside = Math.max(Math.abs(prop.pos[0]) - 34, Math.abs(prop.pos[2]) - 26);
-      expect(outside).toBeGreaterThan(-2);
-      expect(outside).toBeLessThan(8);
+      expect(outside).toBeGreaterThan(2.4);
+      expect(outside).toBeLessThan(10.5);
     }
     expect(props.some((prop) => prop.kind === "giantTree")).toBe(true);
   });

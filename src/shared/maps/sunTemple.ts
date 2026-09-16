@@ -55,8 +55,19 @@ const boulder: Boulder = { id: "temple-boulder", path: [[-18, 1.5, 0], [-11, -0.
 
 const props: Prop[] = [{ kind: "sunDisc", pos: [0, 4.8, 0], yaw: 0, scale: 1, seed: 401 }, { kind: "lever", pos: [0, 4.8, 2], yaw: 0, scale: 1, seed: 402 }, { kind: "ropeBridge", pos: [0, 0.3, 23], yaw: Math.PI / 2, scale: 2.7, seed: 403 }, { kind: "ropeBridge", pos: [0, 0.3, 23], yaw: -Math.PI / 2, scale: 2.7, seed: 403 }];
 for (const x of [-8, -3, 3, 8]) { const torch: Prop = { kind: "torch", pos: [x, -2.4, -1.55], yaw: 0, scale: 0.75, seed: 410 + x }; props.push(torch, mirrorX(torch)); }
-for (const [x, z] of [[-31, -9], [-29, -13], [-32, 10], [-31, 22]] as const) { const prop: Prop = { kind: x === -31 && z === -9 ? "tent" : "giantTree", pos: [x, 0, z], yaw: 0.2, scale: 1, seed: 500 + z }; props.push(prop, mirrorX(prop)); }
-for (const box of sunPillars.slice(0, 6)) { const prop: Prop = { kind: "pillar", pos: [(box.min[0] + box.max[0]) / 2, 0, (box.min[2] + box.max[2]) / 2], yaw: 0, scale: 0.7, seed: 600 + props.length }; props.push(prop, mirrorX(prop)); }
+// Scenery that looks solid gets a collider, so arrows never pass through something that reads as cover.
+function solidProp(prop: Prop, halfWidth: number, height: number, id: string): void {
+  const [x, y, z] = prop.pos;
+  const box: Box = { id, min: [x - halfWidth, y, z - halfWidth], max: [x + halfWidth, y + height, z + halfWidth], material: "wood", tags: ["solid", "invisible"] };
+  props.push(prop, mirrorX(prop));
+  boxes.push(box, mirrorX(box, id.replace("sun", "moon")));
+}
+solidProp({ kind: "tent", pos: [-31, 0, -9], yaw: 0.2, scale: 1, seed: 491 }, 1.4, 2.2, "sun-tent");
+for (const [x, z] of [[-29, -13], [-32, 10], [-31, 18]] as const) solidProp({ kind: "giantTree", pos: [x, 0, z], yaw: 0.2, scale: 1, seed: 500 + z }, 1.2, 8, `sun-camp-tree-${z}`);
+for (const box of sunPillars) { const prop: Prop = { kind: "pillar", pos: [(box.min[0] + box.max[0]) / 2, 0, (box.min[2] + box.max[2]) / 2], yaw: 0, scale: 0.7, seed: 600 + props.length }; props.push(prop, mirrorX(prop)); }
+for (const z of [-9, 9]) solidProp({ kind: "brazier", pos: [-2.4, 1.2, z], yaw: 0, scale: 1, seed: 640 + z }, 0.5, 2, `sun-brazier-${z}`);
+for (const z of [-9.3, 9.3]) solidProp({ kind: "stoneHead", pos: [-9.3, 1.2, z], yaw: z < 0 ? Math.PI : 0, scale: 0.8, seed: 660 + Math.round(z) }, 0.6, 1.8, `sun-head-${z}`);
+{ const vines: Prop = { kind: "vineWall", pos: [-10, 0.4, 5.5], yaw: Math.PI / 2, scale: 1, seed: 680 }; props.push(vines, mirrorX(vines)); }
 props.push({ kind: "waterSurface", pos: [-14, 0.02, -15], yaw: 0, scale: 1.7, seed: 701 }, { kind: "waterSurface", pos: [14, 0.02, -15], yaw: 0, scale: 1.7, seed: 701 });
 
 const sunSpawns: SpawnPoint[] = [-6, -2, 2, 6].map((z) => ({ pos: [-29, 0, z], yaw: -Math.PI / 2 }));
@@ -104,5 +115,5 @@ const waypoints: Waypoint[] = nodes.map((node) => ({ ...node, links: links.get(n
 
 export const sunTempleMap: MapData = {
   id: "sun-temple", name: "Sun Temple", bounds: { min: [-36, -5, -28], max: [36, 17, 28] }, boxes, ramps, volumes, zipLines: [], boulders: [boulder], props,
-  spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "altar", pos: [0, 6.5, 0] }, { text: "tunnel: listen for the rumble", pos: [-8, 0.2, 0] }], look: { sunShafts: false, stainSeed: 4401 },
+  spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "altar", pos: [0, 6.5, 0] }, { text: "tunnel: listen for the rumble", pos: [-8, 0.2, 0] }], look: { sunShafts: false, stainSeed: 4401 }, landmark: [0, 6.6, 0],
 };

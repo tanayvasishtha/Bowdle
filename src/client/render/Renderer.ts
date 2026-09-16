@@ -43,6 +43,7 @@ const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
 const arrowDirection = new Vector3();
 const symbolWorld = new Vector3();
+const viewDirection = new Vector3();
 const ropePoints = 9;
 
 function mapMeshes(map: MapData): Mesh[] {
@@ -454,6 +455,8 @@ export class Renderer {
     this.renderer.setRenderTarget(this.composite.viewmodel);
     this.renderer.clear();
     this.renderer.render(this.viewScene, this.viewCamera);
+    this.camera.getWorldDirection(viewDirection);
+    this.composite.setView(Math.asin(Math.max(-1, Math.min(1, viewDirection.y))), Math.atan2(viewDirection.x, -viewDirection.z), this.camera.fov);
     this.composite.render(this.renderer, timeMs / 1000);
     this.frames += 1;
     if (timeMs - this.fpsAt >= 500) {

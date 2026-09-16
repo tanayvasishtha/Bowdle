@@ -127,6 +127,9 @@ const TREE_LINE_KINDS: readonly ScatterKind[] = [
   { kind: "fernClump", weight: 2, minScale: 1, maxScale: 1.8 },
 ];
 
+/** How far the first row of trunks stands outside the play area, so no trunk pokes into a lane. */
+const TREE_LINE_CLEARANCE = 2.8;
+
 export function treeLineProps(options: TreeLineOptions): Prop[] {
   const rng = mulberry32(options.seed);
   const kinds = options.kinds ?? TREE_LINE_KINDS;
@@ -134,18 +137,22 @@ export function treeLineProps(options: TreeLineOptions): Prop[] {
   const rows = 2 + (options.silhouetteRows ?? 1);
   const props: Prop[] = [];
   for (let row = 0; row < rows; row += 1) {
-    const band = expandRect(options.outer, options.depth * (row / Math.max(rows - 1, 1)));
+    const band = expandRect(options.outer, TREE_LINE_CLEARANCE + options.depth * (row / Math.max(rows - 1, 1)));
     const silhouette = row >= 2;
     const step = options.spacing * (silhouette ? 1.4 : 1);
-    const perimeter: Array<readonly [number, number]> = [];
-    for (let x = band.minX; x <= band.maxX; x += step) perimeter.push([x, band.minZ], [x, band.maxZ]);
-    for (let z = band.minZ + step; z < band.maxZ; z += step) perimeter.push([band.minX, z], [band.maxX, z]);
-    for (const [x, z] of perimeter) {
+    // [x, z, true when the edge runs along x]
+    const perimeter: Array<readonly [number, number, boolean]> = [];
+    for (let x = band.minX; x <= band.maxX; x += step) perimeter.push([x, band.minZ, true], [x, band.maxZ, true]);
+    for (let z = band.minZ + step; z < band.maxZ; z += step) perimeter.push([band.minX, z, false], [band.maxX, z, false]);
+    for (const [x, z, alongX] of perimeter) {
       const chosen = pickKind(kinds, rng());
       const scaleBoost = silhouette ? 1.25 : 1;
+      const along = (rng() - 0.5) * step * 0.6;
+      const across = Math.abs(rng() - 0.5) * 0.6;
+      const outward = alongX ? (z < 0 ? -1 : 1) : (x < 0 ? -1 : 1);
       props.push({
         kind: silhouette ? "giantTree" : chosen.kind,
-        pos: [x + (rng() - 0.5) * step * 0.6, y, z + (rng() - 0.5) * step * 0.6],
+        pos: alongX ? [x + along, y, z + outward * across] : [x + outward * across, y, z + along],
         yaw: rng() * Math.PI * 2,
         scale: (chosen.minScale + rng() * (chosen.maxScale - chosen.minScale)) * scaleBoost,
         seed: options.seed + props.length * 31 + row,

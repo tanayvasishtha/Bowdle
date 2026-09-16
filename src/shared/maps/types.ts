@@ -43,4 +43,6 @@ export type MapData = {
   decor: readonly Decor[];
   notes: readonly MapNote[];
   look: { sunShafts: boolean; stainSeed: number };
+  /** A point every team should be able to see from its spawn area, such as the top of the central landmark. */
+  landmark?: Vec3Tuple;
 };

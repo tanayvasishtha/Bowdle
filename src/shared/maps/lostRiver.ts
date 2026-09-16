@@ -50,13 +50,18 @@ const props: Prop[] = [
   { kind: "waterSurface", pos: [0, -0.38, 2], yaw: 0, scale: 6, seed: 1203 },
   { kind: "mist", pos: [0, 0, -23], yaw: 0, scale: 2, seed: 1204 },
 ];
-for (const [x, z, seed] of [[-27, 16, 1210], [-19, -15, 1211], [-9, 22, 1212]] as const) {
-  const tree: Prop = { kind: "giantTree", pos: [x, 0, z], yaw: 0.2, scale: 1.2, seed };
-  props.push(tree, mirrorX(tree));
+// Scenery that looks solid gets a collider, so arrows never pass through something that reads as cover.
+function solidProp(prop: Prop, halfWidth: number, height: number, id: string): void {
+  const [x, y, z] = prop.pos;
+  const box: Box = { id, min: [x - halfWidth, y, z - halfWidth], max: [x + halfWidth, y + height, z + halfWidth], material: "wood", tags: ["solid", "invisible"] };
+  props.push(prop, mirrorX(prop));
+  boxes.push(box, mirrorX(box, id.replace("sun", "moon")));
 }
-for (const z of [10, -10] as const) {
-  const head: Prop = { kind: "stoneHead", pos: [-17, 0, z], yaw: -Math.PI / 2, scale: 1, seed: 1230 + z };
-  props.push(head, mirrorX(head));
+for (const [x, z, seed] of [[-27, 16, 1210], [-19, -15, 1211], [-9, 22, 1212]] as const) {
+  solidProp({ kind: "giantTree", pos: [x, 0, z], yaw: 0.2, scale: 1.2, seed }, 1.3, 8, `sun-bank-tree-${seed}`);
+}
+for (const z of [15, -15] as const) {
+  solidProp({ kind: "stoneHead", pos: [-32.2, 0, z], yaw: -Math.PI / 2, scale: 1, seed: 1230 + z }, 0.85, 2.1, `sun-serpent-${z}`);
 }
 
 const sunSpawns: SpawnPoint[] = [-6, -2, 2, 6].map((z) => ({ pos: [-30, 0, z], yaw: -Math.PI / 2 }));
@@ -100,5 +105,5 @@ boxes.push(...dressing.patches);
 
 export const lostRiverMap: MapData = {
   id: "lost-river", name: "Lost River", bounds: { min: [-36, -2, -28], max: [36, 14, 28] }, boxes, ramps, volumes, zipLines: [], boulders: [], props,
-  spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "flood every two minutes", pos: [0, 3, 4] }, { text: "behind the falls", pos: [0, 3, -22] }], look: { sunShafts: true, stainSeed: 6301 },
+  spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "flood every two minutes", pos: [0, 3, 4] }, { text: "behind the falls", pos: [0, 3, -22] }], look: { sunShafts: true, stainSeed: 6301 }, landmark: [0, 6, 10],
 };

@@ -56,6 +56,8 @@ export class CompositePass {
         time: { value: 0 },
         sunShafts: { value: 0 },
         stainSeed: { value: 0 },
+        horizon: { value: 0.5 },
+        cameraYaw: { value: 0 },
       },
       vertexShader: compositeVertexShader,
       fragmentShader: compositeFragmentShader,
@@ -68,6 +70,13 @@ export class CompositePass {
   setSunShafts(enabled: boolean): void { this.material.uniforms.sunShafts!.value = enabled ? 1 : 0; }
   setStainSeed(seed: number): void { this.material.uniforms.stainSeed!.value = seed; }
   setBoil(enabled: boolean): void { this.boil = enabled; }
+
+  /** Places the horizon band: screen height of the true horizon for this pitch, as a fraction from the bottom. */
+  setView(pitch: number, yaw: number, fovDegrees: number): void {
+    const halfFov = (fovDegrees * Math.PI) / 360;
+    this.material.uniforms.horizon!.value = 0.5 - (0.5 * Math.tan(pitch)) / Math.tan(halfFov);
+    this.material.uniforms.cameraYaw!.value = yaw;
+  }
 
   resize(width: number, height: number, dpr: number, renderScale = 1): void {
     const pixelWidth = Math.max(1, Math.floor(width * dpr * renderScale));

@@ -22,6 +22,7 @@ const campBase: MapData = {
     { id: "wall-east", min: [15.5, 0, -82], max: [16, 6, 10], material: "foliageDark", tags: ["solid"] },
     { id: "backstop", min: [-16, 0, -82], max: [16, 7, -81.5], material: "stone", tags: ["solid"] },
     { id: "watchtower", min: [-14, 0, -7], max: [-10, 6, -3], material: "wood", tags: ["solid", "grapple"] },
+    { id: "camp-tent", min: [6.6, 0, 2.6], max: [9.4, 2.2, 5.4], material: "canvas", tags: ["solid", "invisible"] },
     { id: "vine-wall", min: [10, 0, -18], max: [14, 7, -17], material: "gold", tags: ["solid", "grapple"] },
     { id: "slide-log-1", min: [-9, CROUCH_HEIGHT + 0.1, -13], max: [-3, CROUCH_HEIGHT + 0.3, -12.5], material: "wood", tags: ["solid"] },
     { id: "slide-log-2", min: [-9, CROUCH_HEIGHT + 0.1, -21], max: [-3, CROUCH_HEIGHT + 0.3, -20.5], material: "wood", tags: ["solid"] },

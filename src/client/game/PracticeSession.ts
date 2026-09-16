@@ -33,6 +33,7 @@ import type { Renderer } from "../render/Renderer.ts";
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { PracticeTutorial } from "../ui/tutorial.ts";
+import { stabProgress } from "../render/characters/motion.ts";
 
 type TargetState = CampTarget & { x: number; hp: number; alive: boolean; lastDamageAtMs: number; respawnAtMs: number };
 type ArrowEntry = { sim: ArrowSim; visual: Group; stuckAtMs: number; trail: Float32Array; trailCount: number; captureStep: number };
@@ -205,6 +206,8 @@ export class PracticeSession {
     this.cameraRig.update(this.renderer.camera, this.previous, this.player, alpha, elapsed);
     const fraction = drawFraction(this.player.drawMs);
     this.renderer.setDrawFraction(fraction);
+    this.renderer.setLocalTeam(0);
+    this.renderer.setMeleeSwing(stabProgress(this.player.meleeCooldownMs));
     const radius = 18 - fraction * 12;
     this.crosshair.style.width = `${radius * 2}px`;
     this.crosshair.style.height = `${radius * 2}px`;

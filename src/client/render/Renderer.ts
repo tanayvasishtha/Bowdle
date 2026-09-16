@@ -35,6 +35,9 @@ import { PropsRenderer } from "./props/PropsRenderer.ts";
 import { Ambience } from "../audio/ambience.ts";
 import { loadSettings, type GameSettings } from "../settings.ts";
 import { DynamicResolution } from "./dynamicResolution.ts";
+import { CharacterRig, type CharacterKind } from "./characters/CharacterRig.ts";
+import type { CharacterMotion } from "./characters/pose.ts";
+import { Viewmodel } from "./characters/Viewmodel.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
@@ -115,31 +118,10 @@ function cylinderBetween(from: Vector3, to: Vector3, radius: number, material: I
   return mesh;
 }
 
-function addViewmodel(scene: Scene): Group {
-  const material = new InkMaterial(MATERIAL_ID.wood);
-  const group = new Group();
-  const curve = new QuadraticBezierCurve3(new Vector3(0, -0.85, 0), new Vector3(0.5, 0, -0.15), new Vector3(0, 0.85, 0));
-  const bow = new Mesh(new TubeGeometry(curve, 18, 0.025, 5, false), material);
-  bow.position.set(0.62, -0.34, -1.25);
-  group.add(bow);
-  const top = new Vector3(0.62, 0.51, -1.25);
-  const middle = new Vector3(0.38, -0.34, -1.08);
-  const bottom = new Vector3(0.62, -1.19, -1.25);
-  group.add(cylinderBetween(top, middle, 0.008, material), cylinderBetween(middle, bottom, 0.008, material));
-  scene.add(group);
-  return group;
-}
-
-function createPlayer(): Group {
-  const group = new Group();
-  const material = new InkMaterial(MATERIAL_ID.teamSun);
-  const torsoHeight = STAND_HEIGHT - HEAD_RADIUS * 2;
-  const torso = new Mesh(new CylinderGeometry(BODY_RADIUS, BODY_RADIUS, torsoHeight, 8), material);
-  torso.position.y = torsoHeight / 2;
-  const head = new Mesh(new SphereGeometry(HEAD_RADIUS, 12, 8), material);
-  head.position.y = EYE_STAND + 0.05;
-  group.add(torso, head);
-  return group;
+function phaseFor(id: string): number {
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) hash = (hash * 31 + id.charCodeAt(index)) % 997;
+  return hash / 97;
 }
 
 function createArrowVisual(kind: "arrow" | "grapple" | "ink" = "arrow"): Group {
@@ -156,7 +138,15 @@ function createArrowVisual(kind: "arrow" | "grapple" | "ink" = "arrow"): Group {
   return group;
 }
 
-export type SnapshotFractions = Record<keyof typeof PALETTE, number>;
+/** Palette fractions plus two hue buckets: blended team washes sit between palette entries, so crews are measured by hue. */
+export type SnapshotFractions = Record<keyof typeof PALETTE, number> & { sunTint: number; moonTint: number };
+
+function hueOf(r: number, g: number, b: number, max: number, min: number): number {
+  const range = max - min;
+  if (range === 0) return 0;
+  const hue = max === r ? ((g - b) / range) % 6 : max === g ? (b - r) / range + 2 : (r - g) / range + 4;
+  return hue * 60 < 0 ? hue * 60 + 360 : hue * 60;
+}
 
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
@@ -169,14 +159,15 @@ export class Renderer {
   private readonly viewScene = new Scene();
   private readonly viewCamera = new PerspectiveCamera(70, 1, 0.01, 10);
   private readonly planes: Mesh[] = [];
-  private readonly targets = new Map<string, Group>();
-  private readonly players = new Map<string, Group>();
+  private readonly targets = new Map<string, CharacterRig>();
+  private readonly players = new Map<string, CharacterRig>();
+  private readonly showcase: CharacterRig[] = [];
   private readonly playerSymbols = new Map<string, { element: HTMLDivElement; team: number }>();
   private readonly ropes = new Map<string, Line>();
   private readonly clouds = new Map<string, Group>();
   private readonly grappleHighlights: Mesh[] = [];
   private readonly notes: Array<{ element: HTMLDivElement; world: Vector3; x: number; y: number; z: number }> = [];
-  private readonly viewBow: Group;
+  private readonly viewmodel = new Viewmodel();
   private readonly overlay: HTMLDivElement | null;
   private map: MapData;
   private props: PropsRenderer;
@@ -207,12 +198,12 @@ export class Renderer {
     this.applySettings(this.settings);
     this.buildMap(map);
     for (const target of practice) {
-      const visual = createPlayer();
+      const visual = new CharacterRig("dummy", phaseFor(target.id));
       visual.position.set(target.pos[0], target.pos[1], target.pos[2]);
       this.targets.set(target.id, visual);
       this.worldScene.add(visual);
     }
-    this.viewBow = addViewmodel(this.viewScene);
+    this.viewScene.add(this.viewmodel);
     this.camera.rotation.order = "YXZ";
     this.overlay = debug || import.meta.env.DEV ? this.createOverlay(container) : null;
     if (this.overlay && !debug) this.overlay.style.display = "none";
@@ -299,11 +290,22 @@ export class Renderer {
   }
   setTestCamera(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void { this.cameraOverride = { x, y, z, lookX, lookY, lookZ }; }
 
-  setDrawFraction(fraction: number): void {
-    this.viewBow.position.z = fraction * 0.2;
-  }
+  setDrawFraction(fraction: number): void { this.viewmodel.setDrawFraction(fraction); }
+  setViewmodelVisible(visible: boolean): void { this.viewmodel.visible = visible; }
+  setLocalTeam(team: number): void { this.viewmodel.setTeam(team); }
+  setMeleeSwing(progress: number): void { this.viewmodel.setStab(progress); }
 
-  setViewmodelVisible(visible: boolean): void { this.viewBow.visible = visible; }
+  setPlayerMotion(id: string, motion: CharacterMotion): void { this.players.get(id)?.setMotion(motion); }
+
+  /** A posed character that is not a player, for the character lineup scene. */
+  addShowcase(kind: CharacterKind, x: number, y: number, z: number, yaw: number, motion: CharacterMotion): void {
+    const rig = new CharacterRig(kind, this.showcase.length * 0.37);
+    rig.position.set(x, y, z);
+    rig.rotation.y = yaw;
+    rig.setMotion(motion);
+    this.showcase.push(rig);
+    this.worldScene.add(rig);
+  }
 
   setTargetPosition(id: string, x: number, y: number, z: number, visible: boolean): void {
     const target = this.targets.get(id);
@@ -332,11 +334,7 @@ export class Renderer {
   setPlayerPosition(id: string, team: number, x: number, y: number, z: number, yaw: number, visible = true): void {
     let player = this.players.get(id);
     if (!player) {
-      player = createPlayer();
-      const inkId = team === 0 ? MATERIAL_ID.teamSun : MATERIAL_ID.teamMoon;
-      player.traverse((child) => {
-        if (child instanceof Mesh) child.material = new InkMaterial(inkId);
-      });
+      player = new CharacterRig(team === 0 ? "sun" : "moon", phaseFor(id));
       this.players.set(id, player);
       this.worldScene.add(player);
       const element = document.createElement("div"); element.className = "bowdle-team-symbol"; element.textContent = team === 0 ? "●" : "▲"; element.style.cssText = `position:absolute;display:${this.settings.colorblindSymbols ? "block" : "none"};color:${team === 0 ? "#d2531f" : "#47418c"};font:30px sans-serif;-webkit-text-stroke:2px #efe3c6;pointer-events:none;transform:translate(-50%,-50%)`;
@@ -425,6 +423,10 @@ export class Renderer {
     if (this.dynamicResolution.sample(frameMs)) this.resize();
     if (this.cameraOverride) { const view = this.cameraOverride; this.camera.position.set(view.x, view.y, view.z); this.camera.lookAt(view.lookX, view.lookY, view.lookZ); }
     this.props.update(this.camera, timeMs);
+    const seconds = timeMs / 1000;
+    for (const rig of this.players.values()) rig.update(seconds);
+    for (const rig of this.targets.values()) rig.update(seconds);
+    for (const rig of this.showcase) rig.update(seconds);
     this.ambience.updateListener(this.camera.position.x, this.camera.position.z);
     for (let index = 0; index < this.planes.length; index += 1) {
       const plane = this.planes[index]!;
@@ -470,8 +472,13 @@ export class Renderer {
     const pixels = new Uint8Array(width * height * 4);
     gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     const entries = Object.entries(PALETTE) as Array<[keyof typeof PALETTE, number]>;
-    const counts = Object.fromEntries(entries.map(([name]) => [name, 0])) as SnapshotFractions;
+    const counts = { ...Object.fromEntries(entries.map(([name]) => [name, 0])), sunTint: 0, moonTint: 0 } as SnapshotFractions;
     for (let offset = 0; offset < pixels.length; offset += 4) {
+      const red = pixels[offset]!, green = pixels[offset + 1]!, blue = pixels[offset + 2]!;
+      const max = Math.max(red, green, blue), min = Math.min(red, green, blue);
+      const saturation = max === 0 ? 0 : (max - min) / max, hue = hueOf(red, green, blue, max, min);
+      if (hue >= 10 && hue <= 33 && saturation > 0.35 && max > 190) counts.sunTint += 1;
+      else if (hue >= 215 && hue <= 250 && saturation > 0.15) counts.moonTint += 1;
       let nearest = entries[0]![0], distance = Number.POSITIVE_INFINITY;
       for (const [name, color] of entries) {
         const dr = pixels[offset]! - (color >> 16 & 255), dg = pixels[offset + 1]! - (color >> 8 & 255), db = pixels[offset + 2]! - (color & 255);
@@ -481,6 +488,8 @@ export class Renderer {
     }
     const total = width * height;
     for (const [name] of entries) counts[name] /= total;
+    counts.sunTint /= total;
+    counts.moonTint /= total;
     return counts;
   }
 

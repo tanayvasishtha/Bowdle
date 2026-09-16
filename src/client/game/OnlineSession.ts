@@ -17,6 +17,10 @@ import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { ReplayDirector } from "./ReplayDirector.ts";
 import { spawnAbilityProjectile } from "../../shared/sim/abilities.ts";
+import { drawFraction } from "../../shared/sim/bow.ts";
+import { isInWater } from "../../shared/sim/volumes.ts";
+import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
+import { createMotion } from "../render/characters/pose.ts";
 
 export type RenderedPlayer = { id: string; x: number; y: number; z: number };
 type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "grapple" | "ink" };
@@ -33,6 +37,7 @@ export class OnlineSession {
   private readonly arrows: PredictedSpawns<ArrowState, LocalArrow>;
   private readonly arrowRenders = new Map<number, ArrowRender>();
   private readonly names = new Map<string, string>();
+  private readonly motionScratch = createMotion();
   private readonly hud: MatchHud;
   private readonly replay: ReplayDirector;
   private readonly sounds = new SoundEffects();
@@ -124,6 +129,7 @@ export class OnlineSession {
     }
     this.cameraRig.update(this.renderer.camera, this.me.state, this.me.state, 1, elapsed);
     this.renderer.setDebugMovement(this.me.state);
+    const serverNow = this.room.clock.serverNow();
     const capture = this.replay.beginCapture(timeMs);
     for (const [id, player] of this.room.state.players) {
       this.names.set(id, player.name);
@@ -136,11 +142,15 @@ export class OnlineSession {
         this.predict.value(player, "yaw"),
         id !== this.sessionId,
       );
+      this.renderer.setPlayerMotion(id, motionFromSim(this.motionScratch, player, isInWater(this.map, player.x, player.y, player.z, serverNow)));
       if (player.alive) this.renderer.unpinPlayer(id);
       this.renderer.setGrappleRope(id, player.grappleActive, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"), player.grappleX, player.grappleY, player.grappleZ);
       if (capture) this.replay.player(id, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"), this.predict.value(player, "yaw"));
     }
     this.renderArrows(timeMs, capture);
+    this.renderer.setLocalTeam(this.me.state.team);
+    this.renderer.setDrawFraction(drawFraction(this.me.state.drawMs));
+    this.renderer.setMeleeSwing(stabProgress(this.me.state.meleeCooldownMs));
     if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
     else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); this.hud.setReplay(false); }
     this.wasAlive = this.me.state.alive;

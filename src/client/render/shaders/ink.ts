@@ -1,14 +1,21 @@
 export const inkVertexShader = /* glsl */ `
+  #include <skinning_pars_vertex>
   out vec3 vWorldNormal;
   out vec3 vWorldPosition;
   void main() {
-    vec4 local = vec4(position, 1.0);
+    vec3 objectNormal = vec3(normal);
+    vec3 transformed = vec3(position);
+    // Characters are skinned meshes; the chunks are no-ops for everything else.
+    #include <skinbase_vertex>
+    #include <skinnormal_vertex>
+    #include <skinning_vertex>
+    vec4 local = vec4(transformed, 1.0);
     mat4 model = modelMatrix;
     #ifdef USE_INSTANCING
       local = instanceMatrix * local;
       model = modelMatrix * instanceMatrix;
     #endif
-    vWorldNormal = normalize(mat3(model) * normal);
+    vWorldNormal = normalize(mat3(model) * objectNormal);
     vWorldPosition = (modelMatrix * local).xyz;
     gl_Position = projectionMatrix * modelViewMatrix * local;
   }

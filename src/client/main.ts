@@ -1,3 +1,5 @@
+import { lineupMap } from "../shared/maps/fixtures/lineup.ts";
+import { createMotion, type CharacterMotion } from "./render/characters/pose.ts";
 import { Renderer, type SnapshotFractions } from "./render/Renderer.ts";
 import { InputSampler } from "./game/InputSampler.ts";
 import { OfflineSession } from "./game/OfflineSession.ts";
@@ -81,6 +83,28 @@ else if (params.get("scene") === "online") {
     stats: () => renderer.stats(),
     cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
     ...(session instanceof PracticeSession ? { fireAt: (targetId: string, drawMs: number) => session.fireAt(targetId, drawMs) } : {}),
+  };
+} else if (params.get("scene") === "characters") {
+  const renderer = new Renderer(app, params.has("debug"), lineupMap);
+  const lineup: readonly Partial<CharacterMotion>[] = [
+    {}, { speed: 7.5 }, { crouched: true }, { sliding: true, speed: 10 },
+    { grounded: false, verticalSpeed: 4 }, { drawing: true, drawFraction: 1 }, { stabT: 0.45 }, { zipping: true, grounded: false },
+  ];
+  (["sun", "moon"] as const).forEach((kind, row) => {
+    lineup.forEach((overrides, column) => {
+      const x = (column - (lineup.length - 1) / 2) * 2.1;
+      const yaw = Math.PI - (overrides.drawing ? 0.9 : 0.25);
+      renderer.addShowcase(kind, row === 0 ? x : x + 1.05, overrides.zipping ? 0.6 : 0, row === 0 ? 0 : -2.4, yaw, { ...createMotion(), ...overrides });
+    });
+  });
+  renderer.setViewmodelVisible(false);
+  renderer.setTestCamera(0, 1.8, 6.4, 0, 1.0, -1.2);
+  const loop = (time: number): void => { renderer.render(time); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+  if (params.has("test")) window.__bowdleTest = {
+    snapshot: () => renderer.snapshot(),
+    stats: () => renderer.stats(),
+    cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
   };
 } else {
   showMainMenu(app);

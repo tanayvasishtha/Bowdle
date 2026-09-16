@@ -1,5 +1,40 @@
 # Build log
 
+## C1: Characters
+
+Status: done.
+
+Built:
+
+- Two explorer crews on one silhouette and hitbox: Sun (orange shirt, pith helmet, gold sash, map tube) and Moon (indigo shirt, knit cap, scarf, lantern). Straw dummies for Practice Camp targets.
+- A skinned rig with 16 bones, merged by material slot so each character costs 6 to 7 draw calls. The bowstring stretches between the grip and nock bones.
+- A pure pose function with ten leg states and six upper body states, two-bone leg IK, speed-scaled strides, a side-on draw with look-pitch aim, an upright bow carry, dagger stabs, zip line hanging and knocked-out poses. Hips shift so the drawn head always sits on the head hitbox.
+- First-person viewmodel with team sleeves, hands, a string that follows the draw, a nocked arrow and a dagger thrust.
+- Online and Practice Camp sessions feed motion for every player each frame, including wading from water volumes.
+- The ink shader supports skinned meshes.
+- Crew lineup scene at ?scene=characters.
+- Snapshot now reports team hue coverage, because blended team washes fall between palette entries.
+- docs/CHARACTERS.md.
+
+Tests added:
+
+- Pose tests: state selection and priority, head on hitbox for every living pose and action, feet reach, stride opposition, draw pull, aim follows pitch, upright carry, dagger visibility, allocation-free output.
+- Rig tests: draw calls per crew, rig head matches the pose math, world placement, motion from a player simulation, stab timing.
+- tests/e2e/characters.spec.ts: lineup screenshot, draw call budget, close-ups confirming each crew's color.
+
+QA:
+
+- npm run check: passed with 127 tests.
+- npm run e2e: 21 passed.
+- npm run size: client JavaScript 265 KB gzipped, 900 KB budget.
+- Screenshots in test-results/qa/c1/.
+- Break check: not run for this milestone.
+
+Verify by hand:
+
+- Watch a bot match from a distance: running, sliding, drawing and stabbing should all read at a glance.
+- Check that aiming at the drawn head lands headshots in every stance.
+
 ## M9: Deploy and performance
 
 Status: done.

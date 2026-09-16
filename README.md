@@ -44,6 +44,7 @@ npm run e2e                        # browser tests
 | [RUNBOOK-1.md](docs/RUNBOOK-1.md) | Setup to Practice Camp (M0 to M3) |
 | [RUNBOOK-2.md](docs/RUNBOOK-2.md) | Online play and bots (M4a to M6) |
 | [RUNBOOK-3.md](docs/RUNBOOK-3.md) | Abilities to launch (M7 to M12) |
+| [CHARACTERS.md](docs/CHARACTERS.md) | The two explorer crews, rig, poses and first person |
 | [COMPLETION-PLAN.md](docs/COMPLETION-PLAN.md) | Everything left before v1 and who does what |
 
 ## Stack

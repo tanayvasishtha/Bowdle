@@ -1,6 +1,6 @@
 # Bowdle: instructions for coding agents
 
-Bowdle is a browser multiplayer bow shooter set inside a hand-drawn notebook. Two teams of 4 fight with bows and arrows. Movement is fast arena style: high run speed, slides, bunny hops, air strafing. Desktop browsers first.
+Bowdle is a browser multiplayer bow shooter drawn like an explorer's field journal. Two teams of 4 fight with bows and arrows. Movement is fast arena style: high run speed, slides, bunny hops, air strafing. Desktop browsers first.
 
 ## Read before writing code
 
@@ -15,6 +15,7 @@ Bowdle is a browser multiplayer bow shooter set inside a hand-drawn notebook. Tw
 | `docs/JUNGLE-MAPS.md` | Jungle launch-map geometry and mechanics |
 | `docs/ECONOMY.md` | Accounts, skins, payments, portal rules |
 | `docs/RUNBOOK-1.md` to `RUNBOOK-3.md` | Milestones, one at a time |
+| `docs/CHARACTERS.md` | Explorer crews, character rig and poses |
 | `docs/COMPLETION-PLAN.md` | Remaining phases to v1 |
 | `docs/RUNBOOK-WORLD.md` | World milestones W1 to W6 |
 

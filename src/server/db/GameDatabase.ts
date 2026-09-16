@@ -4,7 +4,7 @@ import { nameError } from "../../shared/name.ts";
 import { migrate } from "./migrations.ts";
 import { openSql, type SqlClient, type SqlQuery } from "./sql.ts";
 import { PROVIDERS, type BuyResult, type LeaderboardRow, type Locker, type Profile, type Provider } from "../../shared/api.ts";
-import { DEFAULT_LOADOUT, cosmeticById, cosmeticBySku, sanitizeLoadout, type Loadout } from "../../shared/cosmetics.ts";
+import { DEFAULT_LOADOUT, LEVEL_TRACK, cosmeticById, cosmeticBySku, nextUnlock, sanitizeLoadout, type Loadout } from "../../shared/cosmetics.ts";
 import type { MatchStats } from "../../shared/matchStats.ts";
 import { createMatchStats } from "../../shared/matchStats.ts";
 import { DAILY_POOL, WEEKLY_POOL, challengeReward, dailyChallenges, weeklyChallenges, periodKeys, resetTimes, progressFrom, type ChallengeChange, type Challenges, type ChallengeState } from "../../shared/challenges.ts";
@@ -12,9 +12,9 @@ import { PLAY_STREAK, UTC_DAY_MS } from "../../shared/constants.ts";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
 export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean; stats?: MatchStats; medals?: readonly string[]; mapId?: string };
-export type GrantedReward = MatchReward & { accountId: string; before: LevelProgress; after: LevelProgress; challenges: ChallengeChange[]; streakDays: number };
+export type GrantedReward = MatchReward & { accountId: string; before: LevelProgress; after: LevelProgress; challenges: ChallengeChange[]; streakDays: number; unlocked: string[] };
 
-type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null; streak_days: number; last_play_day: string; first_win_day: string; reroll_day: string };
+type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null; streak_days: number; last_play_day: string; first_win_day: string; reroll_day: string; total_matches: number; total_wins: number; total_kills: number; total_headshots: number; best_streak: number; longest_shot_m: number };
 type ChallengeRow = { period_key: string; challenge_id: string; progress: number; done: boolean; maps: string };
 
 async function challengeRows(query: SqlQuery, accountId: string, now: Date): Promise<ChallengeRow[]> {
@@ -37,6 +37,20 @@ function challengeView(rows: ChallengeRow[], now: Date, rerollDay: string): Chal
     return { id: challenge.id, text: challenge.text, target: challenge.target, progress: row.progress, done: row.done, reward: challengeReward(challenge.id) };
   });
   return { daily: states(keys.daily), weekly: states(keys.weekly), ...resetTimes(now), rerollAvailable: rerollDay !== keys.daily.slice(2) };
+}
+
+async function grantLevelRewards(query: SqlQuery, accountId: string, before: number, after: number): Promise<{ unlocked: string[]; breakdown: MatchReward["breakdown"] }> {
+  const unlocked: string[] = []; const breakdown: MatchReward["breakdown"] = [];
+  for (const reward of LEVEL_TRACK) {
+    if (reward.level <= before || reward.level > after) continue;
+    if (reward.itemId) {
+      const inserted = await query<{ item_id: string }>("INSERT INTO inventory (account_id, item_id, source) VALUES ($1, $2, 'level') ON CONFLICT (account_id, item_id) DO NOTHING RETURNING item_id", [accountId, reward.itemId]);
+      if (inserted.length) unlocked.push(reward.itemId);
+    } else breakdown.push({ label: `Level ${reward.level} reward`, xp: 0, ink: reward.ink });
+  }
+  const ink = breakdown.reduce((sum, line) => sum + line.ink, 0);
+  if (ink > 0) await query("UPDATE accounts SET ink = ink + $1 WHERE id = $2", [ink, accountId]);
+  return { unlocked, breakdown };
 }
 
 const TOKEN_BYTES = 24;
@@ -98,6 +112,8 @@ export class GameDatabase {
       seasonKills: stats?.kills ?? 0, seasonMatches: stats?.matches ?? 0, seasonWins: stats?.wins ?? 0,
       linked: PROVIDERS.filter((provider) => account[`${provider}_id`] !== null),
       streakDays: account.streak_days,
+      career: { matches: account.total_matches, wins: account.total_wins, kills: account.total_kills, headshots: account.total_headshots, bestStreak: account.best_streak, longestShotM: account.longest_shot_m },
+      nextUnlock: nextUnlock(levelProgress(account.xp).level),
     };
   }
 
@@ -148,7 +164,6 @@ export class GameDatabase {
         reward.xp = reward.breakdown.reduce((sum, row) => sum + row.xp, 0);
         reward.ink = reward.breakdown.reduce((sum, row) => sum + row.ink, 0);
         await query("UPDATE accounts SET streak_days = $1, last_play_day = $2, first_win_day = $3 WHERE id = $4", [streakDays, day, firstWinDay, line.accountId]);
-        await query("UPDATE match_rewards SET xp = $1, ink = $2, created_at = $3 WHERE match_id = $4 AND account_id = $5", [reward.xp, reward.ink, now, matchId, line.accountId]);
         const updated = await query<{ xp: number }>("UPDATE accounts SET xp = xp + $1, ink = ink + $2 WHERE id = $3 RETURNING xp", [reward.xp, reward.ink, line.accountId]);
         await query(
           `INSERT INTO season_stats (season, account_id, kills, matches, wins) VALUES ($1, $2, $3, 1, $4)
@@ -157,7 +172,12 @@ export class GameDatabase {
           [season, line.accountId, Math.max(0, Math.floor(line.kills) || 0), line.won ? 1 : 0],
         );
         const after = updated[0]!.xp;
-        granted.push({ accountId: line.accountId, ...reward, before: levelProgress(after - reward.xp), after: levelProgress(after), challenges: changes, streakDays });
+        const beforeProgress = levelProgress(after - reward.xp); const afterProgress = levelProgress(after);
+        const levels = await grantLevelRewards(query, line.accountId, beforeProgress.level, afterProgress.level);
+        reward.breakdown.push(...levels.breakdown); reward.ink += levels.breakdown.reduce((sum, row) => sum + row.ink, 0);
+        await query("UPDATE match_rewards SET xp = $1, ink = $2, created_at = $3 WHERE match_id = $4 AND account_id = $5", [reward.xp, reward.ink, now, matchId, line.accountId]);
+        await query("UPDATE accounts SET total_matches = total_matches + 1, total_wins = total_wins + $1, total_kills = total_kills + $2, total_headshots = total_headshots + $3, best_streak = GREATEST(best_streak, $4), longest_shot_m = GREATEST(longest_shot_m, $5) WHERE id = $6", [stats.won ? 1 : 0, stats.kills, stats.headshots, stats.bestStreak, stats.longestShotM, line.accountId]);
+        granted.push({ accountId: line.accountId, ...reward, before: beforeProgress, after: afterProgress, challenges: changes, streakDays, unlocked: levels.unlocked });
       }
       return granted;
     });
@@ -223,6 +243,18 @@ export class GameDatabase {
 
   async grantInk(accountId: string, amount: number): Promise<void> {
     await this.sql.query("UPDATE accounts SET ink = ink + $1 WHERE id = $2", [Math.floor(amount), accountId]);
+  }
+
+  async grantXp(accountId: string, amount: number): Promise<Profile | undefined> {
+    await this.sql.transaction(async (query) => {
+      const account = (await query<{ xp: number }>("SELECT xp FROM accounts WHERE id = $1 FOR UPDATE", [accountId]))[0];
+      if (!account) return;
+      const xp = Math.max(0, Math.floor(amount));
+      if (!Number.isFinite(xp)) throw new Error("Invalid XP grant");
+      await query("UPDATE accounts SET xp = xp + $1 WHERE id = $2", [xp, accountId]);
+      await grantLevelRewards(query, accountId, levelProgress(account.xp).level, levelProgress(account.xp + xp).level);
+    });
+    return this.profile(accountId);
   }
 
   async accountExists(accountId: string): Promise<boolean> {

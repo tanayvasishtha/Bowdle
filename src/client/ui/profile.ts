@@ -2,6 +2,7 @@ import type { Profile, Provider } from "../../shared/api.ts";
 import { deleteAccount, enabledProviders, ensureAccount, fetchChallenges, fetchLeaderboard, fetchProfile, renameAccount, rerollChallenge, startProviderSignIn } from "../account.ts";
 import type { Challenges, ChallengeState } from "../../shared/challenges.ts";
 import { PLAY_STREAK, TIME_UNITS } from "../../shared/constants.ts";
+import { cosmeticById } from "../../shared/cosmetics.ts";
 import { loadName, nameError, saveName } from "../settings.ts";
 import { portalPolicy } from "../platform/platform.ts";
 
@@ -47,6 +48,8 @@ export async function showProfile(container: HTMLElement, onClose: () => void): 
     <p class="bowdle-ink" data-testid="ink">${profile.ink} Ink</p>
     <p class="bowdle-small">Season ${escapeHtml(profile.season)}: ${profile.seasonKills} kills, ${profile.seasonWins} wins in ${profile.seasonMatches} matches</p>
     <p data-testid="play-streak">Play streak: ${profile.streakDays} days. Tomorrow's bonus: ${PLAY_STREAK.inkPerDay * Math.min(profile.streakDays + 1, PLAY_STREAK.capDays)} Ink</p>
+    <p data-testid="career">Career: ${profile.career.matches} matches · ${profile.career.wins} wins · ${profile.career.kills} kills · ${profile.career.headshots} headshots · best streak ${profile.career.bestStreak} · longest shot ${Math.round(profile.career.longestShotM)} m</p>
+    <p data-testid="next-unlock">${profile.nextUnlock ? `Next reward at level ${profile.nextUnlock.level}: ${profile.nextUnlock.itemId ? escapeHtml(cosmeticById(profile.nextUnlock.itemId)!.name) : `${profile.nextUnlock.ink} Ink`}` : "All level rewards earned"}</p>
     <div data-testid="challenges"></div>
     <label>Explorer name <input data-field="name" maxlength="16" value="${escapeHtml(profile.name)}"></label><div class="bowdle-error"></div>
     <button data-action="rename">Save name</button>

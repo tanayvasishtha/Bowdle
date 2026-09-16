@@ -25,12 +25,13 @@ describe("CharacterRig", () => {
     }
   });
 
-  it("wears every bow skin and outfit within the same draw call budget", () => {
+  it("wears every bought and level bow skin and outfit within the same draw call budget", () => {
     const keys = new Set<string>();
     for (const bow of BOW_SKINS) for (const gear of OUTFITS) for (const kind of ["sun", "moon"] as const) {
       const rig = new CharacterRig(kind, 0, { bow: bow.id, outfit: gear.id });
       expect(rig.drawCalls, `${kind} ${bow.id} ${gear.id}`).toBeLessThanOrEqual(8);
       expect(rig.lookKey).toBe(characterLookKey(kind, { bow: bow.id, outfit: gear.id }));
+      expect(rig.lookKey).toContain(bow.id); expect(rig.lookKey).toContain(gear.id);
       keys.add(rig.lookKey);
       const head = rig.headWorld(new Vector3());
       expect(head.y).toBeCloseTo(headCenter(rig.pose).up, 3);

@@ -51,7 +51,7 @@ describe("account challenges and daily rewards", () => {
     const first = (await db.recordMatch("streak:1", [line]))[0]!;
     expect(first).toMatchObject({ xp: 400, ink: 45, streakDays: 1 });
     const second = (await db.recordMatch("streak:2", [line]))[0]!;
-    expect(second).toMatchObject({ xp: 300, ink: 20, streakDays: 1 });
+    expect(second).toMatchObject({ xp: 300, ink: 80, streakDays: 1 });
     clock = new Date("2026-09-17");
     const next = (await db.recordMatch("streak:3", [line]))[0]!;
     expect(next.streakDays).toBe(2);

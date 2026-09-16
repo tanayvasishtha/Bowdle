@@ -73,6 +73,14 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE accounts ADD COLUMN first_win_day TEXT NOT NULL DEFAULT '';
   ALTER TABLE accounts ADD COLUMN reroll_day TEXT NOT NULL DEFAULT ''
   `,
+  `
+  ALTER TABLE accounts ADD COLUMN total_matches INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE accounts ADD COLUMN total_wins INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE accounts ADD COLUMN total_kills INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE accounts ADD COLUMN total_headshots INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE accounts ADD COLUMN best_streak INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE accounts ADD COLUMN longest_shot_m DOUBLE PRECISION NOT NULL DEFAULT 0
+  `,
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

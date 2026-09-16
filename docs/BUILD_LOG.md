@@ -1,5 +1,15 @@
 # Build log
 
+## R3: Level unlock track and career stats
+
+Status: done.
+
+Built: eight level-only cosmetics with the specified names, paints and styles, plus a reward for every level from 2 through 100. Earned items are never free defaults or purchasable SKUs. Migration 4 appends career counters and best records. Match grants award every crossed item and Ink reward atomically, store final reward totals, and update career statistics once. Profile shows career totals and the next reward. Locker previews locked items with level/progress hints and permits Equip once owned. The dev XP route follows the dev-grant flag and is absent in production.
+
+Verified: npm run check passed 203 tests in 48 files, type checks, production build and size. Client JS gzipped: 281 KB (budget 900 KB). All 30 browser tests passed using installed Chrome. npm run build, npm run smoke and npm run soak passed; nine map/seed matches completed. Changing the grant loop to reward only the final level failed the level 1-to-11 test; restored code passed. New coverage checks the four crossed items and six Ink payments, duplicate-match idempotency, three-match career totals, dev XP grants and production route refusal. Postgres wire tests exercise level grants, career updates and dev XP. Catalog and render tests cover all new items without changing draw budgets. Screenshots: test-results/qa/r3/locked-chalk.png and owned-chalk.png (not committed). Economy assertions now include earned level Ink and exact earned inventory contents.
+
+Left: manually cross level 3 with the protected dev XP route, inspect Chalk Line in Locker, and compare Profile career totals with played matches. The existing nonfatal schema buffer growth warning appeared during the passing soak. Unrelated V2 draft documents were left untouched. No dependencies added or design deviations.
+
 ## R2: Challenges, play streak and first win
 
 Status: done.

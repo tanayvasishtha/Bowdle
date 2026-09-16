@@ -309,7 +309,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const granted = await (await gameDatabase()).recordMatch(matchId, lines);
     for (const reward of granted) {
       const sessionId = sessionsByAccount.get(reward.accountId)!;
-      this.clientById(sessionId)?.send("rewards", { xp: reward.xp, ink: reward.ink, breakdown: reward.breakdown, before: reward.before, challenges: reward.challenges, streakDays: reward.streakDays, level: reward.after.level, intoLevel: reward.after.intoLevel, levelSize: reward.after.levelSize, levelUp: reward.after.level > reward.before.level });
+      this.clientById(sessionId)?.send("rewards", { xp: reward.xp, ink: reward.ink, breakdown: reward.breakdown, before: reward.before, challenges: reward.challenges, streakDays: reward.streakDays, unlocked: reward.unlocked, level: reward.after.level, intoLevel: reward.after.intoLevel, levelSize: reward.after.levelSize, levelUp: reward.after.level > reward.before.level });
     }
   }
   private resetPlayers(): void {

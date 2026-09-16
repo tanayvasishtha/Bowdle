@@ -1,6 +1,6 @@
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
-import { MAX_NAME_LENGTH } from "../../shared/constants.ts";
+import { DEV_GRANT_MAX, MAX_NAME_LENGTH } from "../../shared/constants.ts";
 import { PROVIDERS, type GameDatabase, type Provider } from "../db/GameDatabase.ts";
 import { OAuth } from "./oauth.ts";
 import { Xsolla } from "./xsolla.ts";
@@ -155,6 +155,12 @@ export function apiRouter(options: ApiOptions): Router {
 
   // Test-only Ink grants for browser tests. Needs an explicit flag and never runs in production.
   if (process.env.BOWDLE_DEV_GRANTS === "1" && process.env.NODE_ENV !== "production") {
+    router.post("/dev/grant-xp", async (request, response) => {
+      const session = await signedIn(request, response); if (!session) return;
+      const body = z.object({ xp: z.number().int().nonnegative().max(DEV_GRANT_MAX) }).safeParse(request.body);
+      if (!body.success) { response.status(400).json({ error: "bad_xp" }); return; }
+      response.json(await session.db.grantXp(session.accountId, body.data.xp));
+    });
     router.post("/dev/grant-ink", async (request, response) => {
       const session = await signedIn(request, response); if (!session) return;
       const amount = Math.max(0, Math.min(100_000, Number((request.body as { ink?: unknown }).ink) || 0));

@@ -8,6 +8,8 @@ export type Profile = {
   id: string; name: string; xp: number; ink: number; progress: LevelProgress; season: string;
   seasonKills: number; seasonMatches: number; seasonWins: number; linked: Provider[];
   streakDays: number;
+  career: { matches: number; wins: number; kills: number; headshots: number; bestStreak: number; longestShotM: number };
+  nextUnlock?: import("./cosmetics.ts").LevelReward;
 };
 
 export type LeaderboardRow = { rank: number; name: string; kills: number; wins: number; matches: number; level: number };

@@ -34,6 +34,7 @@ const STYLE = `.bowdle-locker{position:absolute;top:0;right:0;bottom:0;width:min
 function priceLabel(item: Cosmetic): string {
   if ("ink" in item.price) return `${item.price.ink} Ink`;
   if ("sku" in item.price) return `$${item.price.usd.toFixed(2)}`;
+  if ("level" in item.price) return `Unlocks at level ${item.price.level}`;
   return "Free";
 }
 
@@ -50,6 +51,7 @@ export function startLocker(app: HTMLElement): void {
 
   let kind: "sun" | "moon" = "sun";
   let locker: Locker | undefined;
+  let level = 1;
   let preview: Loadout = { bow: "bow.default", trail: "trail.default", outfit: "outfit.default", effect: "effect.default" };
   let tab: CosmeticCategory = "bow";
   let paid = false;
@@ -78,10 +80,12 @@ export function startLocker(app: HTMLElement): void {
         let action = "";
         if (item.id === equipped) action = `<button disabled>Equipped</button>`;
         else if (owns(item)) action = `<button data-equip="${item.id}"${locker ? "" : " disabled"}>Equip</button>`;
+        else if ("level" in item.price) action = `<button disabled>${priceLabel(item)}</button>`;
         else if ("ink" in item.price) action = `<button data-buy="${item.id}"${locker && locker.ink >= item.price.ink ? "" : " disabled"}>Buy ${priceLabel(item)}</button>`;
         else if ("sku" in item.price && paid) action = `<button data-checkout="${item.price.sku}">Buy ${priceLabel(item)}</button>`;
         else action = `<button disabled>Web store only</button>`;
-        return `<div class="item" data-item="${item.id}" data-selected="${selected}"><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.blurb)}</small>${action}</div>`;
+        const hint = "level" in item.price && !owns(item) ? `<small>Your level: ${level} / ${item.price.level}</small>` : "";
+        return `<div class="item" data-item="${item.id}" data-selected="${selected}"><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.blurb)}</small>${hint}${action}</div>`;
       }).join("")}
       <button class="back" data-action="back">Back to camp</button>`;
   };
@@ -165,7 +169,7 @@ export function startLocker(app: HTMLElement): void {
   draw();
   void (async () => {
     paid = paidShopAllowed() && (await fetchShopConfig()).paid;
-    await ensureAccount(loadName() || "Explorer");
+    level = (await ensureAccount(loadName() || "Explorer"))?.progress.level ?? 1;
     await refresh();
     if (locker) { preview = { ...locker.loadout }; restyle(); draw(); }
   })();

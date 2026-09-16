@@ -28,10 +28,11 @@ describe("arrow trails", () => {
 });
 
 describe("kill bursts", () => {
-  it("animates every bought effect and ends after its lifetime", () => {
+  it("animates every bought and level effect and ends after its lifetime", () => {
     const scene = new Scene();
     for (const effect of KILL_EFFECTS.filter((item) => item.shape !== "splat")) {
       const burst = new KillBurst(effect.id, 1, 2, 1, 3, 1000, 7);
+      expect(burst.effect.id).toBe(effect.id);
       scene.add(burst.mesh);
       expect(burst.update(1300), effect.id).toBe(true);
       const matrix = burst.mesh.instanceMatrix.array;

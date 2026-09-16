@@ -29,10 +29,10 @@ describe("game database", () => {
     const { profile } = await db.createGuest("Archer");
     const first = await db.recordMatch("room:1", [{ accountId: profile.id, kills: 6, assists: 2, won: true }, { accountId: "missing-account", kills: 1, assists: 0, won: false }]);
     expect(first).toHaveLength(1);
-    expect(first[0]).toMatchObject({ xp: 750, ink: 51, before: { level: 1 }, after: { level: 2, intoLevel: 250 } });
+    expect(first[0]).toMatchObject({ xp: 750, ink: 111, before: { level: 1 }, after: { level: 2, intoLevel: 250 } });
     expect(await db.recordMatch("room:1", [{ accountId: profile.id, kills: 6, assists: 2, won: true }])).toEqual([]);
     await db.recordMatch("room:2", [{ accountId: profile.id, kills: 1, assists: 0, won: false }]);
-    expect(await db.profile(profile.id)).toMatchObject({ xp: 900, ink: 62, seasonKills: 7, seasonMatches: 2, seasonWins: 1 });
+    expect(await db.profile(profile.id)).toMatchObject({ xp: 900, ink: 122, seasonKills: 7, seasonMatches: 2, seasonWins: 1 });
   });
 
   it("ranks the season leaderboard by kills and starts fresh next season", async () => {

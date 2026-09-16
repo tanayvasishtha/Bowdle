@@ -6,6 +6,8 @@ import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import { MAX_HP, SCORE_LIMIT } from "../../src/shared/constants.ts";
 import { MatchStatsMessage, RewardMessage } from "../../src/net/messages.ts";
 import { DAILY_POOL, WEEKLY_POOL, progressFrom } from "../../src/shared/challenges.ts";
+import { LEVEL_TRACK } from "../../src/shared/cosmetics.ts";
+import { levelProgress } from "../../src/shared/progression.ts";
 
 describe("room match statistics", () => {
   let colyseus: ColyseusTestServer<typeof server>;
@@ -42,7 +44,7 @@ describe("room match statistics", () => {
     expect(MatchStatsMessage.parse(await guestMessage).stats).toMatchObject({ kills: 1, deaths: 3, streak: 0, bestStreak: 1, won: false });
     const completed = [...challenges.daily, ...challenges.weekly].filter((entry) => progressFrom(message.stats, [...DAILY_POOL, ...WEEKLY_POOL].find((definition) => definition.id === entry.id)!) >= entry.target);
     const xp = 575 + 100 + completed.reduce((sum, entry) => sum + entry.reward.xp, 0);
-    const ink = 23 + 25 + completed.reduce((sum, entry) => sum + entry.reward.ink, 0);
+    const ink = 23 + 25 + completed.reduce((sum, entry) => sum + entry.reward.ink, 0) + LEVEL_TRACK.filter((entry) => entry.level <= levelProgress(xp).level).reduce((sum, entry) => sum + entry.ink, 0);
     expect(RewardMessage.parse(await rewardMessage)).toMatchObject({ xp, ink, streakDays: 1 });
     await room.rewardsSettled;
     expect(await db.profile(profile.id)).toMatchObject({ xp, ink });

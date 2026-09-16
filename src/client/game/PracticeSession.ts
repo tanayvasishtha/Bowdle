@@ -18,7 +18,7 @@ import {
   SUBSTEPS,
   TICK_HZ,
 } from "../../shared/constants.ts";
-import type { PlayerInputFrame } from "../../shared/input.ts";
+import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { campMap, campTargets, type CampTarget } from "../../shared/maps/camp.ts";
 import type { Vec3 } from "../../shared/math/vec3.ts";
 import { spawnArrow, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
@@ -32,6 +32,7 @@ import { SoundEffects } from "../audio/sfx.ts";
 import type { Renderer } from "../render/Renderer.ts";
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
+import { PracticeTutorial } from "../ui/tutorial.ts";
 
 type TargetState = CampTarget & { x: number; hp: number; alive: boolean; lastDamageAtMs: number; respawnAtMs: number };
 type ArrowEntry = { sim: ArrowSim; visual: Group; stuckAtMs: number; trail: Float32Array; trailCount: number; captureStep: number };
@@ -62,6 +63,7 @@ export class PracticeSession {
   private readonly crosshair: HTMLDivElement;
   private readonly hitText: HTMLDivElement;
   private readonly replayCard: HTMLDivElement;
+  private readonly tutorial: PracticeTutorial;
   private accumulatorMs = 0;
   private lastFrameMs = performance.now();
   private simTimeMs = 0;
@@ -79,6 +81,7 @@ export class PracticeSession {
     this.replayCard.className = "bowdle-practice-replay";
     this.replayCard.style.cssText = "display:none;position:absolute;right:24px;bottom:24px;width:320px;height:180px;border:4px solid #4a3527;background-size:cover;background-position:center;color:#d2531f;font:24px 'Permanent Marker';padding:8px;box-sizing:border-box;pointer-events:none";
     container.append(this.crosshair, this.hitText, this.replayCard);
+    this.tutorial = new PracticeTutorial(container);
   }
 
   start(): void {
@@ -106,6 +109,7 @@ export class PracticeSession {
     this.hitText.textContent = headshot ? "HEADSHOT ✕" : `-${Math.round(damage)}`;
     this.hitText.animate([{ opacity: 1, transform: "translate(-50%,-50%) scale(.8)" }, { opacity: 1, transform: "translate(-50%,-50%) scale(1.08)" }, { opacity: 0 }], { duration: JOURNAL_LOOK.hitMarkerMs });
     this.sounds.play(headshot ? "headshot" : "body");
+    if (target.id === "target-10") this.tutorial.observe("shoot10");
     return { headshot, killed, targetId: target.id };
   }
 
@@ -170,7 +174,7 @@ export class PracticeSession {
     for (const target of this.targets) {
       if (!target.alive) continue;
       const hit = meleeHit(this.player, { x: target.x, y: target.pos[1], z: target.pos[2], yaw: 0 });
-      if (hit) { this.damageTarget(target, hit.damage, false); break; }
+      if (hit) { this.damageTarget(target, hit.damage, false); this.tutorial.observe("stab"); break; }
     }
   }
 
@@ -178,6 +182,9 @@ export class PracticeSession {
     copyState(this.previous, this.player);
     this.sampler.sample(input);
     const events = stepPlayer(this.player, input, campMap, { nowMs: this.simTimeMs });
+    if (input.moveX !== 0 || input.moveZ !== 0) this.tutorial.observe("move");
+    if ((input.buttons & BTN.JUMP) !== 0) this.tutorial.observe("jump");
+    if (this.player.sliding) this.tutorial.observe("slide");
     for (const event of events) {
       if (event.type === "fire") this.fire(event);
       else this.melee();

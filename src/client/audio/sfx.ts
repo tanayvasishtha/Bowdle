@@ -1,4 +1,5 @@
 import { MASTER_VOLUME } from "../../shared/constants.ts";
+import { loadSettings } from "../settings.ts";
 
 type SoundName = "draw" | "release" | "wood" | "body" | "headshot" | "dagger" | "paper";
 
@@ -31,6 +32,7 @@ export class SoundEffects {
     const context = this.context;
     const master = this.master;
     if (!context || !master) return;
+    master.gain.value = loadSettings().masterVolume;
     const now = context.currentTime;
     if (name === "draw" || name === "wood" || name === "body" || name === "dagger" || name === "paper") {
       const source = context.createBufferSource();

@@ -34,6 +34,7 @@ export class CompositePass {
   private readonly camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private readonly material: ShaderMaterial;
   private readonly resolution = new Vector2(1, 1);
+  private boil = true;
 
   constructor() {
     const geometry = new BufferGeometry();
@@ -66,6 +67,7 @@ export class CompositePass {
 
   setSunShafts(enabled: boolean): void { this.material.uniforms.sunShafts!.value = enabled ? 1 : 0; }
   setStainSeed(seed: number): void { this.material.uniforms.stainSeed!.value = seed; }
+  setBoil(enabled: boolean): void { this.boil = enabled; }
 
   resize(width: number, height: number, dpr: number, renderScale = 1): void {
     const pixelWidth = Math.max(1, Math.floor(width * dpr * renderScale));
@@ -78,7 +80,7 @@ export class CompositePass {
   }
 
   render(renderer: WebGLRenderer, timeSeconds: number): void {
-    this.material.uniforms.time!.value = timeSeconds;
+    this.material.uniforms.time!.value = this.boil ? timeSeconds : 0;
     renderer.setRenderTarget(null);
     renderer.render(this.scene, this.camera);
   }

@@ -42,6 +42,7 @@ import { segmentDistance } from "../../shared/math/segments.ts";
 import { BotController } from "../bots/BotController.ts";
 import { spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
+import { nameError } from "../../shared/name.ts";
 
 type JoinOptions = { name?: string; test?: boolean; mapId?: string; testMapId?: string };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage };
@@ -90,7 +91,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.fillBots();
     this.onMessage("setName", SetNameMessage, (client, message) => {
       const player = this.state.players.get(client.sessionId);
-      if (player) player.name = message.name;
+      if (player && !nameError(message.name)) player.name = message.name;
     });
     this.setFixedTimestep((context) => this.simulateTick(context, this.clock.elapsedTime), TICK_HZ, { subSteps: SUBSTEPS });
   }
@@ -337,7 +338,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     if (replaced) { this.state.players.delete(replaced[0]); this.bots.delete(replaced[0]); }
     const spawn = team === 0 ? this.map.spawns.sun[sun % this.map.spawns.sun.length]! : this.map.spawns.moon[moon % this.map.spawns.moon.length]!;
     const player = new PlayerState();
-    player.name = options?.name?.trim().slice(0, MAX_NAME_LENGTH) || "Player";
+    const requestedName = options?.name?.trim().slice(0, MAX_NAME_LENGTH) || "Player";
+    player.name = nameError(requestedName) ? "Player" : requestedName;
     player.team = team;
     player.x = spawn.pos[0]; player.y = spawn.pos[1]; player.z = spawn.pos[2]; player.yaw = spawn.yaw;
     if (options?.test) {

@@ -1,6 +1,6 @@
-import { MOUSE_SENSITIVITY } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { PITCH_LIMIT, clamp, wrapAngle } from "../../shared/math/angles.ts";
+import { loadSettings, type GameSettings } from "../settings.ts";
 
 export class InputSampler {
   private readonly canvas: HTMLCanvasElement;
@@ -8,6 +8,8 @@ export class InputSampler {
   private mouseButtons = 0;
   private yaw: number;
   private pitch = 0;
+  private settings = loadSettings();
+  private paused = false;
 
   constructor(canvas: HTMLCanvasElement, initialYaw = -Math.PI / 2) {
     this.canvas = canvas;
@@ -18,28 +20,35 @@ export class InputSampler {
     window.addEventListener("mouseup", (event) => { this.mouseButtons &= ~(1 << event.button); });
     window.addEventListener("mousemove", (event) => {
       if (document.pointerLockElement !== this.canvas) return;
-      this.yaw = wrapAngle(this.yaw - event.movementX * MOUSE_SENSITIVITY);
-      this.pitch = clamp(this.pitch - event.movementY * MOUSE_SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT);
+      this.yaw = wrapAngle(this.yaw - event.movementX * this.settings.sensitivity);
+      this.pitch = clamp(this.pitch - event.movementY * this.settings.sensitivity, -PITCH_LIMIT, PITCH_LIMIT);
     });
     window.addEventListener("contextmenu", (event) => event.preventDefault());
     this.canvas.addEventListener("click", () => void this.canvas.requestPointerLock());
+    window.addEventListener("bowdle-settings", (event) => { this.settings = (event as CustomEvent<GameSettings>).detail; });
+  }
+
+  private bound(action: keyof GameSettings["keys"]): boolean {
+    const code = this.settings.keys[action];
+    if (code.startsWith("Mouse")) return (this.mouseButtons & (1 << Number(code.slice(5)))) !== 0;
+    return this.keys.has(code);
   }
 
   sample(out: PlayerInputFrame): void {
-    out.moveX = Number(this.keys.has("KeyD")) - Number(this.keys.has("KeyA"));
-    out.moveZ = Number(this.keys.has("KeyW")) - Number(this.keys.has("KeyS"));
+    out.moveX = this.paused ? 0 : Number(this.bound("right")) - Number(this.bound("left"));
+    out.moveZ = this.paused ? 0 : Number(this.bound("forward")) - Number(this.bound("back"));
     out.yaw = this.yaw;
     out.pitch = this.pitch;
     let buttons = 0;
-    if (this.keys.has("Space")) buttons |= BTN.JUMP;
-    if (this.keys.has("KeyC") || this.keys.has("ControlLeft")) buttons |= BTN.CROUCH;
-    if ((this.mouseButtons & 2) !== 0) buttons |= BTN.AIM;
-    if ((this.mouseButtons & 1) !== 0) buttons |= BTN.FIRE;
-    if (this.keys.has("KeyV")) buttons |= BTN.MELEE;
-    if (this.keys.has("KeyR")) buttons |= BTN.CANCEL;
-    if (this.keys.has("KeyE")) buttons |= BTN.GRAPPLE;
-    if (this.keys.has("KeyQ")) buttons |= BTN.INK;
-    if (this.keys.has("KeyF")) buttons |= BTN.USE;
+    if (!this.paused && this.bound("jump")) buttons |= BTN.JUMP;
+    if (!this.paused && this.bound("crouch")) buttons |= BTN.CROUCH;
+    if (!this.paused && this.bound("aim")) buttons |= BTN.AIM;
+    if (!this.paused && this.bound("draw")) buttons |= BTN.FIRE;
+    if (!this.paused && this.bound("melee")) buttons |= BTN.MELEE;
+    if (!this.paused && this.bound("cancel")) buttons |= BTN.CANCEL;
+    if (!this.paused && this.bound("grapple")) buttons |= BTN.GRAPPLE;
+    if (!this.paused && this.bound("ink")) buttons |= BTN.INK;
+    if (!this.paused && this.bound("use")) buttons |= BTN.USE;
     out.buttons = buttons;
   }
 
@@ -47,4 +56,6 @@ export class InputSampler {
     this.yaw = yaw;
     this.pitch = clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
   }
+  setPaused(paused: boolean): void { this.paused = paused; if (paused) { this.keys.clear(); this.mouseButtons = 0; } }
+  actionCode(action: keyof GameSettings["keys"]): string { return this.settings.keys[action]; }
 }

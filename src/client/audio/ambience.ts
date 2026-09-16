@@ -16,6 +16,7 @@ export class Ambience {
   private zipTone: OscillatorNode | null = null;
   private noise: AudioBuffer | null = null;
   private disposed = false;
+  private volume = MASTER_VOLUME;
   private readonly startOnPointer = (): void => { this.start(); };
 
   constructor(map: MapData) {
@@ -53,6 +54,8 @@ export class Ambience {
     this.zipTone.frequency.setTargetAtTime(180 + fraction * 520, this.context.currentTime, 0.04);
   }
 
+  setVolume(volume: number): void { this.volume = volume; if (this.master) this.master.gain.setTargetAtTime(volume, this.context!.currentTime, 0.04); }
+
   leverClunk(): void {
     if (!this.context || !this.master || !this.noise) return;
     const source = this.context.createBufferSource(), filter = this.context.createBiquadFilter(), gain = this.context.createGain(), now = this.context.currentTime;
@@ -62,7 +65,7 @@ export class Ambience {
 
   private start(): void {
     if (this.context || this.disposed) return;
-    const context = new AudioContext(); this.context = context; this.master = context.createGain(); this.master.gain.value = MASTER_VOLUME; this.master.connect(context.destination);
+    const context = new AudioContext(); this.context = context; this.master = context.createGain(); this.master.gain.value = this.volume; this.master.connect(context.destination);
     this.noise = context.createBuffer(1, context.sampleRate * AUDIO.noiseSeconds, context.sampleRate); const samples = this.noise.getChannelData(0);
     let seed = this.map.look.stainSeed ^ 0x4f1bbcdc; for (let index = 0; index < samples.length; index += 1) { seed = Math.imul(seed ^ seed >>> 15, 1 | seed); samples[index] = (seed >>> 0) / 2147483648 - 1; }
     const jungle = this.loopNoise("bandpass", 3800), jungleGain = context.createGain(); jungleGain.gain.value = AUDIO.jungleGain; jungle.connect(jungleGain).connect(this.master);

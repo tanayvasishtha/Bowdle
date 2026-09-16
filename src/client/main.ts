@@ -9,6 +9,9 @@ import { propsGalleryMap } from "../shared/maps/fixtures/props.ts";
 import { sunTempleMap } from "../shared/maps/sunTemple.ts";
 import { canopyMap } from "../shared/maps/canopy.ts";
 import { defaultMatchMap, mapById } from "../shared/maps/registry.ts";
+import { loadName } from "./settings.ts";
+import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
+import { attachPauseMenu } from "./ui/pause.ts";
 
 declare global {
   interface Window {
@@ -33,16 +36,19 @@ const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing #app element");
 
 const params = new URLSearchParams(location.search);
-if (params.get("scene") === "online") {
-  const loading = document.createElement("h1");
-  loading.textContent = "Joining match…";
-  loading.style.cssText = "position:absolute;inset:35% 0 auto;text-align:center;color:#4a3527;font:48px 'Permanent Marker',cursive";
+installMenuStyles(app);
+const touchOnly = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)").matches;
+if (touchOnly) showDesktopOnly(app);
+else if (params.get("scene") === "online") {
+  const loading = document.createElement("section"); loading.className = "bowdle-panel bowdle-loading";
+  loading.innerHTML = `<h2>Opening the field journal…</h2><p>Finding a match in the jungle.</p>`;
   app.append(loading);
   const requestedMapId = params.get("map") ?? undefined;
   const renderer = new Renderer(app, params.has("debug"), requestedMapId ? mapById(requestedMapId) ?? defaultMatchMap : defaultMatchMap);
   const sampler = new InputSampler(renderer.canvas);
-  void OnlineSession.connect(renderer, sampler, "Player", params.has("test"), requestedMapId).then((session) => {
+  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId).then((session) => {
     loading.remove();
+    attachPauseMenu(app, sampler);
     session.start();
     if (params.has("test")) window.__bowdleTest = {
       snapshot: () => renderer.snapshot(),
@@ -57,7 +63,9 @@ if (params.get("scene") === "online") {
       stats: () => renderer.stats(),
     };
   }).catch((error: unknown) => {
-    loading.textContent = error instanceof Error ? `Connection failed: ${error.message}` : "Connection failed";
+    const reason = error instanceof Error ? error.message : "Connection failed";
+    loading.innerHTML = `<h2>The trail went cold.</h2><p>${reason}</p><button>Retry</button>`;
+    loading.querySelector("button")!.addEventListener("click", () => location.reload());
   });
 } else if (params.get("scene") === "map" || params.get("scene") === "camp" || params.get("scene") === "kit" || params.get("scene") === "props") {
   const isCamp = params.get("scene") === "camp";
@@ -66,6 +74,7 @@ if (params.get("scene") === "online") {
   const renderer = new Renderer(app, params.has("debug"), map, isCamp ? campTargets : undefined);
   const sampler = new InputSampler(renderer.canvas, isCamp ? 0 : map.spawns.sun[0]?.yaw ?? -Math.PI / 2);
   const session = isCamp ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);
+  if (isCamp) attachPauseMenu(app, sampler);
   session.start();
   if (params.has("test")) window.__bowdleTest = {
     snapshot: () => renderer.snapshot(),
@@ -74,11 +83,5 @@ if (params.get("scene") === "online") {
     ...(session instanceof PracticeSession ? { fireAt: (targetId: string, drawMs: number) => session.fireAt(targetId, drawMs) } : {}),
   };
 } else {
-  app.innerHTML = `<main style="position:absolute;inset:24% 0 auto;text-align:center;color:#4a3527;font-family:'Gochi Hand',cursive">
-    <h1 style="margin:0 0 28px;font:76px 'Permanent Marker',cursive">Bowdle</h1>
-    <button id="practice" style="font:30px inherit;margin:8px;padding:10px 28px">Practice</button>
-    <button id="play-online" style="font:30px inherit;margin:8px;padding:10px 28px">Play online</button>
-  </main>`;
-  document.querySelector("#practice")?.addEventListener("click", () => { location.search = "?scene=camp"; });
-  document.querySelector("#play-online")?.addEventListener("click", () => { location.search = "?scene=online"; });
+  showMainMenu(app);
 }

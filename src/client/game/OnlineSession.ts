@@ -100,6 +100,7 @@ export class OnlineSession {
         });
       });
     }
+    room.send("setName", { name });
     return new OnlineSession(renderer, sampler, room);
   }
 

@@ -33,10 +33,12 @@ import { MATERIAL_ID, PALETTE } from "./palette.ts";
 import { rampHeightAt } from "../../shared/maps/ramps.ts";
 import { PropsRenderer } from "./props/PropsRenderer.ts";
 import { Ambience } from "../audio/ambience.ts";
+import { loadSettings, type GameSettings } from "../settings.ts";
 
 const clear = { color: 0x8080ff, alpha: 0 } as const;
 const up = new Vector3(0, 1, 0);
 const arrowDirection = new Vector3();
+const symbolWorld = new Vector3();
 const ropePoints = 9;
 
 function mapMeshes(map: MapData): Mesh[] {
@@ -167,6 +169,7 @@ export class Renderer {
   private readonly planes: Mesh[] = [];
   private readonly targets = new Map<string, Group>();
   private readonly players = new Map<string, Group>();
+  private readonly playerSymbols = new Map<string, { element: HTMLDivElement; team: number }>();
   private readonly ropes = new Map<string, Line>();
   private readonly clouds = new Map<string, Group>();
   private readonly grappleHighlights: Mesh[] = [];
@@ -184,6 +187,7 @@ export class Renderer {
   private grounded = false;
   private sliding = false;
   private cameraOverride: { x: number; y: number; z: number; lookX: number; lookY: number; lookZ: number } | null = null;
+  private settings = loadSettings();
 
   constructor(container: HTMLElement, debug: boolean, map: MapData = defaultMatchMap, practice: readonly CampTarget[] = []) {
     this.container = container;
@@ -196,6 +200,7 @@ export class Renderer {
     container.append(this.canvas);
     this.props = new PropsRenderer([]);
     this.ambience = new Ambience(map);
+    this.applySettings(this.settings);
     this.buildMap(map);
     for (const target of practice) {
       const visual = createPlayer();
@@ -208,6 +213,12 @@ export class Renderer {
     this.overlay = debug ? this.createOverlay(container) : null;
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    window.addEventListener("bowdle-settings", (event) => this.applySettings((event as CustomEvent<GameSettings>).detail));
+  }
+
+  private applySettings(settings: GameSettings): void {
+    this.settings = settings; this.camera.fov = settings.fov; this.camera.updateProjectionMatrix(); this.composite.setBoil(settings.boil); this.ambience.setVolume(settings.masterVolume);
+    for (const symbol of this.playerSymbols.values()) symbol.element.style.display = settings.colorblindSymbols ? "block" : "none";
   }
 
   private buildMap(map: MapData): void {
@@ -250,6 +261,7 @@ export class Renderer {
     this.map = map;
     this.ambience.dispose();
     this.ambience = new Ambience(map);
+    this.applySettings(this.settings);
     this.buildMap(map);
   }
 
@@ -321,6 +333,8 @@ export class Renderer {
       });
       this.players.set(id, player);
       this.worldScene.add(player);
+      const element = document.createElement("div"); element.className = "bowdle-team-symbol"; element.textContent = team === 0 ? "●" : "▲"; element.style.cssText = `position:absolute;display:${this.settings.colorblindSymbols ? "block" : "none"};color:${team === 0 ? "#d2531f" : "#47418c"};font:30px sans-serif;-webkit-text-stroke:2px #efe3c6;pointer-events:none;transform:translate(-50%,-50%)`;
+      this.container.append(element); this.playerSymbols.set(id, { element, team });
     }
     player.position.set(x, y, z);
     player.rotation.y = yaw;
@@ -332,6 +346,7 @@ export class Renderer {
     if (!player) return;
     this.worldScene.remove(player);
     this.players.delete(id);
+    this.playerSymbols.get(id)?.element.remove(); this.playerSymbols.delete(id);
   }
 
   setGrappleHighlights(ready: boolean): void { for (const visual of this.grappleHighlights) visual.visible = ready; }
@@ -414,8 +429,12 @@ export class Renderer {
     for (const note of this.notes) {
       const distance = note.world.distanceTo(this.camera.position); note.world.project(this.camera);
       note.element.style.left = `${(note.world.x * 0.5 + 0.5) * window.innerWidth}px`; note.element.style.top = `${(-note.world.y * 0.5 + 0.5) * window.innerHeight}px`;
-      note.element.style.opacity = String(Math.max(0, Math.min(1, 1 - distance / 80))); note.element.style.display = note.world.z < 1 ? "block" : "none";
+      note.element.style.opacity = String(Math.max(0, Math.min(1, 1 - distance / 80))); note.element.style.display = this.settings.floatingNotes && note.world.z < 1 ? "block" : "none";
       note.world.set(note.x, note.y, note.z);
+    }
+    for (const [id, symbol] of this.playerSymbols) {
+      const player = this.players.get(id); if (!player || !this.settings.colorblindSymbols || !player.visible) { symbol.element.style.display = "none"; continue; }
+      symbolWorld.copy(player.position); symbolWorld.y += STAND_HEIGHT + 0.5; symbolWorld.project(this.camera); symbol.element.style.left = `${(symbolWorld.x * 0.5 + 0.5) * window.innerWidth}px`; symbol.element.style.top = `${(-symbolWorld.y * 0.5 + 0.5) * window.innerHeight}px`; symbol.element.style.display = symbolWorld.z < 1 ? "block" : "none";
     }
     this.renderer.setClearColor(clear.color, clear.alpha);
     this.renderer.setRenderTarget(this.composite.world);

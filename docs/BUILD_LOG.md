@@ -1,5 +1,21 @@
 # Build log
 
+## R6 and v1.1.0: Retention report and release
+
+Status: done.
+
+Built:
+
+- `npm run retention` (`scripts/retention-report.ts`) with the calculation in `src/server/analytics/retention.ts`: day 1 and day 7 return rates over eligible cohorts only, signups and activity for the last 14 days, the share of play days with two or more matches, and challenge completion by id. Reads `DATABASE_URL` or `PGLITE_DIR`.
+- `levelUp` and `challengeCompleted` server log lines next to `matchFinished`, with account ids only.
+- Docs: GAME.md (rewards, medals, streak banners, bots and parties), ECONOMY.md (full Ink and XP table, level items), DEPLOY.md (retention report), AGENTS.md and README (v1.1 status, v2 plan docs).
+
+v1.1.0 summary (R1 to R6): match stats and 11 medals, an itemized XP breakdown, daily and weekly challenges with a free daily reroll, play streaks and a first-win bonus, a level unlock track with 8 earned cosmetics and career stats, kill streak feedback and an animated end screen, party codes, bot difficulty matched to the room, and a retention report.
+
+Verified on a clean `npm ci`: `npm run check` (218 tests), full Playwright suite (35 passed), `npm run smoke`, `npm run soak`, `npm run build:portals`, and `npm run retention` against a dev database. Screenshots of the profile, end screen and party panel in `test-results/qa/r6`.
+
+Left: the fairness rules in RETENTION.md hold by design; real return rates need live players. Next is v2 (docs/RUNBOOK-V2.md).
+
 ## R5: Parties and bot difficulty
 
 Status: done.

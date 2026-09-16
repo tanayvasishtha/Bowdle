@@ -19,14 +19,21 @@ Earned by playing. Cannot be bought. Values live in `src/shared/progression.ts`.
 | Win | 10 | 200 |
 | Each kill | 1 (up to 10) | 50 |
 | Each assist | 0 | 25 |
+| Headshot or long shot kill | 0 | 25 each |
+| Each medal, up to 4 | 0 | 25 |
+| First win of the UTC day | 20 | 100 |
+| First match of the day (play streak) | 5 x min(streak days, 7) | 0 |
+| Daily challenge | 30 | 150 |
+| Weekly challenge | 120 | 600 |
+| Level reached without an item reward | 50 + 5 x level | 0 |
 
-Level n takes 500 x n XP to clear, up to level 100. Rewards are granted once per match id, only to signed-in players still in the room at the end.
+Level n takes 500 x n XP to clear, up to level 100. Rewards are granted once per match id, only to signed-in players still in the room at the end. Challenge, streak and level rules are in `docs/RETENTION.md`.
 
 Paid items are bought directly with money. Nothing converts money into Ink.
 
 ## Catalog (`src/shared/cosmetics.ts`)
 
-Four categories, one free default plus six items each: 24 items, 16 for Ink and 8 paid.
+Four categories, each with one free default, six bought items and two level items: 24 bought items (16 for Ink, 8 paid) and 8 earned on the level track (levels 3, 5, 7, 10, 15, 20, 30 and 50). Level items can never be bought.
 
 | Category | Loadout slot | What changes | Draw cost |
 |---|---|---|---|

@@ -6,7 +6,9 @@ Made by Tanay Vasishtha.
 
 ## Status
 
-**v1.0.0.** Everything in the completion plan is built and tested:
+**v1.1.0.** v1 plus the retention systems in [RETENTION.md](docs/RETENTION.md): medals, an XP breakdown, daily and weekly challenges, play streaks, a level unlock track, kill streak feedback, an animated end screen, party codes and bot difficulty matched to the room. v2 is planned in [V2-DESIGN.md](docs/V2-DESIGN.md).
+
+v1.0.0 delivered:
 
 - **Maps:** Sun Temple, Canopy Village and Lost River, plus Practice Camp. All mirrored, validated, dense with scenery, and every tall prop is solid.
 - **Movement and combat:** bunny hops, slides, grapple, zip lines, water, tall grass, boulder traps, the ink cloud, charged bow shots with headshots, and dagger stabs, all server authoritative with prediction.
@@ -30,6 +32,7 @@ npm run check                      # typecheck, tests, build, size budget
 npm run smoke                      # production server smoke test (after build)
 npm run soak                       # full bot matches on every map
 npm run build:portals              # Poki and CrazyGames bundles
+npm run retention                  # retention report (needs DATABASE_URL or PGLITE_DIR)
 npx playwright install chromium    # once, before the first e2e run
 npm run e2e                        # browser tests
 ```
@@ -60,6 +63,8 @@ npm run e2e                        # browser tests
 | [DEPLOY.md](docs/DEPLOY.md) | Hosting, environment variables, portal uploads |
 | [RETENTION.md](docs/RETENTION.md) | v1.1 plan: medals, challenges, streaks, unlock track, parties |
 | [RUNBOOK-RETENTION.md](docs/RUNBOOK-RETENTION.md) | Milestones R1 to R6 and the Codex prompt |
+| [V2-DESIGN.md](docs/V2-DESIGN.md) | v2 gap audit and design |
+| [RUNBOOK-V2.md](docs/RUNBOOK-V2.md) | v2 milestones G1 to G14 |
 | [BUILD_LOG.md](docs/BUILD_LOG.md) | What each milestone built and how it was checked |
 
 ## Stack

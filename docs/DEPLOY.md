@@ -69,6 +69,10 @@ Record the deployed commit and tag in the release notes. To roll back, open **Ev
 4. The game server answers cross-origin API calls (Colyseus sends the CORS headers), so no extra setup is needed on bowdle.io.
 5. Test locally with each portal's own testing tool before submitting; the SDK falls back to no-ops when its script cannot load.
 
+## Retention report
+
+`npm run retention` prints day 1 and day 7 return rates, daily signups and activity, the share of play days with two or more matches, and challenge completion. Run it with `DATABASE_URL` set to the production database (read only is enough). Server logs also carry `matchFinished`, `levelUp` and `challengeCompleted` JSON lines with account ids only.
+
 ## Production checks
 
 - First visible frame is under 3 seconds on the target laptop and network.

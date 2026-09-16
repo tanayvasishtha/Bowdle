@@ -20,6 +20,8 @@ Bowdle is a browser multiplayer bow shooter drawn like an explorer's field journ
 | `docs/RUNBOOK-WORLD.md` | World milestones W1 to W6 |
 | `docs/RETENTION.md` | v1.1 retention systems: medals, challenges, streaks, unlock track, parties |
 | `docs/RUNBOOK-RETENTION.md` | Retention milestones R1 to R6 |
+| `docs/V2-DESIGN.md` | v2 gap audit and design: feel, movement, grapple, quiver, modes, maps |
+| `docs/RUNBOOK-V2.md` | v2 milestones G1 to G14 |
 
 ## Commands
 

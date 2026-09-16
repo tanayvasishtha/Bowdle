@@ -189,16 +189,41 @@ No friendly fire. No self damage.
 - A joining human takes a bot's slot on the team with fewer humans.
 - Spawn choice: the team spawn point farthest from living enemies.
 
-### Rewards (progression, M10)
+### Rewards (progression, v1.1)
+
+XP, Ink, medals, challenges and the unlock track are defined in `docs/RETENTION.md`; the numbers live in `src/shared/constants.ts`.
 
 | Event | XP |
 |---|---|
-| Kill | 100 |
-| Headshot kill bonus | 50 |
-| Assist (30+ damage within 5 s before the kill) | 40 |
-| Long shot bonus (over 35 m) | 50 |
-| Robin Hood (your arrow hits an enemy arrow mid-air) | 150 |
-| Win | 300 |
+| Finish the match | 100 |
+| Kill | 50 |
+| Assist (30+ damage within 5 s before the kill) | 25 |
+| Headshot kill bonus | 25 |
+| Long shot bonus (35 m or more) | 25 |
+| Win | 200 |
+| Each medal, up to 4 | 25 |
+| First win of the UTC day | 100 |
+
+### Medals
+
+MVP, Unstoppable, On a Roll, Headhunter, Eagle Eye, Robin Hood, Up Close, Trapper, Zipline Hero, Team Player and Untouchable. Conditions are in RETENTION.md.
+
+### In-match feedback
+
+| Event | Banner |
+|---|---|
+| 2 kills within 4 s | DOUBLE TAG |
+| 3 kills, each within 4 s of the last | TRIPLE TAG |
+| 4 or more | JUNGLE FEVER |
+| Streak of 3 | ON A ROLL |
+| Streak of 6 | UNSTOPPABLE |
+
+Each local kill adds XP ticker lines ("+50 Tagged", "+25 Headshot", "+25 Long shot"). The death screen shows "Streak ended at N" for streaks of 3 or more.
+
+### Bots and parties
+
+- Bot aim error follows the room: easy while any human has fewer than 3 finished matches, otherwise by average level (below 4 easy, below 12 normal, else hard).
+- Party codes put friends in the same match and team (`party` room).
 
 ## Feel targets
 

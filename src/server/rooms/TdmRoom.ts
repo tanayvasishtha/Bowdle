@@ -317,6 +317,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     if (lines.length === 0) return;
     const granted = await (await gameDatabase()).recordMatch(matchId, lines);
     for (const reward of granted) {
+      // Account ids only: logs never carry names or tokens.
+      if (reward.after.level > reward.before.level) console.log(JSON.stringify({ event: "levelUp", accountId: reward.accountId, level: reward.after.level }));
+      for (const change of reward.challenges) if (change.before < change.target && change.after >= change.target) console.log(JSON.stringify({ event: "challengeCompleted", accountId: reward.accountId, challengeId: change.id }));
       const sessionId = sessionsByAccount.get(reward.accountId)!;
       this.clientById(sessionId)?.send("rewards", { xp: reward.xp, ink: reward.ink, breakdown: reward.breakdown, before: reward.before, challenges: reward.challenges, streakDays: reward.streakDays, unlocked: reward.unlocked, level: reward.after.level, intoLevel: reward.after.intoLevel, levelSize: reward.after.levelSize, levelUp: reward.after.level > reward.before.level });
     }

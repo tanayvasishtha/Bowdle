@@ -26,6 +26,14 @@ test("two online players see shared movement", async ({ browser }) => {
   }, { timeout: 8_000 }).toBeGreaterThan(5);
   await Promise.all([pageA.keyboard.up("a"), pageB.keyboard.up("d")]);
   const idB = await pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.sessionId);
+  let previous = await pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.players());
+  let stableSamples = 0;
+  await expect.poll(async () => {
+    const current = await pageB.evaluate(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.players());
+    let movement = 0;
+    for (const player of current) { const old = previous.find((candidate) => candidate.id === player.id); if (old) movement = Math.max(movement, Math.hypot(player.x - old.x, player.z - old.z)); }
+    previous = current; stableSamples = movement < 0.02 ? stableSamples + 1 : 0; return stableSamples;
+  }, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
   await pageA.evaluate((id) => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.aimAt(id), idB);
   await pageA.mouse.down();
   await pageA.waitForFunction(() => (window as unknown as { __bowdleTest: TestApi }).__bowdleTest.drawMs() >= 550);

@@ -27,11 +27,9 @@ import {
   USE_DIST,
 } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
-import { notebookMap } from "../../shared/maps/notebook.ts";
 import { kitMap } from "../../shared/maps/fixtures/kit.ts";
 import type { MapData } from "../../shared/maps/types.ts";
-import { sunTempleMap } from "../../shared/maps/sunTemple.ts";
-import { canopyMap } from "../../shared/maps/canopy.ts";
+import { defaultMatchMap, mapById, nextMatchMap } from "../../shared/maps/registry.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
 import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
@@ -55,7 +53,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   maxClients = TEAM_SIZE * 2;
   maxMessagesPerSecond = TICK_HZ;
   state = new MatchState();
-  private map: MapData = notebookMap;
+  private map: MapData = defaultMatchMap;
+  private fixedMap = false;
   inputs = this.defineInput(PlayerInput, {
     bufferMaxSize: 32,
     sanitize: { moveX: [-1, 1], moveZ: [-1, 1], pitch: [-PITCH_LIMIT, PITCH_LIMIT] },
@@ -81,12 +80,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly bots = new Map<string, BotController>();
 
   onCreate(options: JoinOptions): void {
-    this.map = options.mapId === kitMap.id ? kitMap : options.testMapId === sunTempleMap.id ? sunTempleMap : options.testMapId === canopyMap.id ? canopyMap : notebookMap;
-    this.state.mapId = this.map.id;
-    for (const boulder of this.map.boulders) {
-      const hazard = new BoulderHazardState(); resetBoulderHazard(hazard, 0);
-      const start = boulder.path[0]!; hazard.x = start[0]; hazard.y = start[1]; hazard.z = start[2]; this.state.hazards.set(boulder.id, hazard);
-    }
+    const selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
+    this.fixedMap = selected !== undefined;
+    this.loadMap(selected ?? defaultMatchMap, 0);
     this.state.phase = "warmup";
     this.state.phaseEndsAtMs = WARMUP_MS;
     this.rewindState = this.allowRewindState({ maxRewindMs: MAX_REWIND_MS });
@@ -255,8 +251,19 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
   private resetPlayers(): void {
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.arrowOrigins.clear(); this.damage.clear();
-    for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
+    if (!this.fixedMap) this.loadMap(nextMatchMap(this.map.id), this.simulationNowMs);
+    else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
     for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values())); player.spawnProtectMs = 0; }
+  }
+
+  private loadMap(map: MapData, nowMs: number): void {
+    this.map = map;
+    this.state.mapId = map.id;
+    this.state.hazards.clear();
+    for (const boulder of map.boulders) {
+      const hazard = new BoulderHazardState(); resetBoulderHazard(hazard, nowMs);
+      const start = boulder.path[0]!; hazard.x = start[0]; hazard.y = start[1]; hazard.z = start[2]; this.state.hazards.set(boulder.id, hazard);
+    }
   }
 
   private tryLever(sessionId: string, player: PlayerState, frame: PlayerInputFrame, nowMs: number): void {

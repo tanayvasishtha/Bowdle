@@ -1,4 +1,4 @@
-import { BOULDER_RADIUS, BOULDER_SPAWN_CLEARANCE, CANOPY_SPIRAL_MAX_SLOPE_DEG, EYE_STAND, PLAYER_WIDTH, RAMP_MAX_SLOPE_DEG, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP, ZIP_CLEARANCE } from "../constants.ts";
+import { BOULDER_RADIUS, BOULDER_SPAWN_CLEARANCE, CANOPY_SPIRAL_MAX_SLOPE_DEG, EYE_STAND, FLOOD_RISE, PLAYER_WIDTH, RAMP_MAX_SLOPE_DEG, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP, ZIP_CLEARANCE } from "../constants.ts";
 import { mirrorX } from "./helpers.ts";
 import { rampHeightAt, rampSlopeDegrees } from "./ramps.ts";
 import type { Boulder, Box, MapData, Prop, Ramp, SpawnPoint, Vec3Tuple, Volume, ZipLine } from "./types.ts";
@@ -190,6 +190,17 @@ export function validateMap(map: MapData): string[] {
   if (map.id === "sun-temple" && !walkReaches(map, "sun-spawn-0", "altar")) errors.push("altar walk: unreachable");
   if (map.id === "canopy") for (const id of ["sun-west-low", "sun-west-high", "center-low", "center-high", "sun-north-deck", "sun-south-deck"]) if (!walkReaches(map, "sun-spawn-0", id)) errors.push(`deck walk: ${id}`);
   const byId = new Map(map.waypoints.map((point) => [point.id, point]));
+  if (map.id === "lost-river") {
+    const edge = (from: string, to: string): boolean => byId.get(from)?.links.some((link) => link.to === to) ?? false;
+    if (!edge("aqueduct-sun-gap", "aqueduct-moon-gap")) errors.push("crossing: aqueduct");
+    if (!edge("wreck-sun", "wreck-moon")) errors.push("crossing: wreck");
+    if (!edge("river-sun", "river-north") || !edge("river-north", "river-moon")) errors.push("crossing: river");
+    const floodTop = map.volumes.find((volume) => volume.flood)?.max[1];
+    for (const id of ["aqueduct-sun", "aqueduct-moon", "wreck-roof", "log-north", "log-south"]) {
+      const surface = map.boxes.find((box) => box.id === id)?.max[1];
+      if (floodTop === undefined || surface === undefined || floodTop + FLOOD_RISE >= surface - EPSILON) errors.push(`flood clearance: ${id}`);
+    }
+  }
   for (const point of map.waypoints) for (const link of point.links) {
     const target = byId.get(link.to);
     if (!target) errors.push(`waypoint link: ${point.id} -> ${link.to}`);

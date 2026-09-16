@@ -15,10 +15,18 @@ export class Ambience {
   private zip: GainNode | null = null;
   private zipTone: OscillatorNode | null = null;
   private noise: AudioBuffer | null = null;
+  private disposed = false;
+  private readonly startOnPointer = (): void => { this.start(); };
 
   constructor(map: MapData) {
     this.map = map; this.rng = mulberry32(map.look.stainSeed ^ 0x71a9);
-    window.addEventListener("pointerdown", () => this.start(), { once: true });
+    window.addEventListener("pointerdown", this.startOnPointer, { once: true });
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    window.removeEventListener("pointerdown", this.startOnPointer);
+    if (this.context) void this.context.close();
   }
 
   updateListener(x: number, z: number): void {
@@ -53,7 +61,7 @@ export class Ambience {
   }
 
   private start(): void {
-    if (this.context) return;
+    if (this.context || this.disposed) return;
     const context = new AudioContext(); this.context = context; this.master = context.createGain(); this.master.gain.value = MASTER_VOLUME; this.master.connect(context.destination);
     this.noise = context.createBuffer(1, context.sampleRate * AUDIO.noiseSeconds, context.sampleRate); const samples = this.noise.getChannelData(0);
     let seed = this.map.look.stainSeed ^ 0x4f1bbcdc; for (let index = 0; index < samples.length; index += 1) { seed = Math.imul(seed ^ seed >>> 15, 1 | seed); samples[index] = (seed >>> 0) / 2147483648 - 1; }
@@ -72,7 +80,7 @@ export class Ambience {
   }
 
   private scheduleBird(): void {
-    window.setTimeout(() => { this.chirp(); this.scheduleBird(); }, AUDIO.birdMinMs + this.rng() * AUDIO.birdRangeMs);
+    window.setTimeout(() => { if (!this.disposed) { this.chirp(); this.scheduleBird(); } }, AUDIO.birdMinMs + this.rng() * AUDIO.birdRangeMs);
   }
 
   private chirp(): void {

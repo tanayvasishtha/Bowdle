@@ -3,14 +3,14 @@ import { collectErrors } from "./helpers.ts";
 
 test("full draw headshot kills the 20 m practice target", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=range&test");
+  await page.goto("/?scene=camp&test");
   await page.waitForFunction(() => "__bowdleTest" in window);
   const result = await page.evaluate(() => (window as unknown as Window & {
     __bowdleTest: { fireAt(targetId: string, drawMs: number): { headshot: boolean; killed: boolean } };
   }).__bowdleTest.fireAt("target-20", 600));
   expect(result).toMatchObject({ headshot: true, killed: true });
   await expect(page.locator("#hit-marker")).toContainText("HEADSHOT");
-  await page.screenshot({ path: "test-results/qa/m3/practice-range.png", fullPage: true });
+  await page.screenshot({ path: "test-results/qa/w6/camp-headshot.png", fullPage: true });
   const longShot = await page.evaluate(() => (window as unknown as {
     __bowdleTest: { fireAt(targetId: string, drawMs: number): { headshot: boolean; killed: boolean } };
   }).__bowdleTest.fireAt("target-45", 600));

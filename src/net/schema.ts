@@ -43,7 +43,7 @@ export const BoulderHazardState = schema({
 export type BoulderHazardState = SchemaType<typeof BoulderHazardState>;
 
 export const MatchState = schema({
-  mapId: t.string().default("notebook"),
+  mapId: t.string().default("sun-temple"),
   phase: t.string<"warmup" | "live" | "end">().default("warmup"),
   phaseEndsAtMs: t.number().default(0),
   scoreSun: t.uint16().default(0),

@@ -19,7 +19,7 @@ import {
   TICK_HZ,
 } from "../../shared/constants.ts";
 import type { PlayerInputFrame } from "../../shared/input.ts";
-import { practiceTargets, rangeMap, type PracticeTarget } from "../../shared/maps/range.ts";
+import { campMap, campTargets, type CampTarget } from "../../shared/maps/camp.ts";
 import type { Vec3 } from "../../shared/math/vec3.ts";
 import { spawnArrow, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { arrowSpeed, bodyDamage, drawFraction, type FireEvent } from "../../shared/sim/bow.ts";
@@ -33,7 +33,7 @@ import type { Renderer } from "../render/Renderer.ts";
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 
-type TargetState = PracticeTarget & { x: number; hp: number; alive: boolean; lastDamageAtMs: number; respawnAtMs: number };
+type TargetState = CampTarget & { x: number; hp: number; alive: boolean; lastDamageAtMs: number; respawnAtMs: number };
 type ArrowEntry = { sim: ArrowSim; visual: Group; stuckAtMs: number; trail: Float32Array; trailCount: number; captureStep: number };
 export type PracticeShotResult = { headshot: boolean; killed: boolean; targetId: string };
 
@@ -46,7 +46,7 @@ function copyState(target: PlayerSim, source: PlayerSim): void {
   Object.assign(target, source);
 }
 
-function targetState(target: PracticeTarget): TargetState {
+function targetState(target: CampTarget): TargetState {
   return { ...target, x: target.pos[0], hp: MAX_HP, alive: true, lastDamageAtMs: 0, respawnAtMs: 0 };
 }
 
@@ -57,7 +57,7 @@ export class PracticeSession {
   private readonly sampler: InputSampler;
   private readonly cameraRig = new CameraRig();
   private readonly sounds = new SoundEffects();
-  private readonly targets = practiceTargets.map(targetState);
+  private readonly targets = campTargets.map(targetState);
   private readonly arrows: ArrowEntry[] = [];
   private readonly crosshair: HTMLDivElement;
   private readonly hitText: HTMLDivElement;
@@ -135,7 +135,7 @@ export class PracticeSession {
         if (entry.captureStep % SUBSTEPS === 0 && entry.trailCount < PRACTICE_TRAIL_POINTS) { const offset = entry.trailCount++ * 3; entry.trail[offset] = entry.sim.x; entry.trail[offset + 1] = entry.sim.y; entry.trail[offset + 2] = entry.sim.z; }
         entry.captureStep += 1;
         segmentStart.x = entry.sim.x; segmentStart.y = entry.sim.y; segmentStart.z = entry.sim.z;
-        const arrowStep = stepArrow(entry.sim, rangeMap, dt);
+        const arrowStep = stepArrow(entry.sim, campMap, dt);
         if (arrowStep.worldHit) entry.stuckAtMs = this.simTimeMs;
         segmentEnd.x = entry.sim.x; segmentEnd.y = entry.sim.y; segmentEnd.z = entry.sim.z;
         for (const target of this.targets) {
@@ -177,7 +177,7 @@ export class PracticeSession {
   private tick(): void {
     copyState(this.previous, this.player);
     this.sampler.sample(input);
-    const events = stepPlayer(this.player, input, rangeMap, { nowMs: this.simTimeMs });
+    const events = stepPlayer(this.player, input, campMap, { nowMs: this.simTimeMs });
     for (const event of events) {
       if (event.type === "fire") this.fire(event);
       else this.melee();
@@ -229,7 +229,7 @@ export class PracticeSession {
     for (let step = 0; step < TICK_HZ * SUBSTEPS * 3; step += 1) {
       segmentStart.x = shot.x; segmentStart.y = shot.y; segmentStart.z = shot.z;
       if (step % SUBSTEPS === 0 && trailCount < PRACTICE_TRAIL_POINTS) { const offset = trailCount++ * 3; trail[offset] = shot.x; trail[offset + 1] = shot.y; trail[offset + 2] = shot.z; }
-      stepArrow(shot, rangeMap, dt);
+      stepArrow(shot, campMap, dt);
       segmentEnd.x = shot.x; segmentEnd.y = shot.y; segmentEnd.z = shot.z;
       const hit = sweepArrowVsTarget(segmentStart, segmentEnd, { x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false });
       if (hit) { const result = this.damageTarget(target, shot.damage, hit.kind === "head"); if (result.killed && horizontal > PRACTICE_REPLAY_MIN_M) this.showReplayCard(horizontal, trail, trailCount); return result; }

@@ -5,8 +5,9 @@ type JournalSnapshot = Record<"parchment" | "parchmentShade" | "sky" | "sepia" |
 
 test("Expedition Journal renders watercolor on parchment", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/?scene=map&test");
+  await page.goto("/?scene=map&map=sun-temple&test");
   await page.waitForFunction(() => "__bowdleTest" in window);
+  await page.evaluate(() => (window as unknown as { __bowdleTest: { cameraAt(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void } }).__bowdleTest.cameraAt(-29, 7, -7, 0, 7, 0));
   const fractions = await page.evaluate(() => (window as unknown as { __bowdleTest: { snapshot(): JournalSnapshot } }).__bowdleTest.snapshot());
   const washes = fractions.stone + fractions.carvedStone + fractions.wood + fractions.canopy + fractions.fern + fractions.earth + fractions.water + fractions.rope + fractions.gold + fractions.sunWash + fractions.moonWash + fractions.hazard + fractions.canvas + fractions.foliageDark;
   expect(fractions.parchment + fractions.sky).toBeGreaterThanOrEqual(0.35);
@@ -17,10 +18,10 @@ test("Expedition Journal renders watercolor on parchment", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("practice range uses the journal look", async ({ page }) => {
-  const errors = collectErrors(page); await page.goto("/?scene=range");
+test("Practice Camp uses the journal look", async ({ page }) => {
+  const errors = collectErrors(page); await page.goto("/?scene=camp");
   await expect(page.locator("#game-canvas")).toBeVisible();
-  await page.screenshot({ path: "test-results/qa/w1/journal-range.png", fullPage: true });
+  await page.screenshot({ path: "test-results/qa/w6/practice-camp.png", fullPage: true });
   expect(errors).toEqual([]);
 });
 

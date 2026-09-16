@@ -1,7 +1,7 @@
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
-import { notebookMap } from "../../src/shared/maps/notebook.ts";
+import { defaultMatchMap } from "../../src/shared/maps/registry.ts";
 import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 
@@ -40,7 +40,7 @@ describe("online movement", () => {
       wire.data.buttons = 0;
       wire.send();
       await room.waitForNextTimestep();
-      stepPlayer(direct, { moveX: 0, moveZ: 1, yaw: -Math.PI / 2, pitch: 0, buttons: 0 }, notebookMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(direct, { moveX: 0, moveZ: 1, yaw: -Math.PI / 2, pitch: 0, buttons: 0 }, defaultMatchMap, { nowMs: frame * 1000 / 30 });
     }
     expect(Math.abs(serverPlayer.x - direct.x)).toBeLessThanOrEqual(1e-6);
     expect(Math.abs(serverPlayer.y - direct.y)).toBeLessThanOrEqual(1e-6);

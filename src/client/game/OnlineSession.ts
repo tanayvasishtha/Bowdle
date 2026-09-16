@@ -1,7 +1,8 @@
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
 import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, ZIP_SPEED } from "../../shared/constants.ts";
-import { notebookMap } from "../../shared/maps/notebook.ts";
+import { defaultMatchMap, mapById } from "../../shared/maps/registry.ts";
+import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { spawnArrow, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
@@ -36,6 +37,7 @@ export class OnlineSession {
   private readonly replay: ReplayDirector;
   private readonly sounds = new SoundEffects();
   private readonly cameraRig = new CameraRig();
+  private map: MapData;
   private lastFrameMs = performance.now();
   private nextHudAtMs = 0;
   private wasAlive = true;
@@ -45,6 +47,8 @@ export class OnlineSession {
     this.renderer = renderer;
     this.sampler = sampler;
     this.room = room;
+    this.map = mapById(room.state.mapId) ?? defaultMatchMap;
+    this.renderer.setMap(this.map);
     this.hud = new MatchHud(renderer.canvas.parentElement!);
     this.replay = new ReplayDirector(renderer.canvas.parentElement!);
     this.sessionId = room.sessionId;
@@ -58,14 +62,14 @@ export class OnlineSession {
     this.arrows = this.predict.spawns<"arrows", LocalArrow>("arrows", {
       owned: (arrow) => arrow.owner === room.sessionId,
       spawnTime: (arrow) => arrow.bornMs,
-      step: (arrow, dt) => { stepArrow(arrow, notebookMap, dt, arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined); },
+      step: (arrow, dt) => { stepArrow(arrow, this.map, dt, arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined); },
       fields: ["x", "y", "z"],
     });
     this.me = this.predict.reconciler(local, {
       input: this.input,
       smoothMs: RECONCILE_SMOOTH_MS,
       step: (context, state, command) => {
-        const events = stepPlayer(state, command, notebookMap, { nowMs: context.reckonTime });
+        const events = stepPlayer(state, command, this.map, { nowMs: context.reckonTime });
         if (context.isReplay) return;
         for (const event of events) {
           if (event.type === "fire") this.arrows.spawn({ ...spawnArrow(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: "arrow" });
@@ -84,9 +88,9 @@ export class OnlineSession {
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
-  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false): Promise<OnlineSession> {
+  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string): Promise<OnlineSession> {
     const endpoint = import.meta.env.VITE_SERVER_URL || location.origin;
-    const room = await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, test: testing }, MatchState);
+    const room = await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, test: testing, testMapId }, MatchState);
     if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {
@@ -104,6 +108,10 @@ export class OnlineSession {
   }
 
   private frame(timeMs: number): void {
+    if (this.room.state.mapId !== this.map.id) {
+      this.map = mapById(this.room.state.mapId) ?? defaultMatchMap;
+      this.renderer.setMap(this.map);
+    }
     const elapsed = Math.min(100, timeMs - this.lastFrameMs);
     this.lastFrameMs = timeMs;
     const steps = this.predict.tick(timeMs);
@@ -209,7 +217,8 @@ export class OnlineSession {
   cloudCount(): number { return this.room.state.inkClouds.size; }
   grappleActive(): boolean { return this.me.state.grappleActive; }
   aimAtGrapple(): void {
-    const target = notebookMap.boxes.find((box) => box.id === "ruler-bridge")!;
+    const target = this.map.boxes.find((box) => box.tags.includes("grapple"));
+    if (!target) return;
     const x = (target.min[0] + target.max[0]) / 2, y = (target.min[1] + target.max[1]) / 2, z = (target.min[2] + target.max[2]) / 2;
     const dx = x - this.me.state.x, dz = z - this.me.state.z, horizontal = Math.hypot(dx, dz);
     this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(y - (this.me.state.y + EYE_STAND), horizontal));

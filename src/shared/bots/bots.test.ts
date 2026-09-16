@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ARROW_GRAVITY, ARROW_SPEED_MAX } from "../constants.ts";
-import { notebookMap } from "../maps/notebook.ts";
+import { defaultMatchMap } from "../maps/registry.ts";
 import { mulberry32 } from "../math/rng.ts";
 import { solveProjectileLead } from "./aim.ts";
 import { findPath, nearestWaypoint } from "./nav.ts";
@@ -12,10 +12,10 @@ import { canopyMap } from "../maps/canopy.ts";
 
 describe("computer-controlled navigation and aim", () => {
   it("finds a route between every pair of spawns", () => {
-    const spawns = [...notebookMap.spawns.sun, ...notebookMap.spawns.moon];
+    const spawns = [...defaultMatchMap.spawns.sun, ...defaultMatchMap.spawns.moon];
     for (const from of spawns) for (const to of spawns) {
-      const start = nearestWaypoint(notebookMap, ...from.pos), goal = nearestWaypoint(notebookMap, ...to.pos);
-      expect(findPath(notebookMap, start.id, goal.id).length).toBeGreaterThan(0);
+      const start = nearestWaypoint(defaultMatchMap, ...from.pos), goal = nearestWaypoint(defaultMatchMap, ...to.pos);
+      expect(findPath(defaultMatchMap, start.id, goal.id).length).toBeGreaterThan(0);
     }
   });
 
@@ -39,16 +39,16 @@ describe("computer-controlled abilities", () => {
     const player = createPlayerSim(-25, 0, -8); player.team = 0;
     const enemy = createPlayerSim(-15, 0, -8); enemy.team = 1;
     const controller = new BotController("bot", 7);
-    controller.update(player, [["bot", player], ["enemy", enemy]], notebookMap, 1000);
+    controller.update(player, [["bot", player], ["enemy", enemy]], defaultMatchMap, 1000);
     expect(controller.mode).toBe("engage");
-    controller.update(player, [["bot", player], ["enemy", enemy]], notebookMap, 1000, [{ x: -20, y: 1.6, z: -8, radius: 4.5 }]);
+    controller.update(player, [["bot", player], ["enemy", enemy]], defaultMatchMap, 1000, [{ x: -20, y: 1.6, z: -8, radius: 4.5 }]);
     expect(controller.mode).toBe("roam");
   });
 
   it("throws ink while retreating", () => {
     const player = createPlayerSim(-25, 0, -8); player.team = 0; player.hp = 1;
     const enemy = createPlayerSim(-15, 0, -8); enemy.team = 1;
-    const input = new BotController("bot", 9).update(player, [["bot", player], ["enemy", enemy]], notebookMap, 1000);
+    const input = new BotController("bot", 9).update(player, [["bot", player], ["enemy", enemy]], defaultMatchMap, 1000);
     expect(input.buttons & BTN.INK).toBe(BTN.INK);
   });
 

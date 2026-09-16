@@ -20,10 +20,10 @@ import {
   WebGLRenderer,
 } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { notebookMap } from "../../shared/maps/notebook.ts";
 import type { MaterialName, MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
-import type { PracticeTarget } from "../../shared/maps/range.ts";
+import type { CampTarget } from "../../shared/maps/camp.ts";
+import { defaultMatchMap } from "../../shared/maps/registry.ts";
 import { BODY_RADIUS, BOULDER_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
 import { mulberry32 } from "../../shared/math/rng.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
@@ -160,6 +160,8 @@ export class Renderer {
   private readonly renderer: WebGLRenderer;
   private readonly composite = new CompositePass();
   private readonly worldScene = new Scene();
+  private readonly container: HTMLElement;
+  private mapGroup = new Group();
   private readonly viewScene = new Scene();
   private readonly viewCamera = new PerspectiveCamera(70, 1, 0.01, 10);
   private readonly planes: Mesh[] = [];
@@ -171,9 +173,9 @@ export class Renderer {
   private readonly notes: Array<{ element: HTMLDivElement; world: Vector3; x: number; y: number; z: number }> = [];
   private readonly viewBow: Group;
   private readonly overlay: HTMLDivElement | null;
-  private readonly map: MapData;
-  private readonly props: PropsRenderer;
-  private readonly ambience: Ambience;
+  private map: MapData;
+  private props: PropsRenderer;
+  private ambience: Ambience;
   private previousTime = performance.now();
   private frames = 0;
   private fpsAt = this.previousTime;
@@ -183,7 +185,8 @@ export class Renderer {
   private sliding = false;
   private cameraOverride: { x: number; y: number; z: number; lookX: number; lookY: number; lookZ: number } | null = null;
 
-  constructor(container: HTMLElement, debug: boolean, map: MapData = notebookMap, practice: readonly PracticeTarget[] = []) {
+  constructor(container: HTMLElement, debug: boolean, map: MapData = defaultMatchMap, practice: readonly CampTarget[] = []) {
+    this.container = container;
     this.map = map;
     this.renderer = new WebGLRenderer({ antialias: false, alpha: false });
     this.canvas = this.renderer.domElement;
@@ -191,31 +194,9 @@ export class Renderer {
     this.canvas.dataset.mapId = map.id;
     this.canvas.dataset.mapFeatures = String(map.ramps.length + map.volumes.length + map.zipLines.length + map.boulders.length);
     container.append(this.canvas);
-    this.composite.setSunShafts(map.look?.sunShafts ?? false); this.composite.setStainSeed(map.look?.stainSeed ?? 0);
-    for (const mesh of mapMeshes(map)) this.worldScene.add(mesh);
-    this.props = new PropsRenderer(map.props); this.worldScene.add(this.props);
+    this.props = new PropsRenderer([]);
     this.ambience = new Ambience(map);
-    for (const zip of map.zipLines) {
-      const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(new Float32Array([...zip.from, ...zip.to]), 3));
-      this.worldScene.add(new Line(geometry, new LineBasicMaterial({ color: PALETTE.rope })));
-    }
-    for (const boulder of map.boulders) {
-      const rock = new Mesh(new SphereGeometry(BOULDER_RADIUS, 12, 8), new InkMaterial(MATERIAL_ID.hazard)); rock.position.set(...boulder.path[0]!); this.worldScene.add(rock);
-      const lever = new Mesh(new CylinderGeometry(0.08, 0.08, 1.2, 6), new InkMaterial(MATERIAL_ID.gold)); lever.position.set(...boulder.lever); lever.rotation.z = -0.45; this.worldScene.add(lever);
-    }
-    for (const box of map.boxes) {
-      if (!box.tags.includes("grapple")) continue;
-      const material = new InkMaterial(MATERIAL_ID.gold); material.wireframe = true;
-      const visual = new Mesh(new BoxGeometry(box.max[0] - box.min[0] + 0.08, box.max[1] - box.min[1] + 0.08, box.max[2] - box.min[2] + 0.08), material);
-      visual.position.set((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
-      visual.visible = false; this.grappleHighlights.push(visual); this.worldScene.add(visual);
-    }
-    for (const note of map.notes) {
-      const element = document.createElement("div"); element.textContent = note.text;
-      element.className = "map-note";
-      element.style.cssText = "position:absolute;left:0;top:0;color:#4a3527;font:22px 'Gochi Hand',cursive;pointer-events:none;text-shadow:0 1px #efe3c6;transform:translate(-50%,-50%)";
-      container.append(element); this.notes.push({ element, world: new Vector3(...note.pos), x: note.pos[0], y: note.pos[1], z: note.pos[2] });
-    }
+    this.buildMap(map);
     for (const target of practice) {
       const visual = createPlayer();
       visual.position.set(target.pos[0], target.pos[1], target.pos[2]);
@@ -227,6 +208,49 @@ export class Renderer {
     this.overlay = debug ? this.createOverlay(container) : null;
     this.resize();
     window.addEventListener("resize", () => this.resize());
+  }
+
+  private buildMap(map: MapData): void {
+    this.worldScene.add(this.mapGroup);
+    this.canvas.dataset.mapId = map.id;
+    this.canvas.dataset.mapFeatures = String(map.ramps.length + map.volumes.length + map.zipLines.length + map.boulders.length);
+    this.composite.setSunShafts(map.look.sunShafts); this.composite.setStainSeed(map.look.stainSeed);
+    for (const mesh of mapMeshes(map)) this.mapGroup.add(mesh);
+    this.props = new PropsRenderer(map.props); this.mapGroup.add(this.props);
+    for (const zip of map.zipLines) {
+      const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(new Float32Array([...zip.from, ...zip.to]), 3));
+      this.mapGroup.add(new Line(geometry, new LineBasicMaterial({ color: PALETTE.rope })));
+    }
+    for (const boulder of map.boulders) {
+      const rock = new Mesh(new SphereGeometry(BOULDER_RADIUS, 12, 8), new InkMaterial(MATERIAL_ID.hazard)); rock.position.set(...boulder.path[0]!); this.mapGroup.add(rock);
+      const lever = new Mesh(new CylinderGeometry(0.08, 0.08, 1.2, 6), new InkMaterial(MATERIAL_ID.gold)); lever.position.set(...boulder.lever); lever.rotation.z = -0.45; this.mapGroup.add(lever);
+    }
+    for (const box of map.boxes) {
+      if (!box.tags.includes("grapple")) continue;
+      const material = new InkMaterial(MATERIAL_ID.gold); material.wireframe = true;
+      const visual = new Mesh(new BoxGeometry(box.max[0] - box.min[0] + 0.08, box.max[1] - box.min[1] + 0.08, box.max[2] - box.min[2] + 0.08), material);
+      visual.position.set((box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2);
+      visual.visible = false; this.grappleHighlights.push(visual); this.mapGroup.add(visual);
+    }
+    for (const note of map.notes) {
+      const element = document.createElement("div"); element.textContent = note.text;
+      element.className = "map-note";
+      element.style.cssText = "position:absolute;left:0;top:0;color:#4a3527;font:22px 'Gochi Hand',cursive;pointer-events:none;text-shadow:0 1px #efe3c6;transform:translate(-50%,-50%)";
+      this.container.append(element); this.notes.push({ element, world: new Vector3(...note.pos), x: note.pos[0], y: note.pos[1], z: note.pos[2] });
+    }
+  }
+
+  setMap(map: MapData): void {
+    if (map.id === this.map.id) return;
+    this.worldScene.remove(this.mapGroup);
+    this.mapGroup = new Group();
+    this.grappleHighlights.length = 0;
+    for (const note of this.notes) note.element.remove();
+    this.notes.length = 0;
+    this.map = map;
+    this.ambience.dispose();
+    this.ambience = new Ambience(map);
+    this.buildMap(map);
   }
 
   private createOverlay(container: HTMLElement): HTMLDivElement {

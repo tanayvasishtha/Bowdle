@@ -1,6 +1,6 @@
 import { TICK_HZ, ZIP_SPEED } from "../../shared/constants.ts";
 import type { PlayerInputFrame } from "../../shared/input.ts";
-import { notebookMap } from "../../shared/maps/notebook.ts";
+import { defaultMatchMap } from "../../shared/maps/registry.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { createPlayerSim, stepPlayer, type PlayerSim } from "../../shared/sim/movement.ts";
 import type { Renderer } from "../render/Renderer.ts";
@@ -24,7 +24,7 @@ export class OfflineSession {
   private lastFrameMs = performance.now();
   private simTimeMs = 0;
 
-  constructor(renderer: Renderer, sampler: InputSampler, map: MapData = notebookMap) {
+  constructor(renderer: Renderer, sampler: InputSampler, map: MapData = defaultMatchMap) {
     this.renderer = renderer;
     this.sampler = sampler;
     this.map = map;

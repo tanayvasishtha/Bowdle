@@ -2,12 +2,13 @@ import { Renderer, type SnapshotFractions } from "./render/Renderer.ts";
 import { InputSampler } from "./game/InputSampler.ts";
 import { OfflineSession } from "./game/OfflineSession.ts";
 import { PracticeSession, type PracticeShotResult } from "./game/PracticeSession.ts";
-import { practiceTargets, rangeMap } from "../shared/maps/range.ts";
+import { campMap, campTargets } from "../shared/maps/camp.ts";
 import { OnlineSession, type RenderedPlayer } from "./game/OnlineSession.ts";
 import { kitMap } from "../shared/maps/fixtures/kit.ts";
 import { propsGalleryMap } from "../shared/maps/fixtures/props.ts";
 import { sunTempleMap } from "../shared/maps/sunTemple.ts";
 import { canopyMap } from "../shared/maps/canopy.ts";
+import { defaultMatchMap, mapById } from "../shared/maps/registry.ts";
 
 declare global {
   interface Window {
@@ -37,9 +38,10 @@ if (params.get("scene") === "online") {
   loading.textContent = "Joining match…";
   loading.style.cssText = "position:absolute;inset:35% 0 auto;text-align:center;color:#4a3527;font:48px 'Permanent Marker',cursive";
   app.append(loading);
-  const renderer = new Renderer(app, params.has("debug"));
+  const requestedMapId = params.get("map") ?? undefined;
+  const renderer = new Renderer(app, params.has("debug"), requestedMapId ? mapById(requestedMapId) ?? defaultMatchMap : defaultMatchMap);
   const sampler = new InputSampler(renderer.canvas);
-  void OnlineSession.connect(renderer, sampler, "Player", params.has("test")).then((session) => {
+  void OnlineSession.connect(renderer, sampler, "Player", params.has("test"), requestedMapId).then((session) => {
     loading.remove();
     session.start();
     if (params.has("test")) window.__bowdleTest = {
@@ -56,13 +58,13 @@ if (params.get("scene") === "online") {
   }).catch((error: unknown) => {
     loading.textContent = error instanceof Error ? `Connection failed: ${error.message}` : "Connection failed";
   });
-} else if (params.get("scene") === "map" || params.get("scene") === "range" || params.get("scene") === "kit" || params.get("scene") === "props") {
-  const isRange = params.get("scene") === "range";
+} else if (params.get("scene") === "map" || params.get("scene") === "camp" || params.get("scene") === "kit" || params.get("scene") === "props") {
+  const isCamp = params.get("scene") === "camp";
   const mapId = params.get("map");
-  const map = params.get("scene") === "kit" ? kitMap : params.get("scene") === "props" ? propsGalleryMap : mapId === sunTempleMap.id ? sunTempleMap : mapId === canopyMap.id ? canopyMap : isRange ? rangeMap : undefined;
-  const renderer = new Renderer(app, params.has("debug"), map, isRange ? practiceTargets : undefined);
-  const sampler = new InputSampler(renderer.canvas, isRange ? 0 : map?.spawns.sun[0]?.yaw ?? -Math.PI / 2);
-  const session = isRange ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);
+  const map = params.get("scene") === "kit" ? kitMap : params.get("scene") === "props" ? propsGalleryMap : isCamp ? campMap : mapId ? mapById(mapId) ?? defaultMatchMap : defaultMatchMap;
+  const renderer = new Renderer(app, params.has("debug"), map, isCamp ? campTargets : undefined);
+  const sampler = new InputSampler(renderer.canvas, isCamp ? 0 : map.spawns.sun[0]?.yaw ?? -Math.PI / 2);
+  const session = isCamp ? new PracticeSession(renderer, sampler, app) : new OfflineSession(renderer, sampler, map);
   session.start();
   if (params.has("test")) window.__bowdleTest = {
     snapshot: () => renderer.snapshot(),
@@ -76,6 +78,6 @@ if (params.get("scene") === "online") {
     <button id="practice" style="font:30px inherit;margin:8px;padding:10px 28px">Practice</button>
     <button id="play-online" style="font:30px inherit;margin:8px;padding:10px 28px">Play online</button>
   </main>`;
-  document.querySelector("#practice")?.addEventListener("click", () => { location.search = "?scene=range"; });
+  document.querySelector("#practice")?.addEventListener("click", () => { location.search = "?scene=camp"; });
   document.querySelector("#play-online")?.addEventListener("click", () => { location.search = "?scene=online"; });
 }

@@ -19,6 +19,7 @@ import {
   BOT_STUCK_MS,
   BOT_STUCK_MOVE_M,
   ZIP_ATTACH_DIST,
+  MELEE_RANGE,
 } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import type { MapData, Vec3Tuple, Waypoint } from "../../shared/maps/types.ts";
@@ -155,6 +156,7 @@ export class BotController {
     solveProjectileLead(this.origin, this.targetPose, ARROW_SPEED_MAX, this.aim);
     this.input.yaw = this.aim.yaw + this.aimYawError; this.input.pitch = this.aim.pitch + this.aimPitchError;
     this.input.moveZ = 0; this.input.moveX = Math.floor(nowMs / BOT_STRAFE_MS) % 2 === 0 ? -1 : 1; this.input.buttons = 0;
+    if (Math.hypot(target.x - player.x, target.z - player.z) <= MELEE_RANGE && player.meleeCooldownMs <= 0) { this.input.buttons = BTN.MELEE; return; }
     if (nowMs - this.sightedAtMs < BOT_REACTION_MS) return;
     if (this.releaseFrame) { this.releaseFrame = false; return; }
     if (this.releaseAtMs === 0) {

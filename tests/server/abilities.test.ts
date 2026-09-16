@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import { BTN } from "../../src/shared/input.ts";
-import { notebookMap } from "../../src/shared/maps/notebook.ts";
+import { defaultMatchMap } from "../../src/shared/maps/registry.ts";
 import { kitMap } from "../../src/shared/maps/fixtures/kit.ts";
 import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
 
@@ -28,7 +28,7 @@ describe("authoritative online abilities", () => {
       const buttons = frame === 0 ? BTN.GRAPPLE : 0;
       wire.data.moveX = 0; wire.data.moveZ = 0; wire.data.yaw = yaw; wire.data.pitch = pitch; wire.data.buttons = buttons;
       wire.send(); await room.waitForNextTimestep();
-      stepPlayer(direct, { moveX: 0, moveZ: 0, yaw, pitch, buttons }, notebookMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(direct, { moveX: 0, moveZ: 0, yaw, pitch, buttons }, defaultMatchMap, { nowMs: frame * 1000 / 30 });
     }
     expect(Math.abs(serverPlayer.x - direct.x)).toBeLessThanOrEqual(1e-6);
     expect(Math.abs(serverPlayer.y - direct.y)).toBeLessThanOrEqual(1e-6);

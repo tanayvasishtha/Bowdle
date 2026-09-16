@@ -16,7 +16,8 @@
     "size": "node scripts/size-check.ts",
     "check": "npm run typecheck && npm test && npm run build && npm run size",
     "e2e": "playwright test",
-    "start": "node src/server/main.ts"
+    "start": "node src/server/main.ts",
+    "smoke": "node scripts/prod-smoke.ts"
   },
   "dependencies": {
     "@colyseus/better-call": "1.3.3",

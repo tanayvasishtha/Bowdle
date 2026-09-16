@@ -13,6 +13,16 @@ docker run --rm -p 2567:2567 -e PORT=2567 bowdle:local
 
 Open `http://localhost:2567/` and check `http://localhost:2567/health`. Play from two browser windows before publishing.
 
+Without Docker, the same checks run from a normal checkout:
+
+```bash
+npm ci
+npm run build
+npm run smoke
+```
+
+`npm run smoke` starts the production server on port 2599 (override with `SMOKE_PORT`), checks `/health`, the served client page and a WebSocket join on `tdm`, then shuts down.
+
 ## 2. Create the Render service
 
 1. Push the intended release commit and tag to GitHub.

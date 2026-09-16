@@ -15,6 +15,7 @@ Bowdle is a browser multiplayer bow shooter set inside a hand-drawn notebook. Tw
 | `docs/JUNGLE-MAPS.md` | Jungle launch-map geometry and mechanics |
 | `docs/ECONOMY.md` | Accounts, skins, payments, portal rules |
 | `docs/RUNBOOK-1.md` to `RUNBOOK-3.md` | Milestones, one at a time |
+| `docs/COMPLETION-PLAN.md` | Remaining phases to v1 |
 | `docs/RUNBOOK-WORLD.md` | World milestones W1 to W6 |
 
 ## Commands

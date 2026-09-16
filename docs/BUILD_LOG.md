@@ -1,5 +1,35 @@
 # Build log
 
+## M9: Deploy and performance
+
+Status: done.
+
+Built:
+
+- One production process: Express serves dist/client, Colyseus serves the game WebSocket on the same origin, GET /health reports readiness.
+- Server metrics logged as one JSON line every 10 seconds with room count, player count and average tick time.
+- Dynamic resolution scaling between 100 and 60 percent render scale.
+- Dockerfile on node:24-slim and docs/DEPLOY.md for a single Render web service with HTTPS, custom domain and rollback.
+- npm run smoke: starts the production server, checks /health, the served client page and a WebSocket join on tdm, then shuts down.
+
+QA:
+
+- npm run check: passed with 112 tests.
+- npm run e2e: 20 passed.
+- npm run smoke: health, client page and WebSocket join all passed.
+- npm run size: client JavaScript 258 KB gzipped, 900 KB budget.
+- Draw calls at most 150 and triangles at most 300000 on every launch map, now measured across the whole frame (see W7).
+
+Deviation:
+
+- Docker is not installed on the build machine, so docker build was not run here. The smoke script covers the same checks against a normal checkout.
+- Server tick time under load was not measured here. The metrics log reports it in production, and DEPLOY.md lists the 3 ms target.
+
+Verify by hand:
+
+- Run docker build and docker run from DEPLOY.md on a machine with Docker.
+- Deploy, then play from two networks and run the 150 ms latency procedure from NETCODE.md.
+
 ## W7: Scenery density and the instancing fix
 
 Status: done.

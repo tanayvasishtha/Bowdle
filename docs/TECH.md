@@ -93,6 +93,7 @@ bowdle/
 | `check` | `npm run typecheck && npm test && npm run build && npm run size` | Required before finishing any task |
 | `e2e` | `playwright test` | Starts `npm run dev` itself |
 | `start` | `node src/server/main.ts` | Production. Serves `dist/client` and the game server on `PORT` |
+| `smoke` | `node scripts/prod-smoke.ts` | After `npm run build`: production server smoke test (health, page, WebSocket join) |
 
 In dev the log prints `'transport' is ignored in dev mode`. That is expected: the plugin serves WebSockets on Vite's own server. Do not "fix" it.
 

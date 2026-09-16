@@ -1,7 +1,7 @@
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
 import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, ZIP_SPEED } from "../../shared/constants.ts";
-import { defaultMatchMap, mapById } from "../../shared/maps/registry.ts";
+import { defaultMatchMap, mapById, matchMaps } from "../../shared/maps/registry.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
@@ -42,6 +42,7 @@ export class OnlineSession {
   private nextHudAtMs = 0;
   private wasAlive = true;
   private previousHazardPhase: "idle" | "telegraph" | "roll" | "despawn" = "idle";
+  private bestShot = 0;
 
   private constructor(renderer: Renderer, sampler: InputSampler, room: Room<unknown, MatchState>) {
     this.renderer = renderer;
@@ -49,7 +50,7 @@ export class OnlineSession {
     this.room = room;
     this.map = mapById(room.state.mapId) ?? defaultMatchMap;
     this.renderer.setMap(this.map);
-    this.hud = new MatchHud(renderer.canvas.parentElement!);
+    this.hud = new MatchHud(renderer.canvas.parentElement!, (mapId) => this.room.send("mapVote", { mapId }));
     this.replay = new ReplayDirector(renderer.canvas.parentElement!);
     this.sessionId = room.sessionId;
     this.input = room.input<PlayerInput>({ mode: "reliable", type: PlayerInput });
@@ -84,7 +85,7 @@ export class OnlineSession {
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.hud.hit(parsed.data.headshot); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); });
-    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); if (parsed.success) this.hud.end(parsed.data, this.names); });
+    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (parsed.success && me) this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot }, matchMaps); });
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
@@ -111,6 +112,7 @@ export class OnlineSession {
   private frame(timeMs: number): void {
     if (this.room.state.mapId !== this.map.id) {
       this.map = mapById(this.room.state.mapId) ?? defaultMatchMap;
+      this.bestShot = 0;
       this.renderer.setMap(this.map);
     }
     const elapsed = Math.min(100, timeMs - this.lastFrameMs);
@@ -174,6 +176,7 @@ export class OnlineSession {
 
   private onKill(message: KillMessage): void {
     this.hud.kill(message, this.names); const victim = this.room.state.players.get(message.victim); const killer = this.room.state.players.get(message.killer);
+    if (message.killer === this.sessionId) this.bestShot = Math.max(this.bestShot, message.distance);
     if (victim) {
       if (message.headshot) this.renderer.addInkSplat(victim.x, victim.y, victim.z, victim.team, this.hash(message.victim) + Math.round(this.room.clock.serverNow()));
       if (killer && message.weapon === "arrow") this.renderer.pinPlayer(message.victim, killer.x, killer.z);

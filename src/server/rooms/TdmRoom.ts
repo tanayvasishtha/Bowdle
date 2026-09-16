@@ -29,10 +29,10 @@ import {
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { kitMap } from "../../shared/maps/fixtures/kit.ts";
 import type { MapData } from "../../shared/maps/types.ts";
-import { defaultMatchMap, mapById, nextMatchMap } from "../../shared/maps/registry.ts";
+import { defaultMatchMap, mapById, matchMaps, nextMatchMap } from "../../shared/maps/registry.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState } from "../../net/schema.ts";
-import { SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
+import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RobinHoodMessage } from "../../net/messages.ts";
 import { spawnArrow, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
 import { chooseSpawn, respawnPlayer, scoreKill, updateMatchPhase } from "../../shared/sim/match.ts";
@@ -79,6 +79,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private simulationNowMs = 0;
   private testMode = false;
   private readonly bots = new Map<string, BotController>();
+  private readonly mapVotes = new Map<string, string>();
 
   onCreate(options: JoinOptions): void {
     const selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
@@ -93,6 +94,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       const player = this.state.players.get(client.sessionId);
       if (player && !nameError(message.name)) player.name = message.name;
     });
+    this.onMessage("mapVote", MapVoteMessage, (client, message) => this.voteMap(client.sessionId, message.mapId));
     this.setFixedTimestep((context) => this.simulateTick(context, this.clock.elapsedTime), TICK_HZ, { subSteps: SUBSTEPS });
   }
 
@@ -252,10 +254,22 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
   private resetPlayers(): void {
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.arrowOrigins.clear(); this.damage.clear();
-    if (!this.fixedMap) this.loadMap(nextMatchMap(this.map.id), this.simulationNowMs);
+    if (!this.fixedMap) this.loadMap(this.votedMap(), this.simulationNowMs);
     else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
     for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values())); player.spawnProtectMs = 0; }
+    this.mapVotes.clear();
   }
+
+  private votedMap(): MapData {
+    const rotation = nextMatchMap(this.map.id); let winner = rotation.id, high = 0, tied = false;
+    for (const candidate of matchMaps) {
+      let count = 0; for (const vote of this.mapVotes.values()) if (vote === candidate.id) count += 1;
+      if (count > high) { high = count; winner = candidate.id; tied = false; } else if (count === high && count > 0) tied = true;
+    }
+    return tied || high === 0 ? rotation : mapById(winner) ?? rotation;
+  }
+
+  voteMap(sessionId: string, mapId: string): void { if (this.state.phase === "end" && mapById(mapId)) this.mapVotes.set(sessionId, mapId); }
 
   private loadMap(map: MapData, nowMs: number): void {
     this.map = map;

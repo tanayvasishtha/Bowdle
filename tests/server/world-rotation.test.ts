@@ -24,6 +24,17 @@ describe("jungle map rotation", () => {
     }
   });
 
+  it("uses a clear end-screen map vote and falls back to rotation on a tie", async () => {
+    const first = await colyseus.sdk.joinOrCreate("tdm", { name: "One", test: true }); await first.waitForInitialState();
+    const second = await colyseus.sdk.joinOrCreate("tdm", { name: "Two", test: true }); await second.waitForInitialState();
+    const room = colyseus.getRoomById<TdmRoom>(first.roomId); room.state.phase = "end"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
+    room.voteMap(first.sessionId, "lost-river"); room.voteMap(second.sessionId, "lost-river");
+    room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("lost-river");
+    room.state.phase = "end"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
+    room.voteMap(first.sessionId, "sun-temple"); room.voteMap(second.sessionId, "canopy");
+    room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("sun-temple");
+  });
+
   it("finishes an eight-player Lost River match", async () => {
     const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Observer", testMapId: lostRiverMap.id }); await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.replacePlayerWithBot(client.sessionId);

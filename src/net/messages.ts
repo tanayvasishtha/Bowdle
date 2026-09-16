@@ -7,6 +7,7 @@ export const HitConfirmMessage = z.object({ target: z.string(), damage: z.number
 export const DamagedMessage = z.object({ fromX: z.number(), fromZ: z.number(), damage: z.number().positive() });
 export const RobinHoodMessage = z.object({ shooterA: z.string(), shooterB: z.string(), x: z.number(), y: z.number(), z: z.number() });
 export const MatchEndMessage = z.object({ winner: z.enum(["sun", "moon", "draw"]), mvp: z.string() });
+export const MapVoteMessage = z.object({ mapId: z.enum(["sun-temple", "canopy", "lost-river"]) });
 
 export type SetNameMessage = z.infer<typeof SetNameMessage>;
 export type KillMessage = z.infer<typeof KillMessage>;
@@ -14,3 +15,4 @@ export type HitConfirmMessage = z.infer<typeof HitConfirmMessage>;
 export type DamagedMessage = z.infer<typeof DamagedMessage>;
 export type RobinHoodMessage = z.infer<typeof RobinHoodMessage>;
 export type MatchEndMessage = z.infer<typeof MatchEndMessage>;
+export type MapVoteMessage = z.infer<typeof MapVoteMessage>;

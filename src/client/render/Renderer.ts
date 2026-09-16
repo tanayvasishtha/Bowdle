@@ -210,10 +210,12 @@ export class Renderer {
     }
     this.viewBow = addViewmodel(this.viewScene);
     this.camera.rotation.order = "YXZ";
-    this.overlay = debug ? this.createOverlay(container) : null;
+    this.overlay = debug || import.meta.env.DEV ? this.createOverlay(container) : null;
+    if (this.overlay && !debug) this.overlay.style.display = "none";
     this.resize();
     window.addEventListener("resize", () => this.resize());
     window.addEventListener("bowdle-settings", (event) => this.applySettings((event as CustomEvent<GameSettings>).detail));
+    window.addEventListener("keydown", (event) => { if (this.overlay && event.code === this.settings.keys.debug) this.overlay.style.display = this.overlay.style.display === "none" ? "block" : "none"; });
   }
 
   private applySettings(settings: GameSettings): void {

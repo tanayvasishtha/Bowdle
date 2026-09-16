@@ -2,6 +2,7 @@ import type { MatchState } from "../../net/schema.ts";
 import type { KillMessage, MatchEndMessage } from "../../net/messages.ts";
 import { GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS } from "../../shared/constants.ts";
 import type { MapData } from "../../shared/maps/types.ts";
+import { loadSettings } from "../settings.ts";
 
 type EndStats = { kills: number; deaths: number; bestShot: number };
 
@@ -33,8 +34,8 @@ export class MatchHud {
     this.moment = this.root.querySelector(".bowdle-moment")!;
     this.abilities = this.root.querySelector(".bowdle-abilities")!;
     this.endPanel = this.root.querySelector(".bowdle-end")!;
-    window.addEventListener("keydown", (event) => { if (event.code === "Tab") { event.preventDefault(); this.scoreboard.style.display = "block"; } });
-    window.addEventListener("keyup", (event) => { if (event.code === "Tab") this.scoreboard.style.display = "none"; });
+    window.addEventListener("keydown", (event) => { if (event.code === loadSettings().keys.scoreboard) { event.preventDefault(); this.scoreboard.style.display = "block"; } });
+    window.addEventListener("keyup", (event) => { if (event.code === loadSettings().keys.scoreboard) this.scoreboard.style.display = "none"; });
   }
 
   update(state: MatchState, sessionId: string, serverNow: number): void {

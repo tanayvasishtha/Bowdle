@@ -1,5 +1,6 @@
 import {
   QUIVER,
+  RELIC,
   ABSOLUTE_SPEED_CAP,
   AIM_SPEED_MULT,
   AIR_ACCEL,
@@ -58,6 +59,8 @@ export type PlayerSim = {
   grappleCooldownMs: number; grappleActive: boolean; grappleX: number; grappleY: number; grappleZ: number; grappleMs: number; inkCooldownMs: number;
   grappleLen: number; grappleBlockedMs: number; grappleReeling: boolean;
   arrowSlot: number; scatterCharges: number; scatterRechargeMs: number; tetherCooldownMs: number;
+  /** Relic Run: the carrier is slower and cannot grapple, vine hop or shoot a tether. */
+  relicCarrier: boolean;
   zipId: string; zipT: number;
   kills: number; deaths: number; assists: number;
   bowSkin: string; arrowTrail: string; outfit: string; killEffect: string;
@@ -82,7 +85,7 @@ export function createPlayerSim(x = 0, y = 0, z = 0): PlayerSim {
     hp: MAX_HP, alive: true, drawMs: 0, releaseCooldownMs: 0, meleeCooldownMs: 0, prevButtons: 0, lastDamageAtMs: 0, spawnProtectMs: 0, respawnAtMs: 0,
     grappleCooldownMs: 0, grappleActive: false, grappleX: 0, grappleY: 0, grappleZ: 0, grappleMs: 0, inkCooldownMs: 0,
     grappleLen: 0, grappleBlockedMs: 0, grappleReeling: false,
-    arrowSlot: 0, scatterCharges: QUIVER.scatter.charges, scatterRechargeMs: 0, tetherCooldownMs: 0,
+    arrowSlot: 0, scatterCharges: QUIVER.scatter.charges, scatterRechargeMs: 0, tetherCooldownMs: 0, relicCarrier: false,
     zipId: "", zipT: 0,
     kills: 0, deaths: 0, assists: 0, bowSkin: "bow.default", arrowTrail: "trail.default", outfit: "outfit.default", killEffect: "effect.default",
     airJumps: VINE_HOP.perAirtime, wallJumps: 0, wallJumpCooldownMs: 0, wallTouchMs: WALL_TOUCH_IDLE_MS, wallNormalX: 0, wallNormalZ: 0,
@@ -252,6 +255,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
 
     let speed = state.crouched && !state.sliding ? CROUCH_SPEED : RUN_SPEED;
     if (water) speed *= WATER_SPEED_MULT;
+    if (state.relicCarrier) speed *= RELIC.carrierSpeedMult;
     if (held(input.buttons, BTN.AIM)) speed *= AIM_SPEED_MULT;
     if (inputMagnitude > 0) {
       if (state.sliding) accelerate(state, wish, speed * inputMagnitude, SLIDE_STEER_ACCEL, dt);
@@ -272,7 +276,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     } else if (substep === 0 && jumpPressed && !state.grounded && !state.zipId && !launched && !state.grappleActive) {
       // Air jumps: a wall jump when a wall was touched just now, otherwise the vine hop.
       if (state.wallTouchMs <= WALL_JUMP.touchMs && state.wallJumpCooldownMs <= 0 && state.wallJumps < WALL_JUMP.maxBeforeLanding) wallJump(state);
-      else if (state.airJumps > 0) vineHop(state, inputMagnitude);
+      else if (state.airJumps > 0 && !state.relicCarrier) vineHop(state, inputMagnitude);
       state.jumpBufferMs = 0;
     }
     if (substep === 0 && dodgePressed && state.dodgeCooldownMs <= 0 && !state.zipId) dodge(state, inputMagnitude);

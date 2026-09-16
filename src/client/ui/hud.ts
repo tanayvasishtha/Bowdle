@@ -38,6 +38,7 @@ export class MatchHud {
   private readonly ticker = document.createElement("div");
   private readonly streakLine = document.createElement("div");
   private readonly tipLine = document.createElement("div");
+  private readonly objectiveMark = document.createElement("div");
   private endedStreak = 0;
   private summaryLine: HTMLElement | undefined;
   private summaryMvp = "";
@@ -67,6 +68,10 @@ export class MatchHud {
     this.streakLine.className = "bowdle-streak"; this.streakLine.dataset.testid = "kill-streak";
     this.root.append(this.ticker, this.streakLine, this.tipLine);
     this.tipLine.dataset.testid = "tip";
+    this.objectiveMark.dataset.testid = "objective";
+    this.objectiveMark.textContent = "◆ RELIC";
+    this.objectiveMark.style.cssText = "position:absolute;display:none;transform:translate(-50%,-100%);font:20px 'Permanent Marker';color:#8a5a12;text-shadow:1px 1px #efe3c6;pointer-events:none";
+    this.root.append(this.objectiveMark);
     this.tipLine.style.cssText = "position:absolute;top:96px;left:50%;transform:translateX(-50%);padding:4px 14px;background:#efe3c6dd;border:2px dashed #4a3527;font:20px 'Gochi Hand';display:none";
     style.textContent += `.bowdle-xp-ticker{position:absolute;right:${L.tickerRightPx}px;bottom:${L.tickerBottomPx}px;font-size:${L.bodyPx}px;text-align:right}.bowdle-xp-ticker>div{animation:xp-ticker-fade ${L.tickerFadeMs}ms forwards}.bowdle-streak{position:absolute;left:${L.streakLeftPx}px;bottom:${L.streakBottomPx}px;font-size:${L.bodyPx}px;color:#d2531f}.bowdle-end{min-width:0;width:min(${L.panelWidthVw}vw,${L.panelWidthPx}px)}.bowdle-end p,.bowdle-end li{font-size:${L.bodyPx}px;margin:${L.gapPx}px}.bowdle-medals{display:flex;justify-content:center;gap:${L.gapPx}px;flex-wrap:wrap;list-style:none;padding:0}.bowdle-medals li{border-bottom:solid #e3b23c}.postmatch-xp{height:${L.bodyPx}px;background:#fffaf0;border:solid #4a3527;overflow:hidden}.postmatch-xp>div{height:100%;background:#e3b23c;transition:width ${L.transitionMs}ms linear}.postmatch-level-up{color:#d2531f;animation:postmatch-flash ${L.xpMs}ms}.bowdle-end article{display:inline-flex;align-items:center;border:solid #e3b23c;margin:${L.gapPx}px;padding:${L.gapPx}px}.bowdle-end progress{display:block;margin:auto}.bowdle-end [hidden]{display:none!important}@keyframes xp-ticker-fade{from{opacity:1}to{opacity:0}}@keyframes postmatch-flash{from{opacity:0}to{opacity:1}}`;
     window.addEventListener("keydown", (event) => { if (event.code === loadSettings().keys.scoreboard) { event.preventDefault(); this.scoreboard.style.display = "block"; } });
@@ -76,11 +81,14 @@ export class MatchHud {
   }
 
   update(state: MatchState, sessionId: string, serverNow: number): void {
-    this.score.textContent = `${state.scoreSun}  ·  ${state.scoreMoon}`;
+    const freeForAll = state.mode === "ffa";
+    const mine = state.players.get(sessionId);
+    this.score.textContent = freeForAll ? `YOU ${mine?.kills ?? 0}  ·  BEST ${state.scoreSun}` : `${state.mode === "relic" ? "◆ " : ""}${state.scoreSun}  ·  ${state.scoreMoon}`;
     const seconds = Math.max(0, Math.ceil((state.phaseEndsAtMs - serverNow) / 1000));
     this.timer.textContent = state.phase === "warmup" ? `DRAW IN ${seconds}` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-    let board = "SUN                         MOON\n";
-    for (const [id, player] of state.players) board += `${player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${id === sessionId ? "  YOU" : ""}\n`;
+    let board = freeForAll ? "FREE FOR ALL\n" : "SUN                         MOON\n";
+    const rows = [...state.players].sort(([, left], [, right]) => freeForAll ? right.kills - left.kills : 0);
+    for (const [id, player] of rows) board += `${freeForAll ? "◯" : player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${player.relicCarrier ? "  ◆" : ""}${id === sessionId ? "  YOU" : ""}\n`;
     this.scoreboard.textContent = board;
     const me = state.players.get(sessionId);
     if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS, me.grappleActive ? (me.grappleReeling ? "REELING" : "SWINGING") : "")}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}${this.ability("SHIFT", "DODGE", me.dodgeCooldownMs, DODGE.cooldownMs)}`;
@@ -118,7 +126,7 @@ export class MatchHud {
   }
   end(message: MatchEndMessage, names: ReadonlyMap<string, string>, stats: EndStats, maps: readonly MapData[]): void {
     this.center.textContent = ""; this.endPanel.replaceChildren(); this.endPanel.style.display = "block";
-    const title = document.createElement("h2"); title.textContent = message.winner === "draw" ? "Draw in the dust" : `${message.winner.toUpperCase()} WINS`;
+    const title = document.createElement("h2"); title.textContent = message.winner === "draw" ? "Draw in the dust" : message.winner === "player" ? `${(names.get(message.mvp) ?? "A player").toUpperCase()} WINS` : `${message.winner.toUpperCase()} WINS`;
     const summary = document.createElement("p"); summary.textContent = `${stats.kills} kills · ${stats.deaths} deaths · best shot ${Math.round(stats.bestShot)} m · best streak ${stats.bestStreak ?? 0}\nMVP: ${names.get(message.mvp) ?? message.mvp}`;
     const scores = document.createElement("p"); scores.textContent = this.score.textContent;
     this.summaryLine = summary; this.summaryMvp = names.get(message.mvp) ?? message.mvp;
@@ -168,6 +176,12 @@ export class MatchHud {
     if (result.banner) this.banner(result.banner);
   }
   tickerLine(text: string): void { const row = document.createElement("div"); row.textContent = text; this.ticker.append(row); while (this.ticker.childElementCount > KILL_FEEDBACK.tickerLines) this.ticker.firstElementChild?.remove(); }
+  /** Relic Run: a marker over the relic while it is on screen; null hides it. */
+  objective(point: { x: number; y: number } | null): void {
+    this.objectiveMark.style.display = point ? "block" : "none";
+    if (point) { this.objectiveMark.style.left = `${point.x}px`; this.objectiveMark.style.top = `${point.y}px`; }
+  }
+
   /** A new-player hint that fades after a few seconds. */
   tip(text: string): void {
     this.tipLine.textContent = text;

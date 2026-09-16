@@ -14,7 +14,7 @@ export const PlayerState = schema({
   prevButtons: t.uint16().default(0), lastDamageAtMs: t.number().default(0), spawnProtectMs: t.number().default(0), respawnAtMs: t.number().default(0),
   grappleCooldownMs: t.number().default(0), grappleActive: t.boolean().default(false), grappleX: t.number().default(0), grappleY: t.number().default(0), grappleZ: t.number().default(0), grappleMs: t.number().default(0), inkCooldownMs: t.number().default(0),
   grappleLen: t.number().default(0), grappleBlockedMs: t.number().default(0), grappleReeling: t.boolean().default(false),
-  arrowSlot: t.uint8().default(0), scatterCharges: t.uint8().default(QUIVER.scatter.charges), scatterRechargeMs: t.number().default(0), tetherCooldownMs: t.number().default(0),
+  relicCarrier: t.boolean().default(false), arrowSlot: t.uint8().default(0), scatterCharges: t.uint8().default(QUIVER.scatter.charges), scatterRechargeMs: t.number().default(0), tetherCooldownMs: t.number().default(0),
   zipId: t.string().default(""), zipT: t.number().default(0),
   kills: t.uint16().default(0), deaths: t.uint16().default(0), assists: t.uint16().default(0),
   bowSkin: t.string().default("bow.default"), arrowTrail: t.string().default("trail.default"), outfit: t.string().default("outfit.default"), killEffect: t.string().default("effect.default"),
@@ -43,6 +43,12 @@ export const TetherState = schema({
 }, "TetherState");
 export type TetherState = SchemaType<typeof TetherState>;
 
+export const RelicState = schema({
+  x: t.number().default(0), y: t.number().default(0), z: t.number().default(0),
+  carrier: t.string().default(""), home: t.boolean().default(true), droppedAtMs: t.number().default(0), droppedByTeam: t.int8().default(-1),
+}, "RelicState");
+export type RelicState = SchemaType<typeof RelicState>;
+
 export const InkCloudState = schema({
   x: t.number().default(0), y: t.number().default(0), z: t.number().default(0),
   radius: t.number().default(0), expiresAtMs: t.number().default(0),
@@ -57,6 +63,9 @@ export const BoulderHazardState = schema({
 export type BoulderHazardState = SchemaType<typeof BoulderHazardState>;
 
 export const MatchState = schema({
+  /** tdm, ffa or relic. */
+  mode: t.string().default("tdm"),
+  relic: RelicState,
   mapId: t.string().default("sun-temple"),
   phase: t.string<"warmup" | "live" | "end">().default("warmup"),
   phaseEndsAtMs: t.number().default(0),

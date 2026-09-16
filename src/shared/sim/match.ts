@@ -42,10 +42,10 @@ export function scoreKill(match: MatchCore, team: number, nowMs: number): boolea
   return true;
 }
 
-export function updateMatchPhase(match: MatchCore, nowMs: number): "live" | "end" | "restart" | null {
+export function updateMatchPhase(match: MatchCore, nowMs: number, timeLimitS: number = TIME_LIMIT_S): "live" | "end" | "restart" | null {
   if (nowMs < match.phaseEndsAtMs) return null;
   if (match.phase === "warmup") {
-    match.phase = "live"; match.phaseEndsAtMs = nowMs + TIME_LIMIT_S * 1000; return "live";
+    match.phase = "live"; match.phaseEndsAtMs = nowMs + timeLimitS * 1000; return "live";
   }
   if (match.phase === "live") {
     match.phase = "end"; match.phaseEndsAtMs = nowMs + END_SCREEN_MS; return "end";

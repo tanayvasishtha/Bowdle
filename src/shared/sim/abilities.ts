@@ -132,7 +132,7 @@ export function stepAbilityInput(state: PlayerSim, input: PlayerInputFrame, map:
     state.grappleReeling = held(input.buttons, BTN.GRAPPLE);
     if (pressed(input.buttons, state.prevButtons, BTN.JUMP)) releaseGrapple(state, true);
     else if (pressed(input.buttons, state.prevButtons, BTN.CROUCH)) releaseGrapple(state, false);
-  } else if (grapplePressed && state.grappleCooldownMs <= 0) {
+  } else if (grapplePressed && state.grappleCooldownMs <= 0 && !state.relicCarrier) {
     const event = tryAttachGrapple(state, input, map);
     if (event) events.push(event);
     else state.grappleCooldownMs = GRAPPLE.missCooldownMs;

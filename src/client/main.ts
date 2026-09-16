@@ -18,6 +18,7 @@ import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
 import { attachControlsHelp } from "./ui/controls.ts";
 import { installAudioMix } from "./audio/mixer.ts";
+import { isGameMode, type GameMode } from "../shared/sim/modes.ts";
 import { attachPadNavigation } from "./ui/padNav.ts";
 import { attachUiSounds } from "./audio/uiSounds.ts";
 import { isPartyCode, normalizePartyCode } from "../shared/party.ts";
@@ -43,6 +44,8 @@ declare global {
       showSwat?(message: import("../net/messages.ts").SwatMessage): void;
       audioState?(): { musicBus: number; layers: { pad: number; percussion: number; melody: number }; cues: number };
       showCue?(kind: "footstep" | "shot" | "boulder", x: number, z: number): void;
+      aimAtRelic?(): void;
+      relicState?(): { mode: string; home: boolean; carrier: string; carrying: boolean; relicDrawn: boolean; x: number; y: number; z: number };
       quiver?(): { slot: string; charges: number; tetherCooldownMs: number; tethers: number };
       aimAtGrapple?(minDistance?: number): void;
       stats?(): { drawCalls: number; triangles: number; renderScale: number };
@@ -80,7 +83,7 @@ else if (params.get("scene") === "online") {
   const requestedParty = normalizePartyCode(params.get("party") ?? "");
   const party = isPartyCode(requestedParty) ? requestedParty : undefined;
   if (party) loading.querySelector("p")!.textContent = `Joining party ${party}.`;
-  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined).then((session) => {
+  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm").then((session) => {
     loading.remove();
     attachPauseMenu(app, sampler, party);
     attachControlsHelp(app, renderer.canvas);
@@ -100,6 +103,8 @@ else if (params.get("scene") === "online") {
       showSwat: (message) => session.showSwat(message),
       audioState: () => session.audioState(),
       showCue: (kind, x, z) => session.showCue(kind, x, z),
+      relicState: () => session.relicState(),
+      aimAtRelic: () => session.aimAtRelic(),
       quiver: () => session.quiverState(),
       aimAtGrapple: (minDistance) => session.aimAtGrapple(minDistance),
       stats: () => renderer.stats(),

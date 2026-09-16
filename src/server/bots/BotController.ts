@@ -15,6 +15,7 @@ import {
   GRAPPLE_RANGE,
   BOT_GRAPPLE,
   BOT_SCATTER_M,
+  BOT_RELIC,
   BOT_STRAFE_BLOCKED_MPS,
   BOT_LONG_LINK_M,
   BOULDER_RADIUS,
@@ -86,6 +87,9 @@ function sightBlocked(bounds: Float64Array, ax: number, ay: number, az: number, 
   return false;
 }
 
+/** What a bot knows about the relic: where it is, who carries it and their team (-1 when nobody does). */
+export type RelicView = { x: number; y: number; z: number; carrier: string; carrierTeam: number };
+
 export class BotController {
   readonly id: string;
   mode: BotMode = "roam";
@@ -96,6 +100,9 @@ export class BotController {
   private readonly targetPose: MovingTarget = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
   private path: Waypoint[] = [];
   private pathIndex = 0;
+  private objective: { x: number; y: number; z: number } | null = null;
+  private objectiveX = Number.POSITIVE_INFINITY;
+  private objectiveZ = Number.POSITIVE_INFINITY;
   private readonly swingTarget = { x: 0, y: 0, z: 0 };
   private targetId = "";
   private sightedAtMs = 0;
@@ -118,8 +125,12 @@ export class BotController {
   private unstuckCount = 0;
   private strafeFlip = false;
 
+  /** Picks the Relic Run role. */
+  private readonly serial: number;
+
   constructor(id: string, seed: number, difficulty: BotDifficulty = "normal") {
     this.id = id;
+    this.serial = Math.abs(Math.floor(seed));
     this.rng = mulberry32(seed);
     this.setDifficulty(difficulty);
   }
@@ -131,11 +142,15 @@ export class BotController {
     this.errorRad = degrees * Math.PI / 180;
   }
 
-  update(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData, nowMs: number, clouds: Iterable<VisionSphere> = noClouds, hazards: Iterable<readonly [string, BoulderThreat]> = noHazards): PlayerInputFrame {
+  update(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>, map: MapData, nowMs: number, clouds: Iterable<VisionSphere> = noClouds, hazards: Iterable<readonly [string, BoulderThreat]> = noHazards, relic?: RelicView): PlayerInputFrame {
+    this.objective = relic ? this.relicObjective(player, relic, map) : null;
     if (!Number.isFinite(this.lastX) || Math.hypot(player.x - this.lastX, player.z - this.lastZ) > BOT_STUCK_MOVE_M) { this.lastX = player.x; this.lastZ = player.z; this.movedAtMs = nowMs; }
-    const target = this.closestVisibleEnemy(player, players, map, clouds);
-    if (player.hp < BOT_RETREAT_HP) this.mode = "retreat";
-    else if (target) this.mode = "engage";
+    const seen = this.closestVisibleEnemy(player, players, map, clouds);
+    // With an objective to play, only close enemies are worth a fight.
+    const target = seen && this.objective && Math.hypot(seen[1].x - player.x, seen[1].z - player.z) > BOT_RELIC.engageM ? undefined : seen;
+    const carrying = relic?.carrier === this.id;
+    if (player.hp < BOT_RETREAT_HP && !carrying) this.mode = "retreat";
+    else if (target && !carrying) this.mode = "engage";
     else this.mode = "roam";
     if (this.mode === "engage" && target) this.engage(player, target[1], target[0], nowMs);
     else this.navigate(player, target?.[1], map, nowMs);
@@ -258,7 +273,28 @@ export class BotController {
     this.input.buttons |= BTN.JUMP;
   }
 
+  /**
+   * Relic Run roles by bot number: runners always play the relic, escorts follow a carrying teammate,
+   * chasers hunt an enemy carrier. A carrier heads home. Returns the point to head for, or null to roam.
+   */
+  private relicObjective(player: PlayerSim, relic: RelicView, map: MapData): { x: number; y: number; z: number } | null {
+    if (relic.carrier === this.id) {
+      const camp = player.team === 0 ? map.camps?.sun : map.camps?.moon;
+      return camp ? { x: (camp.min[0] + camp.max[0]) / 2, y: camp.min[1] + 1.5, z: (camp.min[2] + camp.max[2]) / 2 } : null;
+    }
+    const role = this.serial % BOT_RELIC.roles;
+    const point = { x: relic.x, y: relic.carrier ? relic.y - 2.1 : relic.y, z: relic.z };
+    if (!relic.carrier) return role === 0 || role === 1 ? point : null;
+    if (relic.carrierTeam === player.team) return role === 1 ? point : null;
+    return role === 0 || role === 2 ? point : null;
+  }
+
   private navigate(player: PlayerSim, target: PlayerSim | undefined, map: MapData, nowMs: number): void {
+    const objective = this.objective;
+    if (objective && this.mode === "roam") {
+      if (Math.hypot(objective.x - this.objectiveX, objective.z - this.objectiveZ) > BOT_RELIC.replanM) { this.path = []; this.pathIndex = 0; }
+      this.objectiveX = objective.x; this.objectiveZ = objective.z;
+    }
     if (this.path.length === 0 || this.pathIndex >= this.path.length - 1) {
       const start = nearestWaypoint(map, player.x, player.y, player.z, true);
       let goal: Waypoint;
@@ -267,7 +303,8 @@ export class BotController {
         for (const volume of map.volumes) if (volume.kind === "tallGrass" && (player.team === 0 ? volume.max[0] <= 0 : volume.min[0] >= 0)) { grassX = (volume.min[0] + volume.max[0]) / 2; grassY = volume.min[1]; grassZ = (volume.min[2] + volume.max[2]) / 2; foundGrass = true; break; }
         if (foundGrass) goal = nearestWaypoint(map, grassX, grassY, grassZ);
         else { const spawn = player.team === 0 ? map.spawns.sun[0]! : map.spawns.moon[0]!; goal = nearestWaypoint(map, ...spawn.pos); }
-      } else if (target) goal = nearestWaypoint(map, target.x, target.y, target.z);
+      } else if (objective) goal = nearestWaypoint(map, objective.x, objective.y, objective.z);
+      else if (target) goal = nearestWaypoint(map, target.x, target.y, target.z);
       else {
         this.routeSerial += 1;
         if (this.routeSerial % BOT_SCENIC_ROUTE_EVERY === 0) goal = map.waypoints[Math.floor(this.rng() * map.waypoints.length)]!;
@@ -279,6 +316,9 @@ export class BotController {
       this.path = findPath(map, start.id, goal.id); this.pathIndex = 0;
     }
     this.pathIndex = followPath(player, this.path, this.pathIndex, this.rng, this.input);
+    if (objective && this.mode === "roam" && Math.abs(objective.y - player.y) < BOT_RELIC.directRiseM && Math.hypot(objective.x - player.x, objective.z - player.z) < BOT_RELIC.directM) {
+      this.input.yaw = Math.atan2(-(objective.x - player.x), -(objective.z - player.z)); this.input.moveX = 0; this.input.moveZ = 1;
+    }
     this.watchProgress(player, nowMs);
     if (player.grappleActive) this.swing(player);
     else if (player.grappleCooldownMs <= 0) this.useGrappleShortcut(player, map);

@@ -7,9 +7,14 @@ import { TdmRoom } from "./rooms/TdmRoom.ts";
 
 export const server = defineServer({
   transport: new WebSocketTransport(),
-  // Matchmaking only filters on options a joiner sends, so parties get their own room name:
-  // a public join can never land in a party room.
-  rooms: { tdm: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom"]), party: defineRoom(TdmRoom).filterBy(["party"]) },
+  // Matchmaking only filters on options a joiner sends, so parties and each public mode get their own room name:
+  // a join can never land in a party room or a room of another mode. A party picks its mode when it is created.
+  rooms: {
+    tdm: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom"]),
+    ffa: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom"]),
+    relic: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom"]),
+    party: defineRoom(TdmRoom).filterBy(["party"]),
+  },
   express: (app) => {
     if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
     app.get("/health", (_req, res) => {

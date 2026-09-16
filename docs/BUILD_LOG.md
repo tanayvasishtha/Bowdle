@@ -1,5 +1,24 @@
 # Build log
 
+## G8: Free for All and Relic Run
+
+Status: done.
+
+Built:
+
+- `MatchState.mode` and per-mode rules in `src/shared/sim/modes.ts`: scoring, spawns, time and score limits, the winner. Public modes are separate room names (`tdm`, `ffa`, `relic`) instead of a `mode` filter: matchmaking only filters on options a joiner sends, so a join without a mode landed in a Free for All room. A party takes the mode its leader picks.
+- Free for All: 8 players with bots, a team number each (so every existing enemy check means "anyone else"), farthest-point spawns, first to 20 kills or 7 minutes, the top player wins. Neutral outfits and first-person sleeve, colored name rings, a kills scoreboard and a YOU / BEST score.
+- Relic Run: relic state in the schema, pickup by touch, carrier limits in the shared simulation (85 % speed, no grapple, vine hop or tether shot), drop on death, return after 15 s, on a defender's touch in their own half, or out of the world, and captures in camp zones; first to 3 captures or 8 minutes. `relic` and `camps` map data on all three launch maps, checked by a test. The relic draws as a spinning gold stone with a halo over its carrier, a marker shows it on screen, and banners announce each event.
+- Menu entries for Free for All and Relic Run (the secondary buttons now sit in two columns so the menu fits one screen), a mode picker in the party panel, and `mode` in the online address.
+- Bots: Free for All targeting works through the team numbers. Relic Run roles (runner, escort, chaser); a carrier heads for its camp even with enemies in view (it used to path toward them), bots with an objective only fight within 14 m (long standoffs had stalled matches), and they walk straight at the relic only when it is at their height.
+- Relic Runner medal, `relicCaptures` stat and the daily "Capture a relic".
+- Challenge selection ranks each challenge by a draw seeded from the period and its id, so adding a challenge only changes the periods where it ranks among the picks. The G4 pool change had reshuffled every day; the server tests pinned to a date now use 2033-10-22, which picks the same challenges as the original 2026-09-16.
+- `npm run soak` runs every mode on every map.
+
+Verified: `npm run check` (299 tests, new `modes.test.ts` unit tests for the rules, relic touches, ground timer, map data and carrier limits, and server tests for a Free for All win at 20 kills, a relic capture, a drop, the timed return and a defender return), full Playwright suite (50 tests) with the new `modes.spec.ts` (screenshots in `test-results/qa/g8/`), `npm run soak` (27 matches pass; Free for All ends at 20 kills in about 3 minutes), `npm run smoke`, `npm run build:portals`. Break it: letting the carrier grapple fails the carrier rules test.
+
+Left: Relic Run bots rarely capture on Canopy Village (0 to 1 captures in 8 minutes) and only sometimes on Sun Temple; the G14 balance pass should look at their routes to the decks. The gamepad menu test now holds each press until focus moves, since a short tap could be missed by a slow frame.
+
 ## G7: Gamepad, input options, accessibility
 
 Status: done.

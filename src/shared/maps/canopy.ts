@@ -111,4 +111,4 @@ const dressing = jungleDressing({
 props.push(...dressing.props);
 boxes.push(...dressing.patches);
 
-export const canopyMap: MapData = { id: "canopy", name: "Canopy Village", bounds: { min: [-36,-2,-26], max: [36,17,26] }, boxes, ramps, volumes, zipLines, boulders: [], props, spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "high ground", pos: [0,10,4] }, { text: "zip line", pos: [-7,9,8] }], look: { sunShafts: true, stainSeed: 5501 }, landmark: [0, 15, 0] };
+export const canopyMap: MapData = { relic: [0, 4.8, 5], camps: { sun: { min: [-34, -1.5, -9], max: [-25, 4, 9] }, moon: { min: [25, -1.5, -9], max: [34, 4, 9] } }, id: "canopy", name: "Canopy Village", bounds: { min: [-36,-2,-26], max: [36,17,26] }, boxes, ramps, volumes, zipLines, boulders: [], props, spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "high ground", pos: [0,10,4] }, { text: "zip line", pos: [-7,9,8] }], look: { sunShafts: true, stainSeed: 5501 }, landmark: [0, 15, 0] };

@@ -83,6 +83,7 @@ Computed by a pure function `medalsFor(stats, roomBestKills)` in `src/shared/med
 | `untouchable` | Untouchable | `won`, `deaths` = 0, `kills` >= 3 |
 | `snip` | Snip | `ropeCuts` >= 1 (v2) |
 | `swatter` | Swatter | `swats` >= 1 (v2) |
+| `relicRunner` | Relic Runner | `relicCaptures` >= 1 (v2) |
 
 ## Challenges
 
@@ -92,7 +93,7 @@ Computed by a pure function `medalsFor(stats, roomBestKills)` in `src/shared/med
 
 - 3 daily challenges, reset at 00:00 UTC. Period key `d:YYYY-MM-DD`.
 - 3 weekly challenges, reset Monday 00:00 UTC. Period key `w:YYYY-Www` (ISO week).
-- Selection is the same for every player: `mulberry32` seeded with the day number (days since 1970-01-01 UTC) or the ISO week number times 100 plus the year, picking distinct entries from the pool.
+- Selection is the same for every player: each challenge in the pool gets a draw from `mulberry32` seeded with the period seed (the day number since 1970-01-01 UTC, or the ISO week number times 100 plus the year) mixed with a hash of its id, and the lowest draws are picked. Adding a challenge to a pool only changes the periods where the new one ranks among the picks (v2; before, a full shuffle reshuffled every period).
 - One free daily reroll per account per UTC day. It replaces one unfinished daily with an unused pool entry at 0 progress. Weekly challenges cannot be rerolled.
 - A challenge completes the moment progress reaches the target. Its reward is granted at once, in the same transaction as the match that finished it. No claim button.
 
@@ -119,6 +120,7 @@ With 3 dailies, a player who finishes them earns 90 Ink a day on top of match In
 | `d.zip` | Get a kill from a zip line | zipKills | 1 |
 | `d.streak` | Get 3 kills without being tagged | streaks3 | 1 |
 | `d.scatter` | Get 3 kills with Scatter arrows | scatterKills | 3 |
+| `d.relic` | Capture a relic | relicCaptures | 1 |
 
 ### Weekly pool
 

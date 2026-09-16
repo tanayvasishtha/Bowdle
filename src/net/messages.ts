@@ -9,7 +9,9 @@ export const RobinHoodMessage = z.object({ shooterA: z.string(), shooterB: z.str
 /** tether is set when the cut rope was a tether line, and names it. */
 export const RopeCutMessage = z.object({ cutter: z.string(), owner: z.string(), x: z.number(), y: z.number(), z: z.number(), tether: z.string().optional() });
 export const SwatMessage = z.object({ swatter: z.string(), shooter: z.string(), x: z.number(), y: z.number(), z: z.number() });
-export const MatchEndMessage = z.object({ winner: z.enum(["sun", "moon", "draw"]), mvp: z.string() });
+/** In Free for All the winner is "player" and mvp names them. */
+export const MatchEndMessage = z.object({ winner: z.enum(["sun", "moon", "draw", "player"]), mvp: z.string() });
+export const RelicMessage = z.object({ event: z.enum(["pickup", "drop", "return", "capture"]), player: z.string(), team: z.number().int() });
 export const MapVoteMessage = z.object({ mapId: z.enum(["sun-temple", "canopy", "lost-river"]) });
 
 export type SetNameMessage = z.infer<typeof SetNameMessage>;
@@ -20,9 +22,10 @@ export type RobinHoodMessage = z.infer<typeof RobinHoodMessage>;
 export type RopeCutMessage = z.infer<typeof RopeCutMessage>;
 export type SwatMessage = z.infer<typeof SwatMessage>;
 export type MatchEndMessage = z.infer<typeof MatchEndMessage>;
+export type RelicMessage = z.infer<typeof RelicMessage>;
 export type MapVoteMessage = z.infer<typeof MapVoteMessage>;
 
-export const MatchStatsMessage = z.object({ stats: z.object({ kills: z.number(), deaths: z.number(), assists: z.number(), headshots: z.number(), longShots: z.number(), longestShotM: z.number(), daggerKills: z.number(), boulderKills: z.number(), zipKills: z.number(), robinHoods: z.number(), ropeCuts: z.number().default(0), swats: z.number().default(0), scatterKills: z.number().default(0), tetherRides: z.number().default(0), streak: z.number(), bestStreak: z.number(), won: z.boolean() }), medals: z.array(z.enum(["mvp", "unstoppable", "onARoll", "headhunter", "eagleEye", "robinHood", "upClose", "trapper", "zipline", "teamPlayer", "untouchable", "snip", "swatter"])) });
+export const MatchStatsMessage = z.object({ stats: z.object({ kills: z.number(), deaths: z.number(), assists: z.number(), headshots: z.number(), longShots: z.number(), longestShotM: z.number(), daggerKills: z.number(), boulderKills: z.number(), zipKills: z.number(), robinHoods: z.number(), ropeCuts: z.number().default(0), swats: z.number().default(0), scatterKills: z.number().default(0), tetherRides: z.number().default(0), relicCaptures: z.number().default(0), streak: z.number(), bestStreak: z.number(), won: z.boolean() }), medals: z.array(z.enum(["mvp", "unstoppable", "onARoll", "headhunter", "eagleEye", "robinHood", "upClose", "trapper", "zipline", "teamPlayer", "untouchable", "snip", "swatter", "relicRunner"])) });
 export type MatchStatsMessage = z.infer<typeof MatchStatsMessage>;
 
 export const RewardMessage = z.object({

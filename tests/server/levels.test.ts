@@ -8,7 +8,7 @@ import { createMatchStats } from "../../src/shared/matchStats.ts";
 
 describe("level rewards and career", () => {
   let db: GameDatabase;
-  beforeAll(async () => { db = await GameDatabase.open({ now: () => new Date("2026-05-23") }); });
+  beforeAll(async () => { db = await GameDatabase.open({ now: () => new Date("2033-10-22") }); });
   afterAll(async () => { await db.close(); });
   it("grants every level crossed from 1 to 11 once including all six Ink rewards", async () => {
     const { profile } = await db.createGuest("Explorer");

@@ -10,7 +10,8 @@ import { bowSkin, outfit as outfitById, type BowSkin, type Outfit } from "../../
 import { createMotion, createPose, poseInto, type ArmPose, type CharacterMotion, type LegPose, type Pose } from "./pose.ts";
 
 /** Sun and Moon crews share one silhouette and hitbox; only color and gear differ. */
-export type CharacterKind = "sun" | "moon" | "dummy";
+/** neutral is the Free for All outfit: explorer gear without a team color. */
+export type CharacterKind = "sun" | "moon" | "neutral" | "dummy";
 /** Cosmetic ids from the shared catalog. Unknown ids fall back to the defaults. */
 export type CharacterLook = { bow?: string; outfit?: string };
 
@@ -30,6 +31,7 @@ type MaterialKey = keyof typeof MATERIAL_ID;
 const SLOT_MATERIALS: Record<CharacterKind, Record<Slot, MaterialKey>> = {
   sun: { skin: "canvas", shirt: "teamSun", trousers: "earth", leather: "wood", rope: "rope", trim: "gold", hat: "stone", bow: "wood" },
   moon: { skin: "canvas", shirt: "teamMoon", trousers: "earth", leather: "wood", rope: "rope", trim: "gold", hat: "teamMoon", bow: "wood" },
+  neutral: { skin: "canvas", shirt: "canvas", trousers: "earth", leather: "wood", rope: "rope", trim: "gold", hat: "stone", bow: "wood" },
   dummy: { skin: "rope", shirt: "canvas", trousers: "rope", leather: "wood", rope: "rope", trim: "wood", hat: "canvas", bow: "wood" },
 };
 
@@ -153,7 +155,7 @@ function bodyParts(): Part[] {
 function gearParts(kind: CharacterKind, look: Outfit): Part[] {
   const r = C.headRadius;
   if (kind !== "dummy" && look.headgear !== "crew") return [...headgearParts(look), ...accessoryParts(look)];
-  if (kind === "sun") {
+  if (kind === "sun" || kind === "neutral") {
     return [
       { geometry: dome(0.215, 0, r + 0.05, 0), slot: "hat", bone: "head" },
       { geometry: cylinder(0.31, 0.31, 0.022, 0, r + 0.06, 0), slot: "hat", bone: "head" },

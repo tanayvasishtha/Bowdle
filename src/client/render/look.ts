@@ -60,4 +60,8 @@ export const AUDIO_MIX = {
   defaultMusic: 0.5, defaultEffects: 1, defaultAmbience: 1,
 } as const;
 
+/** Relic Run: the relic's size and spin, and the gold halo around its carrier. Free for All name rings. */
+export const RELIC_LOOK = { size: 0.45, spinPerS: 1.6, bobM: 0.12, groundLiftM: 0.9, haloRadius: 0.55, haloTube: 0.05, haloHeight: 1.0 } as const;
+export const FFA_RING_COLORS = ["#d2531f", "#3346b8", "#e3b23c", "#3f8f8c", "#7a4b2a", "#c9463d", "#5e8c3a", "#8a5a12"] as const;
+
 export const HIT_FEEL = { damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;

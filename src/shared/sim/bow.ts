@@ -61,7 +61,7 @@ function releaseKind(state: PlayerSim): ArrowKind | null {
     return "scatter";
   }
   if (kind === "tether") {
-    if (state.drawMs < DRAW_FULL_MS || state.tetherCooldownMs > 0) return null;
+    if (state.drawMs < DRAW_FULL_MS || state.tetherCooldownMs > 0 || state.relicCarrier) return null;
     state.tetherCooldownMs = QUIVER.tether.cooldownMs;
     return "tether";
   }

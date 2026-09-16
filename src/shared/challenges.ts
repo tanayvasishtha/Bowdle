@@ -2,7 +2,7 @@ import { CHALLENGE_COUNT, CHALLENGE_REWARDS, DAILY_TARGETS as D, DAYS_PER_WEEK, 
 import { mulberry32 } from "./math/rng.ts";
 import type { MatchStats } from "./matchStats.ts";
 
-export type ChallengeStat = "kills" | "headshots" | "won" | "matches" | "longShots" | "daggerKills" | "assists" | "zipKills" | "streaks3" | "robinHoods" | "boulderKills" | "mapsWon" | "medals" | "scatterKills" | "tetherRides";
+export type ChallengeStat = "kills" | "headshots" | "won" | "matches" | "longShots" | "daggerKills" | "assists" | "zipKills" | "streaks3" | "robinHoods" | "boulderKills" | "mapsWon" | "medals" | "scatterKills" | "tetherRides" | "relicCaptures";
 export type Challenge = { id: string; text: string; stat: ChallengeStat; target: number };
 export type ChallengeState = Omit<Challenge, "stat"> & { progress: number; done: boolean; reward: { ink: number; xp: number } };
 export type ChallengeChange = { id: string; text: string; before: number; after: number; target: number; done: boolean };
@@ -18,6 +18,7 @@ export const DAILY_POOL: readonly Challenge[] = [
   { id: "d.zip", text: "Get a kill from a zip line", stat: "zipKills", target: D.zip },
   { id: "d.streak", text: "Get 3 kills without being tagged", stat: "streaks3", target: D.streak },
   { id: "d.scatter", text: "Get 3 kills with Scatter arrows", stat: "scatterKills", target: D.scatter },
+  { id: "d.relic", text: "Capture a relic", stat: "relicCaptures", target: D.relic },
 ];
 export const WEEKLY_POOL: readonly Challenge[] = [
   { id: "w.kills", text: "Tag 80 explorers", stat: "kills", target: W.kills },
@@ -48,10 +49,21 @@ export function resetTimes(date: Date): { dailyResetAt: number; weeklyResetAt: n
   const { day, monday } = calendar(date);
   return { dailyResetAt: (day + 1) * UTC_DAY_MS, weeklyResetAt: (monday + DAYS_PER_WEEK) * UTC_DAY_MS };
 }
+/** A stable number per challenge id, mixed into the period seed. */
+function idHash(id: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index += 1) hash = Math.imul(hash ^ id.charCodeAt(index), 16777619);
+  return hash >>> 0;
+}
+
+/**
+ * Ranks every challenge by a draw seeded from the period and its own id, and takes the first few.
+ * Adding a challenge to a pool only changes the periods where the new one ranks among them.
+ */
 function picks(pool: readonly Challenge[], seed: number): Challenge[] {
-  const shuffled = [...pool]; const rng = mulberry32(seed);
-  for (let index = shuffled.length - 1; index > 0; index -= 1) { const other = Math.floor(rng() * (index + 1)); [shuffled[index], shuffled[other]] = [shuffled[other]!, shuffled[index]!]; }
-  return shuffled.slice(0, CHALLENGE_COUNT);
+  const ranked = pool.map((challenge) => ({ challenge, rank: mulberry32((seed ^ idHash(challenge.id)) >>> 0)() }));
+  ranked.sort((left, right) => left.rank - right.rank);
+  return ranked.slice(0, CHALLENGE_COUNT).map((entry) => entry.challenge);
 }
 export function dailyChallenges(date: Date): Challenge[] { return picks(DAILY_POOL, calendar(date).day); }
 export function weeklyChallenges(date: Date): Challenge[] { const { year, week } = calendar(date); return picks(WEEKLY_POOL, week * WEEK_SEED_MULTIPLIER + year); }

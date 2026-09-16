@@ -28,7 +28,12 @@ export type Decor =
   | { kind: "plane"; center: Vec3Tuple; orbitRadius: number; height: number; speed: number }
   | { kind: "spiral"; from: Vec3Tuple; to: Vec3Tuple; rings: number };
 
+export type ZoneBox = { min: Vec3Tuple; max: Vec3Tuple };
+
 export type MapData = {
+  /** Relic Run: where the relic rests, and each team's capture zone. */
+  relic?: Vec3Tuple;
+  camps?: { sun: ZoneBox; moon: ZoneBox };
   id: string;
   name: string;
   bounds: { min: Vec3Tuple; max: Vec3Tuple };

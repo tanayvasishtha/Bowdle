@@ -29,13 +29,15 @@ const button = (page: Page, index: number, down: boolean) => page.evaluate(([at,
 const focused = (page: Page) => page.evaluate(() => document.activeElement?.textContent ?? "");
 /** Presses and releases a pad button, holding it long enough for a slow frame to see it. */
 async function tap(page: Page, index: number): Promise<void> {
-  await button(page, index, true); await page.waitForTimeout(120); await button(page, index, false); await page.waitForTimeout(120);
+  await button(page, index, true); await page.waitForTimeout(250); await button(page, index, false); await page.waitForTimeout(250);
 }
-/** Taps D-pad down and waits for focus to move. */
+/** Holds D-pad down until focus moves, then releases long enough for the next press to count as new. */
 async function focusNext(page: Page): Promise<string> {
   const before = await focused(page);
-  await tap(page, 13);
+  await button(page, 13, true);
   await expect.poll(() => focused(page)).not.toBe(before);
+  await button(page, 13, false);
+  await page.waitForTimeout(300);
   return focused(page);
 }
 const hooks = (page: Page) => page.evaluate(() => {
@@ -80,7 +82,7 @@ test("menus and settings work with a gamepad", async ({ page }) => {
   await expect(page.locator(".bowdle-menu")).toBeVisible();
   const labels: string[] = [];
   for (let press = 0; press < 3; press += 1) labels.push(await focusNext(page));
-  expect(labels).toEqual(["Play", "Play with friends", "Practice"]);
+  expect(labels).toEqual(["Play", "Free for All", "Relic Run"]);
   // Walk down to Settings and open it with A.
   for (let press = 0; press < 12 && (await focused(page)) !== "Settings"; press += 1) await focusNext(page);
   await tap(page, 0);

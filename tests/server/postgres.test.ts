@@ -19,7 +19,7 @@ describe("GameDatabase over the Postgres wire protocol", () => {
     server = new PGLiteSocketServer({ db: pglite, port: PORT, host: "127.0.0.1" });
     await server.start();
     const sql = await openSql({ DATABASE_URL: `postgres://postgres:postgres@127.0.0.1:${PORT}/postgres` });
-    db = await GameDatabase.open({ sql, now: () => new Date("2026-05-23") });
+    db = await GameDatabase.open({ sql, now: () => new Date("2033-10-22") });
   });
 
   afterAll(async () => {

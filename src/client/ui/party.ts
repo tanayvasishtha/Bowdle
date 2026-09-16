@@ -1,3 +1,4 @@
+import { GAME_MODES, MODE_NAMES, type GameMode } from "../../shared/sim/modes.ts";
 import { PARTY_CODE_LENGTH } from "../../shared/constants.ts";
 import { mulberry32 } from "../../shared/math/rng.ts";
 import { createPartyCode, isPartyCode, normalizePartyCode } from "../../shared/party.ts";
@@ -14,7 +15,8 @@ function freshCode(): string {
 }
 
 /** "Play with friends": create a code to share, or type a friend's code. */
-export function showPartyPanel(container: HTMLElement, go: (code: string) => void): void {
+/** go gets the mode only for a new party; joiners play whatever mode the leader picked. */
+export function showPartyPanel(container: HTMLElement, go: (code: string, mode?: GameMode) => void): void {
   const code = freshCode();
   const links = portalPolicy().externalLinks;
   const panel = document.createElement("section");
@@ -23,6 +25,7 @@ export function showPartyPanel(container: HTMLElement, go: (code: string) => voi
     <p class="bowdle-small">Share this code. Everyone who enters it lands in the same match, on the same team.</p>
     <p class="bowdle-party-code" data-testid="party-code">${code}</p>
     ${links ? `<button data-action="copy">Copy invite link</button>` : ""}
+    <label>Mode <select data-field="mode">${GAME_MODES.map((mode) => `<option value="${mode}">${MODE_NAMES[mode]}</option>`).join("")}</select></label>
     <button data-action="start">Start party</button>
     <h3>Have a code?</h3>
     <input data-field="code" maxlength="${PARTY_CODE_LENGTH + 2}" autocomplete="off" spellcheck="false" placeholder="K7P2QX">
@@ -34,7 +37,7 @@ export function showPartyPanel(container: HTMLElement, go: (code: string) => voi
   panel.addEventListener("click", async (event) => {
     const action = (event.target as HTMLElement).closest("button")?.dataset.action;
     if (action === "close") panel.remove();
-    if (action === "start") go(code);
+    if (action === "start") go(code, panel.querySelector<HTMLSelectElement>("[data-field=mode]")!.value as GameMode);
     if (action === "copy") {
       try { await navigator.clipboard.writeText(partyLink(code)); error.textContent = "Invite link copied."; }
       catch { error.textContent = partyLink(code); }

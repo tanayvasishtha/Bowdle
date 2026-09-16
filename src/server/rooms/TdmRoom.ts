@@ -34,7 +34,7 @@ import type { MapData } from "../../shared/maps/types.ts";
 import { defaultMatchMap, mapById, matchMaps, nextMatchMap } from "../../shared/maps/registry.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState, TetherState } from "../../net/schema.ts";
-import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage } from "../../net/messages.ts";
+import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RelicMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage } from "../../net/messages.ts";
 import { gameDatabase, type MatchResultLine } from "../db/GameDatabase.ts";
 import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
 import { botDifficultyFor, type BotDifficulty, type HumanSkill } from "../../shared/bots/difficulty.ts";
@@ -44,24 +44,28 @@ import type { FireEvent } from "../../shared/sim/bow.ts";
 import { tetherLine } from "../../shared/sim/tether.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
-import { chooseSpawn, respawnPlayer, scoreKill, updateMatchPhase } from "../../shared/sim/match.ts";
+import { respawnPlayer, updateMatchPhase } from "../../shared/sim/match.ts";
+import { chooseSpawnFor, freeTeam, isGameMode, matchWinner, modeRules, scoreCapture, scoreKillFor } from "../../shared/sim/modes.ts";
+import { dropRelic, inCamp, relicExpired, relicTouch, resetRelic, touchesRelic } from "../../shared/sim/relic.ts";
 import { inSwatWindow, meleeHit, swatHits } from "../../shared/sim/melee.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { segmentDistance } from "../../shared/math/segments.ts";
-import { BotController } from "../bots/BotController.ts";
+import { BotController, type RelicView } from "../bots/BotController.ts";
 import { releaseGrapple, ropeSegment, spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
 import { nameError } from "../../shared/name.ts";
 import { fallCreditFor, isOutOfWorld } from "../../shared/sim/fall.ts";
 import { serverMetrics } from "../metrics.ts";
-import { createMatchStats, recordDeath, recordKill, recordRobinHood, recordRopeCut, recordSwat, recordTetherRide, type MatchStats } from "../../shared/matchStats.ts";
+import { createMatchStats, recordDeath, recordKill, recordRobinHood, recordRelicCapture, recordRopeCut, recordSwat, recordTetherRide, type MatchStats } from "../../shared/matchStats.ts";
 import { medalsFor } from "../../shared/medals.ts";
 import type { MatchStatsMessage } from "../../net/messages.ts";
 
 export const PARTY_ROOM = "party";
+/** The relic floats above its carrier's head. */
+const RELIC_CARRY_HEIGHT_M = 2.1;
 
-type JoinOptions = { name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
+type JoinOptions = { mode?: string; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
 type ArrowOrigin = { x: number; y: number; z: number };
@@ -123,6 +127,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   onCreate(options: JoinOptions): void {
     this.partyCode = isPartyCode(options.party) ? options.party : "";
+    // Public rooms are named after their mode; a party room takes the mode its leader picked.
+    const named = isGameMode(this.roomName) ? this.roomName : undefined;
+    this.state.mode = named ?? (this.roomName === PARTY_ROOM && isGameMode(options.mode) ? options.mode : "tdm");
+    this.maxClients = modeRules(this.state.mode).maxPlayers;
     this.botSeedBase = Number.isFinite(options.testBotSeed) ? options.testBotSeed! : 0;
     const selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
     this.fixedMap = selected !== undefined;
@@ -149,11 +157,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (const [sessionId, player] of this.state.players) if (!player.isBot) this.pending.set(sessionId, this.inputs.get(sessionId));
     if (this.state.phase !== "live") {
       for (const frames of this.pending.values()) for (const _frame of frames) { /* consume during warmup */ }
-      const changed = updateMatchPhase(this.state, nowMs);
+      const changed = updateMatchPhase(this.state, nowMs, modeRules(this.state.mode).timeLimitS);
       if (changed === "restart") this.resetPlayers();
       return;
     }
-    if (updateMatchPhase(this.state, nowMs) === "end") this.sendMatchEnd();
+    if (updateMatchPhase(this.state, nowMs, modeRules(this.state.mode).timeLimitS) === "end") this.sendMatchEnd();
     if (this.state.phase !== "live") return;
     for (const [sessionId, frames] of this.pending) {
       const player = this.state.players.get(sessionId);
@@ -168,10 +176,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
-      const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards);
+      const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards, this.relicView());
       const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips })); this.noteZipRide(id, beforeZip, player.zipId);
     }
     this.checkFalls();
+    this.stepRelic();
     this.updateHazards(nowMs, context.dt);
     this.stepArrows(context);
     for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
@@ -180,7 +189,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     if (expired) this.rebuildTetherZips();
     for (const player of this.state.players.values()) {
       if (player.alive) stepRegen(player, nowMs, context.dt);
-      else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values(), player));
+      else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player));
     }
     } finally { serverMetrics.tick(performance.now() - tickStarted); }
   }
@@ -374,18 +383,18 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
     if (victimStats) recordDeath(victimStats);
     this.broadcast("kill", { killer: attackerId, victim: targetId, weapon, headshot, distance });
-    if (scoreKill(this.state, attacker.team, this.simulationNowMs)) this.sendMatchEnd();
+    if (scoreKillFor(this.state, this.state.mode, attacker.team, attacker.kills, this.simulationNowMs)) this.sendMatchEnd();
   }
 
   private clientById(sessionId: string): GameClient | undefined { return this.clients.find((client) => client.sessionId === sessionId); }
   private deleteArrow(id: string): void { this.state.arrows.delete(id); this.arrowOrigins.delete(id); }
   private sendMatchEnd(): void {
-    const winner = this.state.scoreSun === this.state.scoreMoon ? "draw" : this.state.scoreSun > this.state.scoreMoon ? "sun" : "moon";
+    const winner = matchWinner(this.state.mode, this.state.scoreSun, this.state.scoreMoon);
     let mvp = "", kills = -1; for (const [id, player] of this.state.players) if (player.kills > kills) { kills = player.kills; mvp = id; }
     if (this.rewardedSerial === this.matchSerial) return;
     this.rewardedSerial = this.matchSerial;
     this.broadcast("matchEnd", { winner, mvp });
-    let humans = 0; for (const [id, player] of this.state.players) { const stats = this.humanStats.get(id); if (!stats || player.isBot) continue; humans += 1; stats.kills = player.kills; stats.deaths = player.deaths; stats.assists = player.assists; stats.won = winner !== "draw" && player.team === (winner === "sun" ? 0 : 1); this.clientById(id)?.send("matchStats", { stats: { ...stats }, medals: medalsFor(stats, kills) }); }
+    let humans = 0; for (const [id, player] of this.state.players) { const stats = this.humanStats.get(id); if (!stats || player.isBot) continue; humans += 1; stats.kills = player.kills; stats.deaths = player.deaths; stats.assists = player.assists; stats.won = winner === "player" ? id === mvp : winner !== "draw" && player.team === (winner === "sun" ? 0 : 1); this.clientById(id)?.send("matchStats", { stats: { ...stats }, medals: medalsFor(stats, kills) }); }
     console.log(JSON.stringify({ event: "matchFinished", mapId: this.map.id, humans, bots: this.state.players.size - humans, durationS: Math.max(0, (this.simulationNowMs - this.matchLiveAtMs) / 1000), scoreSun: this.state.scoreSun, scoreMoon: this.state.scoreMoon }));
     this.rewardsSettled = this.grantRewards(`${this.roomId}:${this.matchSerial}`, winner).catch((error: unknown) => {
       console.error(JSON.stringify({ event: "rewardError", roomId: this.roomId, message: error instanceof Error ? error.message : String(error) }));
@@ -393,14 +402,14 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   /** Signed-in players still in the room get XP and Ink once per match. Guests and bots get nothing stored. */
-  private async grantRewards(matchId: string, winner: "sun" | "moon" | "draw"): Promise<void> {
+  private async grantRewards(matchId: string, winner: "sun" | "moon" | "draw" | "player"): Promise<void> {
     const lines: MatchResultLine[] = [];
     const sessionsByAccount = new Map<string, string>();
     // Copy the scoreboard before any await: the next match resets it.
     const snapshot = [...this.accounts].flatMap(([sessionId, pending]) => {
       const player = this.state.players.get(sessionId);
       const stats = this.humanStats.get(sessionId); let bestKills = 0; for (const other of this.state.players.values()) bestKills = Math.max(bestKills, other.kills);
-      return player && !player.isBot && stats ? [{ sessionId, pending, mapId: this.map.id, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, won: winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
+      return player && !player.isBot && stats ? [{ sessionId, pending, mapId: this.map.id, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, won: winner === "player" ? stats.won : winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
     });
     for (const entry of snapshot) {
       const accountId = await entry.pending;
@@ -422,10 +431,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.matchSerial += 1;
     this.matchLiveAtMs = this.simulationNowMs + WARMUP_MS;
     for (const id of this.humanStats.keys()) this.humanStats.set(id, createMatchStats());
+    resetRelic(this.state.relic, this.map);
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.state.tethers.clear(); this.tetherZips = []; this.arrowOrigins.clear(); this.damage.clear();
     if (!this.fixedMap) this.loadMap(this.votedMap(), this.simulationNowMs);
     else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
-    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; respawnPlayer(player, chooseSpawn(this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; }
+    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; player.relicCarrier = false; respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; }
     this.mapVotes.clear();
   }
 
@@ -443,6 +453,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private loadMap(map: MapData, nowMs: number): void {
     this.map = map;
     this.state.mapId = map.id;
+    resetRelic(this.state.relic, map);
+    for (const player of this.state.players.values()) player.relicCarrier = false;
     this.state.hazards.clear();
     for (const boulder of map.boulders) {
       const hazard = new BoulderHazardState(); resetBoulderHazard(hazard, nowMs);
@@ -505,8 +517,59 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
 
+  /** What bots know about the relic in Relic Run. */
+  private relicView(): RelicView | undefined {
+    if (this.state.mode !== "relic") return undefined;
+    const relic = this.state.relic;
+    return { x: relic.x, y: relic.y, z: relic.z, carrier: relic.carrier, carrierTeam: this.state.players.get(relic.carrier)?.team ?? -1 };
+  }
+
+  private relicEvent(event: RelicMessage["event"], player: string, team: number): void {
+    this.broadcast("relic", { event, player, team });
+  }
+
+  /** Relic Run each tick: the carrier carries it home, the ground timer runs out, and touches pick it up or send it back. */
+  private stepRelic(): void {
+    if (this.state.mode !== "relic" || this.state.phase !== "live") return;
+    const relic = this.state.relic;
+    if (relic.carrier) {
+      const carrier = this.state.players.get(relic.carrier);
+      if (!carrier || !carrier.alive) { this.dropCarried(relic.carrier, carrier); return; }
+      relic.x = carrier.x; relic.y = carrier.y + RELIC_CARRY_HEIGHT_M; relic.z = carrier.z;
+      if (!inCamp(this.map, carrier.team, carrier.x, carrier.y, carrier.z)) return;
+      const id = relic.carrier;
+      carrier.relicCarrier = false;
+      resetRelic(relic, this.map);
+      const stats = this.humanStats.get(id); if (stats) recordRelicCapture(stats);
+      this.relicEvent("capture", id, carrier.team);
+      if (scoreCapture(this.state, carrier.team, this.simulationNowMs)) this.sendMatchEnd();
+      return;
+    }
+    if (relicExpired(relic, this.simulationNowMs)) { resetRelic(relic, this.map); this.relicEvent("return", "", -1); return; }
+    for (const [id, player] of this.state.players) {
+      if (!player.alive || !touchesRelic(relic, player.x, player.y, player.z)) continue;
+      const action = relicTouch(relic, player.team, player.x);
+      if (action === "return") { resetRelic(relic, this.map); this.relicEvent("return", id, player.team); return; }
+      if (action !== "pickup") continue;
+      relic.carrier = id; relic.home = false; player.relicCarrier = true;
+      releaseGrapple(player, false);
+      this.relicEvent("pickup", id, player.team);
+      return;
+    }
+  }
+
+  /** A carrier that died or left drops the relic where they were; a relic that fell out of the world goes home. */
+  private dropCarried(id: string, carrier: PlayerState | undefined): void {
+    const relic = this.state.relic;
+    if (carrier) carrier.relicCarrier = false;
+    const x = carrier?.x ?? relic.x, y = carrier?.y ?? relic.y - RELIC_CARRY_HEIGHT_M, z = carrier?.z ?? relic.z;
+    if (isOutOfWorld(this.map, y) || y < this.map.bounds.min[1]) { resetRelic(relic, this.map); this.relicEvent("return", id, carrier?.team ?? -1); return; }
+    dropRelic(relic, x, y, z, carrier?.team ?? -1, this.simulationNowMs);
+    this.relicEvent("drop", id, carrier?.team ?? -1);
+  }
+
   private addBot(team: number, source?: PlayerState): void {
-    const id = `bot-${this.botSerial += 1}`; const spawn = chooseSpawn(this.map, team, this.state.players.values());
+    const id = `bot-${this.botSerial += 1}`; const spawn = chooseSpawnFor(this.state.mode, this.map, team, this.state.players.values());
     const player = source ?? new PlayerState(); player.name = `Doodle ${this.botSerial}`; player.team = team; player.isBot = true;
     if (!source) respawnPlayer(player, spawn);
     else { player.bowSkin = DEFAULT_LOADOUT.bow; player.arrowTrail = DEFAULT_LOADOUT.trail; player.outfit = DEFAULT_LOADOUT.outfit; player.killEffect = DEFAULT_LOADOUT.effect; }
@@ -514,6 +577,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   private fillBots(): void {
+    const rules = modeRules(this.state.mode);
+    if (!rules.teams) {
+      while (this.state.players.size < rules.maxPlayers) this.addBot(freeTeam([...this.state.players.values()].map((player) => player.team)));
+      return;
+    }
     for (let team = 0; team < TEAM_COUNT; team += 1) {
       let count = 0; for (const player of this.state.players.values()) if (player.team === team) count += 1;
       while (count < TEAM_SIZE) { this.addBot(team); count += 1; }
@@ -582,14 +650,20 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     let moon = 0;
     for (const player of this.state.players.values()) if (!player.isBot) player.team === 0 ? sun += 1 : moon += 1;
     let team = sun <= moon ? 0 : 1;
+    const teams = modeRules(this.state.mode).teams;
+    // Free for All: take over a bot's team number, or the lowest free one.
+    if (!teams) {
+      const bot = [...this.state.players.values()].find((player) => player.isBot);
+      team = bot ? bot.team : freeTeam([...this.state.players.values()].map((player) => player.team));
+    }
     // Friends in a party share a team while it has room for another human.
-    if (this.partyCode) {
+    else if (this.partyCode) {
       const first = [...this.state.players.values()].find((player) => !player.isBot);
       if (first) team = (first.team === 0 ? sun : moon) < TEAM_SIZE ? first.team : 1 - first.team;
     }
     const replaced = [...this.state.players].find(([, player]) => player.isBot && player.team === team);
     if (replaced) { this.state.players.delete(replaced[0]); this.bots.delete(replaced[0]); }
-    const spawn = team === 0 ? this.map.spawns.sun[sun % this.map.spawns.sun.length]! : this.map.spawns.moon[moon % this.map.spawns.moon.length]!;
+    const spawn = !teams ? chooseSpawnFor(this.state.mode, this.map, team, this.state.players.values()) : team === 0 ? this.map.spawns.sun[sun % this.map.spawns.sun.length]! : this.map.spawns.moon[moon % this.map.spawns.moon.length]!;
     const player = new PlayerState();
     const requestedName = options?.name?.trim().slice(0, MAX_NAME_LENGTH) || "Player";
     player.name = nameError(requestedName) ? "Player" : requestedName;
@@ -612,7 +686,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       this.skillsLoaded = this.skillsLoaded.then(() => this.loadSkill(sessionId, account));
     }
     this.reportPlayers();
-    if (this.testMode && sun + moon + 1 >= TEAM_COUNT) this.lock();
+    if (this.testMode && teams && sun + moon + 1 >= TEAM_COUNT) this.lock();
   }
 
   async onDrop(client: GameClient): Promise<void> {

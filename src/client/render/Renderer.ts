@@ -9,6 +9,7 @@ import {
   LineBasicMaterial,
   Matrix4,
   Mesh,
+  OctahedronGeometry,
   PerspectiveCamera,
   QuadraticBezierCurve3,
   Scene,
@@ -27,7 +28,7 @@ import { defaultMatchMap } from "../../shared/maps/registry.ts";
 import { BODY_RADIUS, BOULDER_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
 import { mulberry32 } from "../../shared/math/rng.ts";
 import { ArrowTrailMesh, KillBurst, RopeMesh } from "./effects.ts";
-import { ROPE_LOOK } from "./look.ts";
+import { FFA_RING_COLORS, RELIC_LOOK, ROPE_LOOK } from "./look.ts";
 import { killEffect } from "../../shared/cosmetics.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
@@ -181,6 +182,9 @@ export class Renderer {
   private readonly bursts: KillBurst[] = [];
   private readonly snaps: Array<{ rope: RopeMesh; base: Float32Array; cut: number; startMs: number }> = [];
   private readonly playerSymbols = new Map<string, { element: HTMLDivElement; team: number }>();
+  private freeForAll = false;
+  private relic: Mesh | null = null;
+  private relicHalo: Mesh | null = null;
   private readonly ropes = new Map<string, RopeMesh>();
   private readonly clouds = new Map<string, Group>();
   private readonly grappleHighlights: Mesh[] = [];
@@ -399,9 +403,47 @@ export class Renderer {
     return true;
   }
 
+  /** Free for All: neutral outfits, and a colored name ring over every player instead of team colors. */
+  setFreeForAll(on: boolean): void {
+    if (this.freeForAll === on) return;
+    this.freeForAll = on;
+    for (const [id, symbol] of this.playerSymbols) this.styleSymbol(id, symbol.element, symbol.team);
+  }
+
+  private styleSymbol(id: string, element: HTMLDivElement, team: number): void {
+    if (this.freeForAll) {
+      element.textContent = "◯";
+      element.style.color = FFA_RING_COLORS[Math.floor(phaseFor(id) * 97) % FFA_RING_COLORS.length]!;
+    } else {
+      element.textContent = team === 0 ? "●" : "▲";
+      element.style.color = team === 0 ? "#d2531f" : "#3346b8";
+    }
+  }
+
+  /** The relic: a spinning gold stone at home, on the ground, or over its carrier, who gets a gold halo. */
+  setRelic(visible: boolean, x: number, y: number, z: number, carrier: string, timeMs: number): void {
+    if (!this.relic) {
+      const gold = new InkMaterial(MATERIAL_ID.gold);
+      this.relic = new Mesh(new OctahedronGeometry(RELIC_LOOK.size), gold);
+      this.relicHalo = new Mesh(new TorusGeometry(RELIC_LOOK.haloRadius, RELIC_LOOK.haloTube, 6, 20), gold);
+      this.relicHalo.rotation.x = Math.PI / 2;
+      this.worldScene.add(this.relic, this.relicHalo);
+    }
+    this.relic.visible = visible;
+    const holder = carrier ? this.players.get(carrier) : undefined;
+    this.relicHalo!.visible = visible && holder !== undefined && holder.visible;
+    if (!visible) return;
+    const seconds = timeMs / 1000;
+    this.relic.position.set(x, y + (carrier ? 0 : RELIC_LOOK.groundLiftM) + Math.sin(seconds * 2) * RELIC_LOOK.bobM, z);
+    this.relic.rotation.y = seconds * RELIC_LOOK.spinPerS;
+    if (holder) this.relicHalo!.position.set(holder.position.x, holder.position.y + RELIC_LOOK.haloHeight, holder.position.z);
+  }
+
+  relicVisible(): boolean { return this.relic?.visible ?? false; }
+
   setPlayerPosition(id: string, team: number, x: number, y: number, z: number, yaw: number, visible = true, look: CharacterLook = {}): void {
     let player = this.players.get(id);
-    const kind = team === 0 ? "sun" : "moon";
+    const kind = this.freeForAll ? "neutral" : team === 0 ? "sun" : "moon";
     if (player && player.lookKey !== characterLookKey(kind, look)) {
       const motion = player.motion;
       this.worldScene.remove(player);
@@ -415,6 +457,7 @@ export class Renderer {
       this.players.set(id, player);
       this.worldScene.add(player);
       const element = document.createElement("div"); element.className = "bowdle-team-symbol"; element.textContent = team === 0 ? "●" : "▲"; element.style.cssText = `position:absolute;display:${this.settings.colorblindSymbols ? "block" : "none"};color:${team === 0 ? "#d2531f" : "#47418c"};font:30px sans-serif;-webkit-text-stroke:2px #efe3c6;pointer-events:none;transform:translate(-50%,-50%)`;
+      this.styleSymbol(id, element, team);
       this.container.append(element); this.playerSymbols.set(id, { element, team });
     }
     player.position.set(x, y, z);
@@ -581,7 +624,7 @@ export class Renderer {
       note.world.set(note.x, note.y, note.z);
     }
     for (const [id, symbol] of this.playerSymbols) {
-      const player = this.players.get(id); if (!player || !this.settings.colorblindSymbols || !player.visible) { symbol.element.style.display = "none"; continue; }
+      const player = this.players.get(id); if (!player || !(this.settings.colorblindSymbols || this.freeForAll) || !player.visible) { symbol.element.style.display = "none"; continue; }
       symbolWorld.copy(player.position); symbolWorld.y += STAND_HEIGHT + 0.5; symbolWorld.project(this.camera); symbol.element.style.left = `${(symbolWorld.x * 0.5 + 0.5) * window.innerWidth}px`; symbol.element.style.top = `${(-symbolWorld.y * 0.5 + 0.5) * window.innerHeight}px`; symbol.element.style.display = symbolWorld.z < 1 ? "block" : "none";
     }
     this.renderer.info.reset();

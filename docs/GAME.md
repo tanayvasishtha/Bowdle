@@ -18,8 +18,15 @@ A fast team shooter drawn in blue ballpoint on notebook paper. Everyone has a bo
 |---|---|---|
 | Practice Camp | W6 | Offline. Targets and traversal stations, no timer |
 | Team Deathmatch | M4 | 4v4, bots fill empty slots, first team to 25 kills or most kills after 7 minutes |
-| Kill Confirmed | later | Not in v1 |
-| Capture the Flag | later | Not in v1 |
+| Free for All | G8 | 8 players, bots fill, every player on their own; first to 20 kills or most kills after 7 minutes |
+| Relic Run | G8 | 4v4, carry the relic from the map center to your camp; first to 3 captures or most after 8 minutes |
+| Kill Confirmed | later | Not planned |
+
+The menu lists Play (team deathmatch), Free for All and Relic Run. Each public mode is its own room name (`tdm`, `ffa`, `relic`), because matchmaking only filters on options a joiner sends; a party picks its mode when the leader starts it. `MatchState.mode` holds the mode and `src/shared/sim/modes.ts` holds the per-mode rules (scoring, spawns, end conditions).
+
+**Free for All:** each player gets a team number of their own, so every existing "other team" check (damage, arrows, ropes, tethers, swats) means "anyone else". Players wear a neutral outfit and a colored name ring, the first-person sleeve is neutral, the scoreboard is one list by kills, and the score reads YOU and BEST. Spawns pick the point farthest from every living player. The winner is the player with the most kills.
+
+**Relic Run:** the relic rests at `MapData.relic` (the altar top on Sun Temple, the low ring deck on Canopy Village, the river crossing on Lost River) and each team has a camp (`MapData.camps`) around its spawns. Touching the relic at home picks it up. The carrier runs at 85 % speed and cannot grapple, vine hop or shoot a tether; a gold halo marks them for everyone. Reaching their own camp scores a capture and sends the relic home. A dying carrier drops it; it goes home after 15 s on the ground, at once when a player of the other team than the dropper touches it in their own half, or when it falls out of the world. Anyone else touching it picks it up. Kills do not score. A marker shows the relic on screen. Bots split into runners (always play the relic), escorts (follow a carrying teammate) and chasers (hunt an enemy carrier); bots with a relic objective only fight enemies within 14 m.
 
 ## Teams and colors
 

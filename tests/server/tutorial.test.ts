@@ -10,7 +10,7 @@ import { createMatchStats } from "../../src/shared/matchStats.ts";
 describe("field course reward and funnel", () => {
   let db: GameDatabase; let http: Server; let base: string; let clock = 0;
   beforeAll(async () => {
-    db = await GameDatabase.open({ now: () => new Date("2026-05-23") });
+    db = await GameDatabase.open({ now: () => new Date("2033-10-22") });
     const app = express(); app.use("/api", apiRouter({ database: async () => db, now: () => clock }));
     http = await new Promise<Server>((resolve) => { const listening = app.listen(0, () => resolve(listening)); });
     base = `http://localhost:${(http.address() as AddressInfo).port}/api`;

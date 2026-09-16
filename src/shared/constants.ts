@@ -6,6 +6,10 @@ export const ONBOARDING = { courseInk: 100, courseCallsPerMinute: 5, tipInterval
   swatDrill: { everyMs: 2600, speed: 22, from: [0, 1.6, -18] as readonly [number, number, number], lifeMs: 3000, missM: 0.6 },
 } as const;
 export const FUNNEL_EVENTS = ["menuOpened", "tutorialDone", "firstMatch", "secondMatch"] as const;
+/** Free for All and Relic Run (v2). */
+export const MODE_TUNING = { ffaKillLimit: 20, ffaTimeLimitS: 420, ffaPlayers: 8, relicCaptureLimit: 3, relicTimeLimitS: 480 } as const;
+/** The relic: touch reach, how long it waits on the ground, and what carrying it costs. */
+export const RELIC = { touchM: 1.3, touchHeightM: 2.2, returnMs: 15_000, carrierSpeedMult: 0.85 } as const;
 export const MEDAL_LIMITS = { mvp: 5, unstoppable: 6, onARoll: 3, headhunter: 3, eagleEye: 45, teamPlayer: 4, untouchable: 3 } as const;
 export const XP_PER_LEVEL_STEP = 500;
 export const MAX_LEVEL = 100;
@@ -16,7 +20,7 @@ export const TIME_UNITS = { msPerSecond: 1000, secondsPerMinute: 60, secondsPerH
 export const DAYS_PER_WEEK = 7;
 export const ISO_THURSDAY = 4;
 export const WEEK_SEED_MULTIPLIER = 100;
-export const DAILY_TARGETS = { kills: 12, headshots: 4, wins: 2, matches: 3, longshots: 2, dagger: 2, assists: 5, zip: 1, streak: 1, scatter: 3 } as const;
+export const DAILY_TARGETS = { kills: 12, headshots: 4, wins: 2, matches: 3, longshots: 2, dagger: 2, assists: 5, zip: 1, streak: 1, scatter: 3, relic: 1 } as const;
 export const WEEKLY_TARGETS = { kills: 80, headshots: 25, wins: 10, longshots: 12, robin: 1, boulder: 1, maps: 3, medals: 15, tether: 10 } as const;
 export const CHALLENGE_REWARDS = { daily: { ink: 30, xp: 150 }, weekly: { ink: 120, xp: 600 } } as const;
 export const PLAY_STREAK = { inkPerDay: 5, capDays: 7, firstWinXp: 100, firstWinInk: 20 } as const;
@@ -210,6 +214,8 @@ export const BOT_VINE_HOP_REMAINING_M = 1.5;
 export const BOT_GRAPPLE = { reelMs: 900, launchMs: 1800, launchDistM: 4 } as const;
 /** Bots switch to scatter arrows inside this range while they have charges. */
 export const BOT_SCATTER_M = 12;
+/** Relic Run bots: a moved objective replans the route, and close to the relic they walk straight at it. */
+export const BOT_RELIC = { replanM: 4, directM: 3, directRiseM: 1.5, roles: 3, engageM: 14 } as const;
 /** Below this speed a strafing bot is against a wall, so it steps forward or back instead. */
 export const BOT_STRAFE_BLOCKED_MPS = 0.5;
 export const BOT_DODGE_CHANCE = 0.2;

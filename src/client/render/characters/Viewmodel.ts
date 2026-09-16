@@ -90,8 +90,9 @@ export class Viewmodel extends Group {
     this.setDrawFraction(0);
   }
 
+  /** A negative team is the neutral Free for All sleeve. */
   setTeam(team: number): void {
-    this.sleeveMaterial.uniforms.materialId!.value = team === 0 ? MATERIAL_ID.teamSun : MATERIAL_ID.teamMoon;
+    this.sleeveMaterial.uniforms.materialId!.value = team < 0 ? MATERIAL_ID.canvas : team === 0 ? MATERIAL_ID.teamSun : MATERIAL_ID.teamMoon;
   }
 
   /** Repaints the first-person bow and swaps its tip ornaments for the chosen skin. */

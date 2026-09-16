@@ -13,7 +13,7 @@ import { emptySnapshot, moveSignals, snapshotOf } from "./course.ts";
 import { TIP_TEXT, TipScheduler, countMatchStart, tipsActive, type TipId } from "./tips.ts";
 import { loadSettings } from "../settings.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
-import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
+import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RelicMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import { ropeSag, type Renderer } from "../render/Renderer.ts";
 import { MatchHud } from "../ui/hud.ts";
@@ -30,6 +30,7 @@ import { ReplayDirector } from "./ReplayDirector.ts";
 import { spawnAbilityProjectile, tryAttachGrapple } from "../../shared/sim/abilities.ts";
 import { drawFraction } from "../../shared/sim/bow.ts";
 import { KillFeedbackTracker } from "../../shared/killFeedback.ts";
+import { isGameMode, onlineSearch, type GameMode } from "../../shared/sim/modes.ts";
 import { isInWater } from "../../shared/sim/volumes.ts";
 import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
 import { createMotion } from "../render/characters/pose.ts";
@@ -83,7 +84,7 @@ export class OnlineSession {
     const policy = portalPolicy();
     this.hud = new MatchHud(renderer.canvas.parentElement!, (mapId) => this.room.send("mapVote", { mapId }), {
       playAgain: () => this.playAgain(),
-      newMatch: async () => { try { await this.room.leave(true); } finally { location.assign("/?scene=online"); } },
+      newMatch: async () => { try { await this.room.leave(true); } finally { location.assign(`/${onlineSearch(isGameMode(this.room.state.mode) ? this.room.state.mode : "tdm")}`); } },
       saveClip: this.clips ? () => this.saveClip() : undefined,
       shareUrl: policy.externalLinks ? (text) => shareOnXUrl(text) : undefined,
     });
@@ -126,6 +127,7 @@ export class OnlineSession {
     callbacks.onRemove("inkClouds", (_cloud, id) => this.renderer.removeInkCloud(id));
     callbacks.onAdd("tethers", () => this.rebuildTetherZips());
     callbacks.onRemove("tethers", (_tether, id) => { this.rebuildTetherZips(); this.renderer.removeRope(id); });
+    room.onMessage<RelicMessage>("relic", (payload) => { const parsed = RelicMessage.safeParse(payload); if (parsed.success) this.onRelic(parsed.data); });
     room.onMessage<SwatMessage>("swat", (payload) => { const parsed = SwatMessage.safeParse(payload); if (parsed.success) this.onSwat(parsed.data); });
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.onHitConfirm(parsed.data); });
@@ -137,11 +139,11 @@ export class OnlineSession {
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
-  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string): Promise<OnlineSession> {
+  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm"): Promise<OnlineSession> {
     const endpoint = import.meta.env.VITE_SERVER_URL || location.origin;
     const room = party
-      ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party }, MatchState)
-      : await new Client(endpoint).joinOrCreate<MatchState>("tdm", { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}) }, MatchState);
+      ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party, mode }, MatchState)
+      : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}) }, MatchState);
     if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {
@@ -234,10 +236,11 @@ export class OnlineSession {
     }
     this.renderArrows(timeMs, capture);
     this.hearHazards();
+    this.showObjective(timeMs);
     const camera = this.renderer.camera.position;
     this.sounds.setListener(camera.x, camera.y, camera.z, this.me.state.yaw);
     music().setIntensity(musicIntensity("match", this.enemyInView, performance.now() - this.lastDamageAtMs));
-    this.renderer.setLocalTeam(this.me.state.team);
+    this.renderer.setLocalTeam(this.room.state.mode === "ffa" ? -1 : this.me.state.team);
     this.renderer.setLocalBowSkin(this.me.state.bowSkin);
     this.renderer.setLocalArrowKind(ARROW_SLOTS[this.me.state.arrowSlot] ?? "arrow");
     this.quiver.update(this.me.state);
@@ -352,6 +355,15 @@ export class OnlineSession {
     return true;
   }
 
+  private showObjective(timeMs: number): void {
+    const state = this.room.state, relic = state.relic;
+    this.renderer.setFreeForAll(state.mode === "ffa");
+    const relicMode = state.mode === "relic";
+    this.renderer.setRelic(relicMode, relic.x, relic.y, relic.z, relic.carrier, timeMs);
+    const point = relicMode && relic.carrier !== this.sessionId ? this.renderer.screenPoint(relic.x, relic.y + (relic.carrier ? 0.6 : 1.8), relic.z) : undefined;
+    this.hud.objective(point ?? null);
+  }
+
   private hearHazards(): void {
     for (const [id, hazard] of this.room.state.hazards) {
       const before = this.hazardPhases.get(id);
@@ -400,6 +412,22 @@ export class OnlineSession {
   private rebuildTetherZips(): void {
     this.tetherZips = [];
     for (const [id, tether] of this.room.state.tethers) this.tetherZips.push({ id, from: [tether.fromX, tether.fromY, tether.fromZ], to: [tether.toX, tether.toY, tether.toZ] });
+  }
+
+  private onRelic(message: RelicMessage): void {
+    const mine = message.player === this.sessionId, ours = message.team === this.me.state.team;
+    const text = message.event === "pickup" ? (mine ? "YOU HAVE THE RELIC" : ours ? "YOUR TEAM HAS THE RELIC" : "ENEMY HAS THE RELIC")
+      : message.event === "drop" ? "RELIC DROPPED"
+      : message.event === "return" ? "RELIC RETURNED"
+      : ours ? "RELIC CAPTURED!" : "RELIC LOST";
+    this.hud.banner(text);
+    this.sounds.play(message.event === "capture" ? "multikill" : "paper");
+  }
+
+  /** Test hook: the mode and the relic as this client sees them. */
+  relicState(): { mode: string; home: boolean; carrier: string; carrying: boolean; relicDrawn: boolean; x: number; y: number; z: number } {
+    const relic = this.room.state.relic;
+    return { mode: this.room.state.mode, home: relic.home, carrier: relic.carrier, carrying: this.me.state.relicCarrier, relicDrawn: this.renderer.relicVisible(), x: relic.x, y: relic.y, z: relic.z };
   }
 
   private onSwat(message: SwatMessage): void {
@@ -494,6 +522,13 @@ export class OnlineSession {
       ...(player.grappleActive ? { grapple: [player.grappleX, player.grappleY, player.grappleZ] as [number, number, number] } : {}),
     });
     return result;
+  }
+
+  /** Test hook: looks at the relic. */
+  aimAtRelic(): void {
+    const relic = this.room.state.relic, me = this.me.state;
+    const dx = relic.x - me.x, dz = relic.z - me.z;
+    this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(relic.y + 1 - (me.y + EYE_STAND), Math.hypot(dx, dz)));
   }
 
   aimAt(sessionId: string): void {

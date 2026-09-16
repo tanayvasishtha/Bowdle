@@ -39,7 +39,7 @@ describe("room match statistics", () => {
     if (me.team === 0) room.state.scoreSun = SCORE_LIMIT - 1; else room.state.scoreMoon = SCORE_LIMIT - 1;
     damage.dealDamage(client.sessionId, guest.sessionId, MAX_HP, "boulder", false, 0, 0);
     const message = MatchStatsMessage.parse(await statsMessage);
-    expect(message.stats).toEqual({ kills: 3, deaths: 1, assists: 0, headshots: 1, longShots: 1, longestShotM: 45, daggerKills: 1, boulderKills: 1, zipKills: 0, robinHoods: 0, ropeCuts: 0, swats: 0, scatterKills: 0, tetherRides: 0, streak: 1, bestStreak: 2, won: true });
+    expect(message.stats).toEqual({ kills: 3, deaths: 1, assists: 0, headshots: 1, longShots: 1, longestShotM: 45, daggerKills: 1, boulderKills: 1, zipKills: 0, robinHoods: 0, ropeCuts: 0, swats: 0, scatterKills: 0, tetherRides: 0, relicCaptures: 0, streak: 1, bestStreak: 2, won: true });
     expect(message.medals).toEqual(["eagleEye", "upClose", "trapper"]);
     expect(MatchStatsMessage.parse(await guestMessage).stats).toMatchObject({ kills: 1, deaths: 3, streak: 0, bestStreak: 1, won: false });
     const completed = [...challenges.daily, ...challenges.weekly].filter((entry) => progressFrom(message.stats, [...DAILY_POOL, ...WEEKLY_POOL].find((definition) => definition.id === entry.id)!) >= entry.target);

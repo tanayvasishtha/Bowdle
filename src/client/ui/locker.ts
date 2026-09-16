@@ -14,6 +14,7 @@ const SLOT_FOR: Record<CosmeticCategory, keyof Loadout> = { bow: "bow", trail: "
 const TAB_LABELS: Record<CosmeticCategory, string> = { bow: "Bows", trail: "Trails", outfit: "Outfits", effect: "Kill effects" };
 const SPIN_RAD_PER_S = 0.55;
 const PREVIEW_EVERY_MS = 1600;
+const PREVIEW_FLIGHT_M = 7;
 const CHECKOUT_POLL_MS = 3000;
 const CHECKOUT_POLL_LIMIT = 60;
 
@@ -52,6 +53,7 @@ export function startLocker(app: HTMLElement): void {
   let kind: "sun" | "moon" = "sun";
   let locker: Locker | undefined;
   let level = 1;
+  let previewTouched = false;
   let preview: Loadout = { bow: "bow.default", trail: "trail.default", outfit: "outfit.default", effect: "effect.default" };
   let tab: CosmeticCategory = "bow";
   let paid = false;
@@ -129,7 +131,7 @@ export function startLocker(app: HTMLElement): void {
     }
     const card = target.closest<HTMLElement>("[data-item]");
     if (card?.dataset.item) {
-      preview = { ...preview, [SLOT_FOR[tab]]: card.dataset.item };
+      preview = { ...preview, [SLOT_FOR[tab]]: card.dataset.item }; previewTouched = true;
       if (tab === "bow" || tab === "outfit") restyle();
       draw();
     }
@@ -140,7 +142,7 @@ export function startLocker(app: HTMLElement): void {
   // Tests freeze the preview arrow mid-flight so a slow software renderer can still capture the trail.
   let frozen = false;
   let nextPreviewMs = lastMs + 400;
-  let flight: { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: { x: number; y: number; z: number; vx: number; vy: number; vz: number; damage: number; ageMs: number; stuck: boolean }; endMs: number } | undefined;
+  let flight: { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: { x: number; y: number; z: number; vx: number; vy: number; vz: number; damage: number; ageMs: number; stuck: boolean }; travelled: number } | undefined;
   const loop = (timeMs: number): void => {
     const dt = Math.min(0.05, Math.max(0, (timeMs - lastMs) / 1000)); lastMs = timeMs;
     rig.rotation.y += dt * SPIN_RAD_PER_S;
@@ -148,7 +150,7 @@ export function startLocker(app: HTMLElement): void {
       nextPreviewMs = timeMs + PREVIEW_EVERY_MS;
       if (tab === "trail" && !flight) {
         const sim = { x: rigX - 1.8, y: 1.2, z: 0.7, vx: 6, vy: 1.4, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        flight = { visual: renderer.spawnArrowVisual(sim, "arrow", preview.trail), sim, endMs: timeMs + 1200 };
+        flight = { visual: renderer.spawnArrowVisual(sim, "arrow", preview.trail), sim, travelled: 0 };
       }
       if (tab === "effect") {
         if (!renderer.spawnKillEffect(preview.effect, kind === "sun" ? 0 : 1, rigX + 0.8, 0, -0.4, Math.floor(timeMs), timeMs)) {
@@ -159,7 +161,9 @@ export function startLocker(app: HTMLElement): void {
     if (flight && !frozen) {
       flight.sim.x += flight.sim.vx * dt; flight.sim.y += flight.sim.vy * dt; flight.sim.vy -= 2.5 * dt;
       renderer.updateArrowVisual(flight.visual, flight.sim);
-      if (timeMs >= flight.endMs) { renderer.removeVisual(flight.visual); flight = undefined; }
+      // The flight ends by distance, not time, so a slow renderer still draws the whole trail.
+      flight.travelled += Math.hypot(flight.sim.vx, flight.sim.vy) * dt;
+      if (flight.travelled >= PREVIEW_FLIGHT_M) { renderer.removeVisual(flight.visual); flight = undefined; }
     }
     renderer.render(timeMs);
     requestAnimationFrame(loop);
@@ -171,7 +175,8 @@ export function startLocker(app: HTMLElement): void {
     paid = paidShopAllowed() && (await fetchShopConfig()).paid;
     level = (await ensureAccount(loadName() || "Explorer"))?.progress.level ?? 1;
     await refresh();
-    if (locker) { preview = { ...locker.loadout }; restyle(); draw(); }
+    // Show the saved loadout unless the player already started browsing while the account loaded.
+    if (locker && !previewTouched) { preview = { ...locker.loadout }; restyle(); draw(); }
   })();
 
   const params = new URLSearchParams(location.search);

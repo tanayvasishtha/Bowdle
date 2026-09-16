@@ -35,6 +35,7 @@ declare global {
       cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
       locker?: LockerTestHooks;
       showEndScreen?(): void;
+      showKill?(message: import("../net/messages.ts").KillMessage, atMs: number): void;
       showMatchRewards?(stats: import("../net/messages.ts").MatchStatsMessage, reward: import("../net/messages.ts").RewardMessage): void;
     };
   }
@@ -72,6 +73,7 @@ else if (params.get("scene") === "online") {
       aimAtGrapple: () => session.aimAtGrapple(),
       stats: () => renderer.stats(),
       showEndScreen: () => session.showEndScreen(),
+      showKill: (message, atMs) => session.showKill(message, atMs),
       showMatchRewards: (stats, reward) => session.showMatchRewards(stats, reward),
     };
   }).catch((error: unknown) => {

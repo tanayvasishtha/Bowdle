@@ -23,6 +23,7 @@ import type { InputSampler } from "./InputSampler.ts";
 import { ReplayDirector } from "./ReplayDirector.ts";
 import { spawnAbilityProjectile } from "../../shared/sim/abilities.ts";
 import { drawFraction } from "../../shared/sim/bow.ts";
+import { KillFeedbackTracker } from "../../shared/killFeedback.ts";
 import { isInWater } from "../../shared/sim/volumes.ts";
 import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
 import { createMotion } from "../render/characters/pose.ts";
@@ -54,6 +55,8 @@ export class OnlineSession {
   private wasAlive = true;
   private previousHazardPhase: "idle" | "telegraph" | "roll" | "despawn" = "idle";
   private bestShot = 0;
+  private readonly feedback = new KillFeedbackTracker();
+  private feedbackPhase = "warmup";
 
   private constructor(renderer: Renderer, sampler: InputSampler, room: Room<unknown, MatchState>) {
     this.renderer = renderer;
@@ -65,6 +68,7 @@ export class OnlineSession {
     const policy = portalPolicy();
     this.hud = new MatchHud(renderer.canvas.parentElement!, (mapId) => this.room.send("mapVote", { mapId }), {
       playAgain: () => this.playAgain(),
+      newMatch: async () => { try { await this.room.leave(true); } finally { location.assign("/?scene=online"); } },
       saveClip: this.clips ? () => this.saveClip() : undefined,
       shareUrl: policy.externalLinks ? (text) => shareOnXUrl(text) : undefined,
     });
@@ -102,7 +106,7 @@ export class OnlineSession {
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.hud.hit(parsed.data.headshot); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); });
-    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot }, matchMaps); });
+    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
@@ -142,13 +146,14 @@ export class OnlineSession {
   /** Test hook: shows the end screen with the current scoreboard. */
   showEndScreen(): void {
     this.hud.endPinned = true;
-    this.hud.end({ winner: "draw", mvp: this.sessionId }, this.names, { kills: this.me.state.kills, deaths: this.me.state.deaths, bestShot: this.bestShot }, matchMaps);
+    this.hud.end({ winner: "draw", mvp: this.sessionId }, this.names, { kills: this.me.state.kills, deaths: this.me.state.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps);
   }
 
   showMatchRewards(stats: MatchStatsMessage, reward: RewardMessage): void {
     this.hud.matchStats(MatchStatsMessage.parse(stats));
     this.hud.rewards(RewardMessage.parse(reward));
   }
+  showKill(message: KillMessage, atMs: number): void { this.onKill(KillMessage.parse(message), atMs); }
 
   private async saveClip(): Promise<boolean> {
     const blob = await this.clips?.save().catch(() => undefined);
@@ -158,6 +163,8 @@ export class OnlineSession {
   }
 
   private frame(timeMs: number): void {
+    if (this.room.state.phase === "warmup" && this.feedbackPhase !== "warmup") { this.feedback.reset(); this.hud.resetFeedback(); }
+    this.feedbackPhase = this.room.state.phase;
     if (this.room.state.mapId !== this.map.id) {
       this.map = mapById(this.room.state.mapId) ?? defaultMatchMap;
       this.bestShot = 0;
@@ -235,9 +242,9 @@ export class OnlineSession {
     return this.lookScratch;
   }
 
-  private onKill(message: KillMessage): void {
+  private onKill(message: KillMessage, atMs = performance.now()): void {
     this.hud.kill(message, this.names); const victim = this.room.state.players.get(message.victim); const killer = this.room.state.players.get(message.killer);
-    if (message.killer === this.sessionId) this.bestShot = Math.max(this.bestShot, message.distance);
+    if (message.killer === this.sessionId && message.weapon === "arrow") this.bestShot = Math.max(this.bestShot, message.distance);
     if (victim) {
       const seed = this.hash(message.victim) + Math.round(this.room.clock.serverNow());
       const bought = killer ? this.renderer.spawnKillEffect(killer.killEffect, killer.team, victim.x, victim.y, victim.z, seed) : false;
@@ -248,6 +255,11 @@ export class OnlineSession {
     if (message.weapon === "boulder" && message.killer === this.sessionId) this.hud.banner("TRAP!");
     else if (message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
     else if (message.distance >= LONG_SHOT_M) { this.hud.banner("LONG SHOT!"); happyTime("longShot"); }
+    if (message.killer === this.sessionId) {
+      const feedback = this.feedback.kill({ atMs, headshot: message.headshot, distance: message.distance, weapon: message.weapon });
+      this.hud.feedback(feedback); if (feedback.multikill) this.sounds.play("multikill"); if (feedback.unstoppable) happyTime("unstoppable");
+    }
+    if (message.victim === this.sessionId) this.hud.feedback(this.feedback.death(atMs));
     if (message.victim === this.sessionId && message.weapon === "arrow") { this.hud.setReplay(true); this.replay.start(message.victim, message.killer, performance.now()); }
   }
 

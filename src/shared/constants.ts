@@ -17,6 +17,7 @@ export const PLAY_STREAK = { inkPerDay: 5, capDays: 7, firstWinXp: 100, firstWin
 export const LEVEL_ITEM_LEVELS = { chalk: 3, explorer: 5, dust: 7, cartographer: 10, fern: 15, carved: 20, goldrush: 30, veteran: 50 } as const;
 export const LEVEL_INK = { firstLevel: 2, base: 50, perLevel: 5 } as const;
 export const DEV_GRANT_MAX = 100000;
+export const KILL_FEEDBACK = { windowMs: 4000, double: 2, triple: 3, jungle: 4, streakVisible: 2, tickerLines: 4 } as const;
 export const TICK_HZ = 30;
 export const SUBSTEPS = 2;
 export const GRAVITY = 20;

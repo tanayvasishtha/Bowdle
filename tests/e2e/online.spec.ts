@@ -52,7 +52,7 @@ test("two online players see shared movement", async ({ browser }) => {
 test("a solo online player gets a full match", async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto("/?scene=online");
-  await expect(page.locator(".bowdle-score")).toContainText("—", { timeout: 10_000 });
+  await expect(page.locator(".bowdle-score")).toContainText("·", { timeout: 10_000 });
   await page.keyboard.down("Tab");
   await expect(page.locator(".bowdle-scoreboard")).toContainText("Doodle");
   await page.screenshot({ path: "test-results/qa/m5/full-match.png", fullPage: true });

@@ -14,6 +14,14 @@ export type CollisionBody = {
 };
 
 const EPSILON = 1e-7;
+
+/** Solid boxes per map, filtered once; collision runs several times per player per tick. */
+const solidCache = new WeakMap<MapData, readonly MapData["boxes"][number][]>();
+function solidBoxes(map: MapData): readonly MapData["boxes"][number][] {
+  let solids = solidCache.get(map);
+  if (!solids) { solids = map.boxes.filter((box) => box.tags.includes("solid")); solidCache.set(map, solids); }
+  return solids;
+}
 const HALF_WIDTH = PLAYER_WIDTH / 2;
 
 function overlapsRange(aMin: number, aMax: number, bMin: number, bMax: number): boolean {
@@ -21,8 +29,7 @@ function overlapsRange(aMin: number, aMax: number, bMin: number, bMax: number): 
 }
 
 export function canOccupy(body: Pick<CollisionBody, "height">, map: MapData, x: number, y: number, z: number): boolean {
-  for (const box of map.boxes) {
-    if (!box.tags.includes("solid")) continue;
+  for (const box of solidBoxes(map)) {
     if (overlapsRange(x - HALF_WIDTH, x + HALF_WIDTH, box.min[0], box.max[0])
       && overlapsRange(y, y + body.height, box.min[1], box.max[1])
       && overlapsRange(z - HALF_WIDTH, z + HALF_WIDTH, box.min[2], box.max[2])) return false;
@@ -61,8 +68,7 @@ function blockedByRamp(body: CollisionBody, map: MapData, x: number, z: number):
 function moveX(body: CollisionBody, amount: number, map: MapData): void {
   if (amount === 0) return;
   let destination = body.x + amount;
-  for (const box of map.boxes) {
-    if (!box.tags.includes("solid")) continue;
+  for (const box of solidBoxes(map)) {
     if (!overlapsRange(body.z - HALF_WIDTH, body.z + HALF_WIDTH, box.min[2], box.max[2])) continue;
     if (!overlapsRange(body.y, body.y + body.height, box.min[1], box.max[1])) continue;
     const boundary = amount > 0 ? box.min[0] - HALF_WIDTH : box.max[0] + HALF_WIDTH;
@@ -78,8 +84,7 @@ function moveX(body: CollisionBody, amount: number, map: MapData): void {
 function moveZ(body: CollisionBody, amount: number, map: MapData): void {
   if (amount === 0) return;
   let destination = body.z + amount;
-  for (const box of map.boxes) {
-    if (!box.tags.includes("solid")) continue;
+  for (const box of solidBoxes(map)) {
     if (!overlapsRange(body.x - HALF_WIDTH, body.x + HALF_WIDTH, box.min[0], box.max[0])) continue;
     if (!overlapsRange(body.y, body.y + body.height, box.min[1], box.max[1])) continue;
     const boundary = amount > 0 ? box.min[2] - HALF_WIDTH : box.max[2] + HALF_WIDTH;
@@ -96,8 +101,7 @@ function moveY(body: CollisionBody, amount: number, map: MapData): void {
   body.grounded = false;
   if (amount === 0) return;
   let destination = body.y + amount;
-  for (const box of map.boxes) {
-    if (!box.tags.includes("solid")) continue;
+  for (const box of solidBoxes(map)) {
     if (!overlapsRange(body.x - HALF_WIDTH, body.x + HALF_WIDTH, box.min[0], box.max[0])
       || !overlapsRange(body.z - HALF_WIDTH, body.z + HALF_WIDTH, box.min[2], box.max[2])) continue;
     if (amount < 0) {

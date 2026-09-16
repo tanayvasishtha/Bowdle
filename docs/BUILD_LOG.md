@@ -1,5 +1,23 @@
 # Build log
 
+## R4: In-match feedback and the post-match sequence
+
+Status: done.
+
+Built:
+
+- Pure kill feedback tracker (`src/shared/killFeedback.ts`): 4 s multikill window (DOUBLE TAG, TRIPLE TAG, JUNGLE FEVER), ON A ROLL and UNSTOPPABLE streak banners, XP ticker lines and "Streak ended at N" on the death screen. Overlapping banners prioritize Unstoppable, then multikills, then On a Roll.
+- HUD XP ticker (last lines fade), streak counter, generated three-note multikill chime through the audio bus, happy time on Unstoppable.
+- Post-match sequence (`PostMatchSequence.ts`): medals one by one, breakdown count-up (zero lines hidden), XP bar fill with level-up flash, unlock cards with Equip, challenge bars, and a footer with map vote, Save clip, Share, Play again, New match and the next-expedition countdown. A click skips to the final state; animation stops when the panel closes. New match leaves the room and reloads into a fresh public match.
+- Score separator changed from a dash to a middle dot (browser tests updated).
+
+Fixed on the way:
+
+- Server tick time: bot sight checks tested every map box for every enemy every tick. Solid box bounds are now cached per map in a flat array with a bounding-box reject, and collision iterates a cached solid list. An 8-bot tick fell from 2.07 ms to 0.98 ms on this machine, and the 3 ms performance gate passes again.
+- Locker previews: the trail preview flew for a fixed wall-clock time, so a slow renderer removed the arrow before it drew any trail; it now flies a fixed distance. A late account load no longer resets items the player is already previewing.
+
+Verified: `npm run check` (206 tests), full Playwright suite (33 passed), `npm run smoke`, `npm run soak`, `npm run build:portals`. Break it: ignoring the 4 s window fails the multikill test. Screenshots in `test-results/qa/r4`.
+
 ## R3: Level unlock track and career stats
 
 Status: done.

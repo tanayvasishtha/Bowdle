@@ -17,7 +17,7 @@ test("first-time name entry reaches an online HUD and Esc menu", async ({ page }
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await page.locator(".bowdle-name input").fill("Trail Finch");
   await page.getByRole("button", { name: "Enter the jungle" }).click();
-  await expect(page.locator(".bowdle-score")).toContainText("—", { timeout: 10_000 });
+  await expect(page.locator(".bowdle-score")).toContainText("·", { timeout: 10_000 });
   await page.keyboard.press("Escape");
   await expect(page.locator(".bowdle-pause")).toBeVisible();
   await page.screenshot({ path: "test-results/qa/m8/escape-menu.png", fullPage: true });

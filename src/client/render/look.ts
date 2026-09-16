@@ -30,3 +30,5 @@ export const CHARACTER_LOOK = {
 
 export const DYNAMIC_RESOLUTION = { frameBudgetMs: 20, sampleWindowMs: 2000, step: 0.1, minScale: 0.6 } as const;
 export const HUD_END_MAX_HEIGHT_VH = 90;
+export const RETENTION_LOOK = { countSteps: 30, percent: 100, medalStartMs: 400, medalStepMs: 120, breakdownMs: 700, xpMs: 650, challengeMs: 500, footerMs: 250, tickerFadeMs: 2500, transitionMs: 180, bannerMs: 1800, panelWidthVw: 88, panelWidthPx: 760, bodyPx: 18, gapPx: 8, tickerBottomPx: 28, tickerRightPx: 24, streakLeftPx: 280, streakBottomPx: 48 } as const;
+export const MULTIKILL_CHIME = { notes: [523.25, 659.25, 783.99], stepS: 0.08, decayS: 0.16, tailS: 0.2, peak: 0.12, floor: 0.001 } as const;

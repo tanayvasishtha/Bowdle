@@ -1,19 +1,21 @@
 import { lockPointer } from "../game/pointerLock.ts";
 import type { MatchState } from "../../net/schema.ts";
 import type { KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage } from "../../net/messages.ts";
-import { MEDALS } from "../../shared/medals.ts";
-import { HUD_END_MAX_HEIGHT_VH } from "../render/look.ts";
-import { GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS } from "../../shared/constants.ts";
+import { HUD_END_MAX_HEIGHT_VH, RETENTION_LOOK as L } from "../render/look.ts";
+import { GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS, KILL_FEEDBACK, MEDAL_LIMITS } from "../../shared/constants.ts";
+import type { KillFeedback } from "../../shared/killFeedback.ts";
+import { PostMatchSequence } from "./PostMatchSequence.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { loadSettings } from "../settings.ts";
 
-type EndStats = { kills: number; deaths: number; bestShot: number };
+type EndStats = { kills: number; deaths: number; bestShot: number; bestStreak?: number };
 
 export type HudActions = {
   /** Runs before the end screen closes, for example a portal ad break. */
   playAgain?: () => Promise<void>;
   saveClip?: () => Promise<boolean>;
   shareUrl?: (text: string) => string;
+  newMatch?: () => Promise<void>;
 };
 
 export class MatchHud {
@@ -32,6 +34,12 @@ export class MatchHud {
   private readonly medalList = Object.assign(document.createElement("ul"), { className: "bowdle-medals" });
   private readonly onVote: (mapId: string) => void;
   private readonly actions: HudActions;
+  private readonly sequence: PostMatchSequence;
+  private readonly ticker = document.createElement("div");
+  private readonly streakLine = document.createElement("div");
+  private endedStreak = 0;
+  private summaryLine: HTMLElement | undefined;
+  private summaryMvp = "";
   /** Test hook: keeps the end screen open outside the end phase. */
   endPinned = false;
 
@@ -53,12 +61,19 @@ export class MatchHud {
     this.endPanel.style.maxHeight = `${HUD_END_MAX_HEIGHT_VH}vh`;
     this.endPanel.style.overflowY = "auto";
     this.endPanel.style.boxSizing = "border-box";
+    this.sequence = new PostMatchSequence(this.endPanel, this.medalList, this.rewardLine);
+    this.ticker.className = "bowdle-xp-ticker"; this.ticker.dataset.testid = "xp-ticker";
+    this.streakLine.className = "bowdle-streak"; this.streakLine.dataset.testid = "kill-streak";
+    this.root.append(this.ticker, this.streakLine);
+    style.textContent += `.bowdle-xp-ticker{position:absolute;right:${L.tickerRightPx}px;bottom:${L.tickerBottomPx}px;font-size:${L.bodyPx}px;text-align:right}.bowdle-xp-ticker>div{animation:xp-ticker-fade ${L.tickerFadeMs}ms forwards}.bowdle-streak{position:absolute;left:${L.streakLeftPx}px;bottom:${L.streakBottomPx}px;font-size:${L.bodyPx}px;color:#d2531f}.bowdle-end{min-width:0;width:min(${L.panelWidthVw}vw,${L.panelWidthPx}px)}.bowdle-end p,.bowdle-end li{font-size:${L.bodyPx}px;margin:${L.gapPx}px}.bowdle-medals{display:flex;justify-content:center;gap:${L.gapPx}px;flex-wrap:wrap;list-style:none;padding:0}.bowdle-medals li{border-bottom:solid #e3b23c}.postmatch-xp{height:${L.bodyPx}px;background:#fffaf0;border:solid #4a3527;overflow:hidden}.postmatch-xp>div{height:100%;background:#e3b23c;transition:width ${L.transitionMs}ms linear}.postmatch-level-up{color:#d2531f;animation:postmatch-flash ${L.xpMs}ms}.bowdle-end article{display:inline-flex;align-items:center;border:solid #e3b23c;margin:${L.gapPx}px;padding:${L.gapPx}px}.bowdle-end progress{display:block;margin:auto}.bowdle-end [hidden]{display:none!important}@keyframes xp-ticker-fade{from{opacity:1}to{opacity:0}}@keyframes postmatch-flash{from{opacity:0}to{opacity:1}}`;
     window.addEventListener("keydown", (event) => { if (event.code === loadSettings().keys.scoreboard) { event.preventDefault(); this.scoreboard.style.display = "block"; } });
+    style.textContent += `.bowdle-xp-ticker>div{animation-duration:${L.transitionMs}ms;animation-delay:${L.tickerFadeMs}ms}.bowdle-medals li{animation:postmatch-flash ${L.transitionMs}ms}`;
+    style.textContent += `.bowdle-end[data-sequence=complete] .postmatch-xp>div{transition:none}.bowdle-end[data-sequence=complete] .postmatch-level-up,.bowdle-end[data-sequence=complete] .bowdle-medals li{animation:none;opacity:1}`;
     window.addEventListener("keyup", (event) => { if (event.code === loadSettings().keys.scoreboard) this.scoreboard.style.display = "none"; });
   }
 
   update(state: MatchState, sessionId: string, serverNow: number): void {
-    this.score.textContent = `${state.scoreSun}  —  ${state.scoreMoon}`;
+    this.score.textContent = `${state.scoreSun}  ·  ${state.scoreMoon}`;
     const seconds = Math.max(0, Math.ceil((state.phaseEndsAtMs - serverNow) / 1000));
     this.timer.textContent = state.phase === "warmup" ? `DRAW IN ${seconds}` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
     let board = "SUN                         MOON\n";
@@ -66,9 +81,10 @@ export class MatchHud {
     this.scoreboard.textContent = board;
     const me = state.players.get(sessionId);
     if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS)}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}`;
-    if (state.phase === "end" || this.endPinned) return;
+    if (state.phase === "end" || this.endPinned) { this.sequence.countdown(seconds); return; }
+    this.sequence.stop();
     this.endPanel.style.display = "none";
-    this.center.textContent = me && !me.alive ? `INKED!\nBack in ${Math.ceil(Math.max(0, me.respawnAtMs - serverNow) / 1000)}` : "";
+    this.center.textContent = me && !me.alive ? `INKED!\n${this.endedStreak >= MEDAL_LIMITS.onARoll ? `Streak ended at ${this.endedStreak}\n` : ""}Back in ${Math.ceil(Math.max(0, me.respawnAtMs - serverNow) / 1000)}` : "";
   }
 
   hit(headshot: boolean): void { this.marker.textContent = headshot ? "HEADSHOT!" : "✕"; this.flash(this.marker); }
@@ -80,12 +96,15 @@ export class MatchHud {
   end(message: MatchEndMessage, names: ReadonlyMap<string, string>, stats: EndStats, maps: readonly MapData[]): void {
     this.center.textContent = ""; this.endPanel.replaceChildren(); this.endPanel.style.display = "block";
     const title = document.createElement("h2"); title.textContent = message.winner === "draw" ? "Draw in the dust" : `${message.winner.toUpperCase()} WINS`;
-    const summary = document.createElement("p"); summary.textContent = `${stats.kills} kills · ${stats.deaths} deaths · best shot ${Math.round(stats.bestShot)} m\nMVP: ${names.get(message.mvp) ?? message.mvp}`;
+    const summary = document.createElement("p"); summary.textContent = `${stats.kills} kills · ${stats.deaths} deaths · best shot ${Math.round(stats.bestShot)} m · best streak ${stats.bestStreak ?? 0}\nMVP: ${names.get(message.mvp) ?? message.mvp}`;
+    const scores = document.createElement("p"); scores.textContent = this.score.textContent;
+    this.summaryLine = summary; this.summaryMvp = names.get(message.mvp) ?? message.mvp;
+    const footer = document.createElement("div"); footer.dataset.testid = "postmatch-footer";
     const vote = document.createElement("p"); vote.textContent = "Vote for the next expedition";
     this.rewardLine.textContent = ""; this.rewardLine.dataset.testid = "rewards";
     this.medalList.replaceChildren(); this.medalList.dataset.testid = "medals";
-    this.endPanel.append(title, summary, this.medalList, this.rewardLine, vote);
-    for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); this.endPanel.append(button); }
+    this.endPanel.append(title, scores, summary, this.medalList, this.rewardLine, footer); footer.append(vote);
+    for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); footer.append(button); }
     const extras = document.createElement("div"); extras.className = "bowdle-end-extras";
     if (this.actions.saveClip) {
       const save = document.createElement("button"); save.textContent = "Save clip"; save.dataset.action = "save-clip";
@@ -97,31 +116,36 @@ export class MatchHud {
       share.href = this.actions.shareUrl(message.winner === "draw" ? `Drew a Bowdle match with ${stats.kills} kills.` : `${stats.kills} kills and a ${Math.round(stats.bestShot)} m best shot in Bowdle.`);
       extras.append(share);
     }
-    if (extras.childElementCount > 0) this.endPanel.append(extras);
+    if (extras.childElementCount > 0) footer.append(extras);
     const again = document.createElement("button"); again.className = "play-again"; again.textContent = "Play again";
     again.addEventListener("click", async () => {
       again.disabled = true;
       await this.actions.playAgain?.();
       again.disabled = false;
       this.endPinned = false;
+      this.sequence.stop();
       this.endPanel.style.display = "none"; lockPointer(document.querySelector<HTMLCanvasElement>("#game-canvas"));
     });
-    this.endPanel.append(again);
+    const fresh = document.createElement("button"); fresh.textContent = "New match"; fresh.dataset.action = "new-match";
+    fresh.addEventListener("click", () => { void this.actions.newMatch?.(); });
+    footer.append(again, fresh); this.sequence.begin(footer);
   }
   /** Rewards arrive just after the end screen, once the server has stored them. */
   rewards(reward: RewardMessage): void {
-    const progress = reward.levelSize > 0 ? `${reward.intoLevel} / ${reward.levelSize} XP` : "top level";
-    this.rewardLine.textContent = `+${reward.xp} XP · +${reward.ink} Ink · ${reward.levelUp ? `LEVEL UP! Level ${reward.level}` : `Level ${reward.level}`} (${progress})`;
-    const list = document.createElement("ul");
-    for (const line of reward.breakdown) { const item = document.createElement("li"); item.textContent = `${line.label}: +${line.xp} XP · +${line.ink} Ink`; list.append(item); }
-    this.rewardLine.append(list);
-    for (const challenge of reward.challenges) { const item = document.createElement("li"); item.textContent = `${challenge.text}: ${challenge.before} → ${challenge.after}/${challenge.target}${challenge.done ? " Done" : ""}`; list.append(item); }
+    this.sequence.reward(reward);
   }
   matchStats(message: MatchStatsMessage): void {
-    this.medalList.replaceChildren();
-    for (const id of message.medals) { const item = document.createElement("li"); item.textContent = MEDALS.find((medal) => medal.id === id)?.name ?? id; this.medalList.append(item); }
+    this.sequence.stats(message);
+    if (this.summaryLine) this.summaryLine.textContent = `${message.stats.kills} kills · ${message.stats.deaths} deaths · best shot ${Math.round(message.stats.longestShotM)} m · best streak ${message.stats.bestStreak}\nMVP: ${this.summaryMvp}`;
   }
-  banner(text: string): void { this.moment.textContent = text; this.moment.animate([{ opacity: 0, transform: "translateX(-50%) scale(.7) rotate(-5deg)" }, { opacity: 1, transform: "translateX(-50%) scale(1.08) rotate(2deg)" }, { opacity: 0 }], { duration: 1800 }); }
+  feedback(result: KillFeedback): void {
+    this.streakLine.textContent = result.streak >= KILL_FEEDBACK.streakVisible ? `Streak ${result.streak}` : "";
+    this.endedStreak = result.endedAt;
+    for (const line of result.ticker) { const row = document.createElement("div"); row.textContent = line; this.ticker.append(row); while (this.ticker.childElementCount > KILL_FEEDBACK.tickerLines) this.ticker.firstElementChild?.remove(); }
+    if (result.banner) this.banner(result.banner);
+  }
+  resetFeedback(): void { this.streakLine.textContent = ""; this.ticker.replaceChildren(); this.endedStreak = 0; }
+  banner(text: string): void { for (const animation of this.moment.getAnimations()) animation.cancel(); this.moment.textContent = text; this.moment.animate([{ opacity: 0, transform: "translateX(-50%) scale(.7) rotate(-5deg)" }, { opacity: 1, transform: "translateX(-50%) scale(1.08) rotate(2deg)" }, { opacity: 0 }], { duration: L.bannerMs }); }
   setReplay(active: boolean): void { this.center.style.visibility = active ? "hidden" : "visible"; }
   feedText(): string { return this.feed.textContent ?? ""; }
   private ability(key: string, label: string, remaining: number, total: number): string { const ready = remaining <= 0; return `<div class="bowdle-ability${ready ? " ready" : ""}">${key} · ${label}<br>${ready ? "READY" : `${(remaining / 1000).toFixed(1)}s`}<div style="height:3px;background:#e3b23c;width:${Math.round((1 - remaining / total) * 100)}%"></div></div>`; }

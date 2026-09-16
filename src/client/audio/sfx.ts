@@ -1,8 +1,9 @@
 import { registerAudioContext } from "./bus.ts";
 import { MASTER_VOLUME } from "../../shared/constants.ts";
 import { loadSettings } from "../settings.ts";
+import { MULTIKILL_CHIME } from "../render/look.ts";
 
-type SoundName = "draw" | "release" | "wood" | "body" | "headshot" | "dagger" | "paper";
+type SoundName = "draw" | "release" | "wood" | "body" | "headshot" | "dagger" | "paper" | "multikill";
 
 export class SoundEffects {
   private context: AudioContext | null = null;
@@ -36,6 +37,16 @@ export class SoundEffects {
     if (!context || !master) return;
     master.gain.value = loadSettings().masterVolume;
     const now = context.currentTime;
+    if (name === "multikill") {
+      for (let note = 0; note < MULTIKILL_CHIME.notes.length; note += 1) {
+        const start = now + note * MULTIKILL_CHIME.stepS;
+        const oscillator = context.createOscillator(); const gain = context.createGain(); oscillator.type = "triangle";
+        oscillator.frequency.setValueAtTime(MULTIKILL_CHIME.notes[note]!, start);
+        gain.gain.setValueAtTime(MULTIKILL_CHIME.peak, start); gain.gain.exponentialRampToValueAtTime(MULTIKILL_CHIME.floor, start + MULTIKILL_CHIME.decayS);
+        oscillator.connect(gain).connect(master); oscillator.start(start); oscillator.stop(start + MULTIKILL_CHIME.tailS);
+      }
+      return;
+    }
     if (name === "draw" || name === "wood" || name === "body" || name === "dagger" || name === "paper") {
       const source = context.createBufferSource();
       source.buffer = this.noise;

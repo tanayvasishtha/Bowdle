@@ -209,6 +209,8 @@ export class Renderer {
   private settings = loadSettings();
   private readonly dynamicResolution = new DynamicResolution();
   private minFrameMs = 0;
+  private lastDrawCalls = 0;
+  private lastTriangles = 0;
   private lastPresentedMs = 0;
 
   constructor(container: HTMLElement, debug: boolean, map: MapData = defaultMatchMap, practice: readonly CampTarget[] = []) {
@@ -252,7 +254,10 @@ export class Renderer {
     this.composite.setTeamPalette(TEAM_PALETTES[settings.teamPalette]);
     this.dynamicResolution.setCeiling(quality.renderScale);
     this.props.hideDistance = quality.propHideDistance;
-    this.minFrameMs = settings.fpsCap > 0 ? 1000 / settings.fpsCap : 0;
+    const refreshHz = typeof window !== "undefined" && "displayFrequency" in (window.screen ?? {})
+      ? Number((window.screen as Screen & { displayFrequency?: number }).displayFrequency) || 60
+      : 60;
+    this.minFrameMs = settings.fpsCap > 0 && settings.fpsCap < refreshHz - 0.5 ? 1000 / settings.fpsCap : 0;
     this.resize();
     for (const symbol of this.playerSymbols.values()) symbol.element.style.display = settings.colorblindSymbols ? "block" : "none";
   }
@@ -646,8 +651,11 @@ export class Renderer {
   unpinPlayer(id: string): void { const player = this.players.get(id); if (player) player.rotation.z = 0; }
 
   render(timeMs = performance.now()): void {
-    if (this.minFrameMs > 0 && timeMs - this.lastPresentedMs < this.minFrameMs) return;
+    // 1ms slack so 60 Hz vsync jitter does not drop half the frames at a 60 fps cap.
+    if (this.minFrameMs > 0 && timeMs - this.lastPresentedMs + 1 < this.minFrameMs) return;
     this.lastPresentedMs = timeMs;
+    this.lastDrawCalls = this.renderer.info.render.calls;
+    this.lastTriangles = this.renderer.info.render.triangles;
     const frameMs = Math.max(0, timeMs - this.previousTime);
     this.previousTime = timeMs;
     if (this.dynamicResolution.sample(frameMs)) this.resize();
@@ -736,6 +744,6 @@ export class Renderer {
   }
 
   stats(): { drawCalls: number; triangles: number; renderScale: number } {
-    this.render(performance.now()); return { drawCalls: this.renderer.info.render.calls, triangles: this.renderer.info.render.triangles, renderScale: this.dynamicResolution.scale };
+    return { drawCalls: this.lastDrawCalls, triangles: this.lastTriangles, renderScale: this.dynamicResolution.scale };
   }
 }

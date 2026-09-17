@@ -1,3 +1,42 @@
+## F3: Service worker, FPS cap and the release gate
+
+Built:
+- `public/sw.js` uses a versioned `bowdle-shell-${v}` cache from `?v=`, network-first for navigations/HTML, cache-first only for hashed `/assets/*`, and still skips API/WebSocket URLs.
+- Service worker registers only in production web builds (`src/client/main.ts`) as `/sw.js?v=...` (`VITE_BUILD_ID` from `vite.config.ts`).
+- FPS cap in `Renderer.ts` uses 1 ms slack and is skipped when the cap is at or above the display refresh rate; `stats()` no longer depends on a frame the cap may have skipped.
+- `dynamicResolution.ts` raises scale when the ceiling rises and recovers scale when average frame time is comfortably under budget.
+- `index.html`: absolute `og:image` / `twitter:image`, `og:url` + `og:site_name`, relative manifest/icons, removed the blank `data:,` favicon.
+- `scripts/portal-check.ts` fails portal bundles that still contain root-absolute URLs.
+- Funnel: `modePicked` for Expedition and party in `menu.ts`; HTTP `/funnel` still only accepts client-visible `menuOpened` / `modePicked`.
+- Balance metrics in `TdmRoom.ts`: TTK from first damage this life (`firstHitAtMs`), grapple vs swing from `grappleReeling`. Audit ledgers capped at 500 kills; `aliveSinceMs` / `firstHitAtMs` / damage ledger cleared on leave.
+- Real SW policy tests in `tests/server/sw-policy.test.ts` (helpers mirrored + `/api/funnel` never cached).
+- `tests/e2e/g14-qa.spec.ts` always runs a light mode x map load (including Expedition); full screenshots still opt-in via `G14_SHOTS`.
+- Dated left list: `docs/LEFT-F3.md` (attract mode, first-launch preset caller, loading/shader warm-up, real `og`/`icons` generators).
+
+Balance (`npm run balance -- 20`):
+- Arrow remains ~95% of kills (primary weapon - same G14 reading, not a constant change).
+- Mild Moon/Sun win skew still appears on a few mirrored TDM/relic cells (~65%); still attributed to bot fill/seed ordering, not shared combat constants.
+- First-hit avg TTK is much longer on open maps (canopy / sky-bridges TDM ~37-38 s) than denser arenas (~8-11 s) - expected once TTK starts at first chip rather than spawn.
+- Grapple vs swing now splits on `grappleReeling`.
+
+Verified:
+- `npm run typecheck` - pass
+- `npm test` - 76 files / 359 tests
+- `npm run build` + `npm run size` - pass (client JS gzip 321 KB / 900 KB budget)
+- `npm run smoke` - pass
+- `npm run build:portals` - pass
+- `npm run balance -- 20` - pass (flags above; no constant changes)
+- `npm run soak -- 3` - pass
+- `npm run e2e` - 55 passed, 1 failed (gamepad menu order expects Relic Run before Ranked; F4). Expedition Temple Colossus failed once then passed on retry (flake, not F3). Not worse than F2 baseline.
+
+Left:
+- See `docs/LEFT-F3.md` for G13 leftovers dated 2026-09-18.
+- gamepad menu order (Relic Run before Ranked) remains with F4.
+- Tmp patch scripts and `.devmode.json` stay untracked.
+
+Status: done.
+
+
 ## F2: Prediction parity, map kit and the tick budget
 
 Built:

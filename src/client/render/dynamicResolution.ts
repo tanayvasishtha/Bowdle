@@ -9,7 +9,9 @@ export class DynamicResolution {
   private samples = 0;
 
   setCeiling(ceiling: number): void {
-    this.ceiling = Math.max(DYNAMIC_RESOLUTION.minScale, Math.min(1, ceiling));
+    const next = Math.max(DYNAMIC_RESOLUTION.minScale, Math.min(1, ceiling));
+    if (next > this.ceiling) this.scale = next;
+    this.ceiling = next;
     this.scale = Math.min(this.scale, this.ceiling);
   }
 
@@ -18,11 +20,17 @@ export class DynamicResolution {
     if (this.elapsedMs < DYNAMIC_RESOLUTION.sampleWindowMs) return false;
     const average = this.frameTotalMs / this.samples;
     this.frameTotalMs = 0; this.elapsedMs = 0; this.samples = 0;
-    if (average <= DYNAMIC_RESOLUTION.frameBudgetMs || this.scale <= DYNAMIC_RESOLUTION.minScale) return false;
-    this.scale = Math.max(
-      DYNAMIC_RESOLUTION.minScale,
-      Math.min(this.ceiling, Math.round((this.scale - DYNAMIC_RESOLUTION.step) * 10) / 10),
-    );
-    return true;
+    if (average > DYNAMIC_RESOLUTION.frameBudgetMs && this.scale > DYNAMIC_RESOLUTION.minScale) {
+      this.scale = Math.max(
+        DYNAMIC_RESOLUTION.minScale,
+        Math.min(this.ceiling, Math.round((this.scale - DYNAMIC_RESOLUTION.step) * 10) / 10),
+      );
+      return true;
+    }
+    if (average < DYNAMIC_RESOLUTION.frameBudgetMs * 0.75 && this.scale < this.ceiling) {
+      this.scale = Math.min(this.ceiling, Math.round((this.scale + DYNAMIC_RESOLUTION.step) * 10) / 10);
+      return true;
+    }
+    return false;
   }
 }

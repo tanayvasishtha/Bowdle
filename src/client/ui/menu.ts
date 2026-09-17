@@ -166,9 +166,9 @@ export function showMainMenu(container: HTMLElement): void {
       reportFunnel("modePicked"); location.search = onlineSearch("tdm") + "&ranked=1";
     })();
   }));
-  menu.querySelector("[data-action=expedition]")!.addEventListener("click", () => withName(expedition));
+  menu.querySelector("[data-action=expedition]")!.addEventListener("click", () => withName((name) => { reportFunnel("modePicked"); expedition(name); }));
   for (const mode of ["ffa", "relic"] as const) menu.querySelector(`[data-action=${mode}]`)!.addEventListener("click", () => withName((name) => { reportFunnel("modePicked"); void enter(name, undefined, mode); }));
-menu.querySelector("[data-action=party]")!.addEventListener("click", () => withName((name) => showPartyPanel(container, (code, mode) => { void enter(name, code, mode); })));
+menu.querySelector("[data-action=party]")!.addEventListener("click", () => withName((name) => { reportFunnel("modePicked"); showPartyPanel(container, (code, mode) => { void enter(name, code, mode); }); }));
   menu.querySelector("[data-action=practice]")!.addEventListener("click", () => navigate("camp"));
   menu.querySelector("[data-action=course]")!.addEventListener("click", () => { location.search = "?scene=camp&course"; });
   // First launch: a name, then the field course, which leads into a first match. Returning players stay on the menu.

@@ -13,6 +13,8 @@ for (const portal of ["poki", "crazygames"] as const) {
   const html = existsSync(join(dir, "index.html")) ? readFileSync(join(dir, "index.html"), "utf8") : "";
   report(`${portal}: index.html built`, html.includes("<title>Bowdle</title>"));
   report(`${portal}: assets load from relative paths`, html.includes("./assets/") && !html.includes('"/assets/'));
+  const absoluteHits = [...html.matchAll(/\b(?:href|src|content)=["']\/(?!\/)[^"']*["']/g)].map((m) => m[0]);
+  report(`${portal}: no root-absolute URLs in index.html`, absoluteHits.length === 0);
   report(`${portal}: privacy and terms pages included`, existsSync(join(dir, "privacy.html")) && existsSync(join(dir, "terms.html")));
   const assets = join(dir, "assets");
   const scripts = existsSync(assets) ? readdirSync(assets).filter((file) => file.endsWith(".js")) : [];

@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     base: portal ? "./" : "/",
     define: {
       "import.meta.env.VITE_PLATFORM": JSON.stringify(portal ?? process.env.VITE_PLATFORM ?? "web"),
+    "import.meta.env.VITE_BUILD_ID": JSON.stringify(process.env.VITE_BUILD_ID ?? Date.now().toString(36)),
       ...(portal ? { "import.meta.env.VITE_SERVER_URL": JSON.stringify(process.env.VITE_SERVER_URL ?? "https://bowdle.io") } : {}),
     },
     server: { port: 5173 },

@@ -183,6 +183,10 @@ else if (params.get("scene") === "online") {
 
 
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => { void navigator.serviceWorker.register("/sw.js"); });
+const swPlatform = import.meta.env.VITE_PLATFORM ?? "web";
+if (import.meta.env.PROD && swPlatform === "web" && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    const version = import.meta.env.VITE_BUILD_ID ?? import.meta.env.VITE_APP_VERSION ?? "1";
+    void navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(String(version))}`);
+  });
 }

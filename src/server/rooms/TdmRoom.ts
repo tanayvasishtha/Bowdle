@@ -134,6 +134,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   /** Per-second player samples of movement verbs during live play. */
   auditMovement = { grapple: 0, swing: 0, zip: 0, tether: 0, samples: 0, zipRides: 0, tetherRides: 0 };
   private readonly aliveSinceMs = new Map<string, number>();
+  /** Earliest damage timestamp this life; used for true time-to-kill. */
+  private readonly firstHitAtMs = new Map<string, number>();
   private relicPickedAtMs = 0;
   private rewindState!: Rewind;
   private arrowSerial = 0;
@@ -213,14 +215,17 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.auditCaptures.length = 0;
     this.auditMovement = { grapple: 0, swing: 0, zip: 0, tether: 0, samples: 0, zipRides: 0, tetherRides: 0 };
     this.aliveSinceMs.clear();
+    this.firstHitAtMs.clear();
     this.relicPickedAtMs = 0;
-    for (const [id, player] of this.state.players) if (player.alive) this.aliveSinceMs.set(id, this.simulationNowMs);
+    for (const [id, player] of this.state.players) if (player.alive) { this.aliveSinceMs.set(id, this.simulationNowMs); this.firstHitAtMs.delete(id); }
   }
 
   private noteAuditKill(weapon: string, arrowKind: string, headshot: boolean, killerTeam: number, victimId: string, victimTeam: number): void {
     const atMs = this.simulationNowMs;
-    const since = this.aliveSinceMs.get(victimId) ?? this.matchLiveAtMs;
+    const since = this.firstHitAtMs.get(victimId) ?? this.aliveSinceMs.get(victimId) ?? this.matchLiveAtMs;
     this.auditKills.push({ weapon, arrowKind, headshot, atMs, killerTeam, victimTeam, ttkMs: Math.max(0, atMs - since) });
+    if (this.auditKills.length > 500) this.auditKills.splice(0, this.auditKills.length - 500);
+    this.firstHitAtMs.delete(victimId);
   }
 
   private sampleMovementVerbs(): void {
@@ -228,7 +233,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (const player of this.state.players.values()) {
       if (!player.alive) continue;
       if (player.grappleActive) {
-        if ((player.prevButtons & BTN.GRAPPLE) !== 0) this.auditMovement.grapple += 1;
+        if (player.grappleReeling) this.auditMovement.grapple += 1;
         else this.auditMovement.swing += 1;
       }
       if (player.zipId) {
@@ -288,7 +293,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       if (player.alive) { if (!player.downed) stepRegen(player, nowMs, context.dt); }
       else if (!this.expedition && nowMs >= player.respawnAtMs) {
         respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player));
-        this.aliveSinceMs.set(id, nowMs);
+        this.aliveSinceMs.set(id, nowMs); this.firstHitAtMs.delete(id);
       }
     }
     if (Math.floor(nowMs / 1000) !== Math.floor((nowMs - context.dtMs) / 1000)) this.sampleMovementVerbs();
@@ -490,6 +495,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const actual = Math.min(target.hp, damage);
     let ledger = this.damage.get(targetId); if (!ledger) { ledger = new Map(); this.damage.set(targetId, ledger); }
     ledger.set(attackerId, { attacker: attackerId, damage: (ledger.get(attackerId)?.damage ?? 0) + actual, atMs: this.simulationNowMs });
+    if (!this.firstHitAtMs.has(targetId)) this.firstHitAtMs.set(targetId, this.simulationNowMs);
     const killed = applyDamage(target, damage, this.simulationNowMs);
     this.clientById(attackerId)?.send("hitConfirm", { target: targetId, damage: actual, headshot });
     this.clientById(targetId)?.send("damaged", { fromX, fromZ, damage: actual });
@@ -647,7 +653,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.state.tethers.clear(); this.tetherZips = []; this.arrowOrigins.clear(); this.damage.clear();
     if (!this.fixedMap) this.loadMap(this.votedMap(), this.simulationNowMs);
     else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
-    for (const [id, player] of this.state.players) { player.kills = 0; player.deaths = 0; player.assists = 0; player.relicCarrier = false; player.downed = false; player.slowMs = 0; respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; this.aliveSinceMs.set(id, this.simulationNowMs); }
+    for (const [id, player] of this.state.players) { player.kills = 0; player.deaths = 0; player.assists = 0; player.relicCarrier = false; player.downed = false; player.slowMs = 0; respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; this.aliveSinceMs.set(id, this.simulationNowMs); this.firstHitAtMs.delete(id); }
     this.mapVotes.clear();
   }
 
@@ -1078,6 +1084,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const player = this.state.players.get(client.sessionId);
     const accountPromise = this.accounts.get(client.sessionId);
     this.state.players.delete(client.sessionId);
+    this.aliveSinceMs.delete(client.sessionId); this.firstHitAtMs.delete(client.sessionId); this.damage.delete(client.sessionId);
     for (const key of [...this.geyserLaunches.keys()]) if (key.startsWith(`${client.sessionId}:`)) this.geyserLaunches.delete(key); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId); this.skills.delete(client.sessionId);
     this.updateBotDifficulty();
     if (this.rankedMode && accountPromise && this.state.phase === "live") {

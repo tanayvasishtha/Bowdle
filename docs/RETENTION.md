@@ -1,5 +1,7 @@
 # Bowdle retention design (v1.1)
 
+Status: **v2.0.0** ships G1–G14 on top of these v1.1 systems (R1–R6 shipped). Numbers below still govern medals, challenges, streaks and unlocks.
+
 v1 has a solid match and a store, but little to pull a player back tomorrow or into the next match. This doc defines every system v1.1 adds, with exact numbers. `docs/RUNBOOK-RETENTION.md` splits the work into milestones R1 to R6.
 
 ## Goals

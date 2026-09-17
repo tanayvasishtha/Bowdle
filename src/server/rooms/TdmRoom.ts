@@ -126,6 +126,14 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly ropeFrom = { x: 0, y: 0, z: 0 };
   private readonly ropeTo = { x: 0, y: 0, z: 0 };
   zipRideCount = 0;
+  /** Public kill ledger for balance reports; cleared each match. Network messages stay unchanged. */
+  auditKills: Array<{ weapon: string; arrowKind: string; headshot: boolean; atMs: number; killerTeam: number; victimTeam: number; ttkMs: number }> = [];
+  /** Relic captures for balance: match time and how long the carrier held it. */
+  auditCaptures: Array<{ atMs: number; team: number; carryMs: number }> = [];
+  /** Per-second player samples of movement verbs during live play. */
+  auditMovement = { grapple: 0, swing: 0, zip: 0, tether: 0, samples: 0, zipRides: 0, tetherRides: 0 };
+  private readonly aliveSinceMs = new Map<string, number>();
+  private relicPickedAtMs = 0;
   private rewindState!: Rewind;
   private arrowSerial = 0;
   private cloudSerial = 0;
@@ -195,6 +203,37 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.setFixedTimestep((context) => this.simulateTick(context, this.clock.elapsedTime), TICK_HZ, { subSteps: SUBSTEPS });
   }
 
+  /** Reset the balance ledgers and mark every living player as freshly spawned. Call at the start of a balance match. */
+  clearBalanceAudit(): void {
+    this.auditKills.length = 0;
+    this.auditCaptures.length = 0;
+    this.auditMovement = { grapple: 0, swing: 0, zip: 0, tether: 0, samples: 0, zipRides: 0, tetherRides: 0 };
+    this.aliveSinceMs.clear();
+    this.relicPickedAtMs = 0;
+    for (const [id, player] of this.state.players) if (player.alive) this.aliveSinceMs.set(id, this.simulationNowMs);
+  }
+
+  private noteAuditKill(weapon: string, arrowKind: string, headshot: boolean, killerTeam: number, victimId: string, victimTeam: number): void {
+    const atMs = this.simulationNowMs;
+    const since = this.aliveSinceMs.get(victimId) ?? this.matchLiveAtMs;
+    this.auditKills.push({ weapon, arrowKind, headshot, atMs, killerTeam, victimTeam, ttkMs: Math.max(0, atMs - since) });
+  }
+
+  private sampleMovementVerbs(): void {
+    this.auditMovement.samples += 1;
+    for (const player of this.state.players.values()) {
+      if (!player.alive) continue;
+      if (player.grappleActive) {
+        if ((player.prevButtons & BTN.GRAPPLE) !== 0) this.auditMovement.grapple += 1;
+        else this.auditMovement.swing += 1;
+      }
+      if (player.zipId) {
+        if (player.zipId.startsWith("tether-")) this.auditMovement.tether += 1;
+        else this.auditMovement.zip += 1;
+      }
+    }
+  }
+
   simulateTick(context: RoomStepContext, nowMs: number): void {
     const tickStarted = performance.now();
     try {
@@ -241,10 +280,14 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     let expired = false;
     for (const [id, tether] of this.state.tethers) if (tether.expiresAtMs <= nowMs) { this.state.tethers.delete(id); expired = true; }
     if (expired) this.rebuildTetherZips();
-    for (const player of this.state.players.values()) {
+    for (const [id, player] of this.state.players) {
       if (player.alive) { if (!player.downed) stepRegen(player, nowMs, context.dt); }
-      else if (!this.expedition && nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player));
+      else if (!this.expedition && nowMs >= player.respawnAtMs) {
+        respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player));
+        this.aliveSinceMs.set(id, nowMs);
+      }
     }
+    if (Math.floor(nowMs / 1000) !== Math.floor((nowMs - context.dtMs) / 1000)) this.sampleMovementVerbs();
     } finally { serverMetrics.tick(performance.now() - tickStarted); }
   }
 
@@ -268,7 +311,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private noteZipRide(id: string, before: string, after: string): void {
     if (before || !after) return;
     this.zipRideCount += 1;
-    if (after.startsWith("tether-")) { const stats = this.humanStats.get(id); if (stats) recordTetherRide(stats); }
+    if (after.startsWith("tether-")) {
+      this.auditMovement.tetherRides += 1;
+      const stats = this.humanStats.get(id); if (stats) recordTetherRide(stats);
+    } else this.auditMovement.zipRides += 1;
   }
 
   private createArrow(owner: string, team: number, event: FireEvent): void {
@@ -453,6 +499,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       recordKill(attackerStats, this.killStatsEvent);
     }
     if (victimStats) recordDeath(victimStats);
+    this.noteAuditKill(weapon, arrowKind || (weapon === "arrow" ? "arrow" : ""), headshot, attacker.team, targetId, target.team);
     this.broadcast("kill", { killer: attackerId, victim: targetId, weapon, headshot, distance });
     this.notePlayOfTheMatch(attackerId, targetId, distance, attacker.kills);
     if (scoreKillFor(this.state, this.state.mode, attacker.team, attacker.kills, this.simulationNowMs)) this.sendMatchEnd();
@@ -571,12 +618,13 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private resetPlayers(): void {
     this.matchSerial += 1;
     this.matchLiveAtMs = this.simulationNowMs + WARMUP_MS;
+    this.clearBalanceAudit();
     for (const id of this.humanStats.keys()) this.humanStats.set(id, createMatchStats());
     resetRelic(this.state.relic, this.map);
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.state.tethers.clear(); this.tetherZips = []; this.arrowOrigins.clear(); this.damage.clear();
     if (!this.fixedMap) this.loadMap(this.votedMap(), this.simulationNowMs);
     else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
-    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; player.relicCarrier = false; player.downed = false; player.slowMs = 0; respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; }
+    for (const [id, player] of this.state.players) { player.kills = 0; player.deaths = 0; player.assists = 0; player.relicCarrier = false; player.downed = false; player.slowMs = 0; respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; this.aliveSinceMs.set(id, this.simulationNowMs); }
     this.mapVotes.clear();
   }
 
@@ -716,6 +764,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     target.deaths += 1; target.respawnAtMs = this.simulationNowMs + RESPAWN_MS;
     const stats = this.humanStats.get(targetId); if (stats) recordDeath(stats);
     this.damage.delete(targetId);
+    this.noteAuditKill(weapon, "", false, -1, targetId, target.team);
     this.broadcast("kill", { killer, victim: targetId, weapon, headshot: false, distance: Math.hypot(target.x - fromX, target.z - fromZ) });
   }
 
@@ -829,6 +878,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       carrier.relicCarrier = false;
       resetRelic(relic, this.map);
       const stats = this.humanStats.get(id); if (stats) recordRelicCapture(stats);
+      const carryMs = this.relicPickedAtMs > 0 ? Math.max(0, this.simulationNowMs - this.relicPickedAtMs) : 0;
+      this.auditCaptures.push({ atMs: this.simulationNowMs, team: carrier.team, carryMs });
+      this.relicPickedAtMs = 0;
       this.relicEvent("capture", id, carrier.team);
       if (scoreCapture(this.state, carrier.team, this.simulationNowMs)) this.sendMatchEnd();
       return;
@@ -841,6 +893,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       if (action !== "pickup") continue;
       relic.carrier = id; relic.home = false; player.relicCarrier = true;
       releaseGrapple(player, false);
+      this.relicPickedAtMs = this.simulationNowMs;
       this.relicEvent("pickup", id, player.team);
       return;
     }

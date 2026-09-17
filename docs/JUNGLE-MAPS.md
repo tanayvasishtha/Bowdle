@@ -1,6 +1,6 @@
 # Bowdle maps: the jungle journal
 
-Three launch maps plus a practice camp, built on the map kit in `WORLD.md`. They are the complete W6 arena set.
+Status: **v2.0.0** (G1–G14 shipped). Five launch maps: Sun Temple, Canopy Village, Lost River, Sky Bridges and Sunken Ruins, plus Practice Camp. Map kit v3 (G10) adds swing anchors, geysers, breakables and herbs on top of the W6 arena set in `WORLD.md`.
 
 All three are 68 m by 52 m (x from -34 to 34, z from -26 to 26) and mirror symmetric across `x = 0`. Team Sun spawns west, team Moon east. Coordinates below are for the Sun half unless marked center. Mirror everything else. Positions are a starting point: adjust by the smallest amount that passes validation and record it in the build log.
 

@@ -1,5 +1,7 @@
 # Deploy Bowdle to Render
 
+Status: **v2.0.0** (tag `v2.0.0` on `main`). Deploy the tagged release after `npm run check`, smoke, soak and balance pass on the release candidate.
+
 Bowdle runs as one Node process: Express serves `dist/client`, Colyseus serves the game WebSocket on the same origin, and `GET /health` reports readiness. Render terminates HTTPS and secure WebSockets at the public edge.
 
 ## 1. Prove the production image locally

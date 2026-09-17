@@ -6,7 +6,9 @@ Made by Tanay Vasishtha.
 
 ## Status
 
-**v1.1.0.** v1 plus the retention systems in [RETENTION.md](docs/RETENTION.md): medals, an XP breakdown, daily and weekly challenges, play streaks, a level unlock track, kill streak feedback, an animated end screen, party codes and bot difficulty matched to the room. v2 is planned in [V2-DESIGN.md](docs/V2-DESIGN.md).
+**v2.0.0.** Milestones G1–G14 shipped. Feel and camera polish, movement 2.0, swing grapple and rope cutting, quiver (broadhead / scatter / tether), onboarding field course, audio, gamepad and accessibility, Free for All and Relic Run, Expedition co-op waves, map kit v3 with Sky Bridges and Sunken Ruins, pings / spectating / AFK / reports / play of the match, ranked Glicko and regions, performance presets with install and sharing, and a balance pass with release QA. Design notes remain in [V2-DESIGN.md](docs/V2-DESIGN.md); retention systems from v1.1 stay in [RETENTION.md](docs/RETENTION.md).
+
+v1.1.0 delivered retention: medals, XP breakdown, daily and weekly challenges, play streaks, level unlock track, kill streak feedback, animated end screen, party codes and bot difficulty matched to the room.
 
 v1.0.0 delivered:
 
@@ -31,6 +33,7 @@ Open http://localhost:5173. The game server runs inside the Vite dev server.
 npm run check                      # typecheck, tests, build, size budget
 npm run smoke                      # production server smoke test (after build)
 npm run soak                       # full bot matches on every map
+npm run balance                    # PvP balance matrix (default 20 seeds per mode×map)
 npm run build:portals              # Poki and CrazyGames bundles
 npm run retention                  # retention report (needs DATABASE_URL or PGLITE_DIR)
 npx playwright install chromium    # once, before the first e2e run

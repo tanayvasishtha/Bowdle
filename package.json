@@ -1,6 +1,6 @@
 {
   "name": "bowdle",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -22,6 +22,7 @@
     "start": "node src/server/main.ts",
     "smoke": "node scripts/prod-smoke.ts",
     "soak": "node scripts/bot-soak.ts",
+    "balance": "node scripts/balance-report.ts",
     "retention": "node scripts/retention-report.ts",
     "icons": "node scripts/generate-icons.mjs",
     "og": "node scripts/generate-og.mjs"

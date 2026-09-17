@@ -1,6 +1,6 @@
 # Bowdle economy
 
-Milestones M10 (accounts, progression) and M11 (cosmetics, shop). Nothing here exists before M10.
+Status: **v2.0.0** (G1–G14 shipped). Cosmetic economy from M10/M11 stands; v2 did not add paid power. Milestones M10 (accounts, progression) and M11 (cosmetics, shop). Nothing here exists before M10.
 
 ## Principles
 

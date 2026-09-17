@@ -1,5 +1,7 @@
 # Bowdle game design
 
+Status: **v2.0.0** (G1–G14 shipped). Numbers below match `src/shared/constants.ts`.
+
 Name: **Bowdle**. Tagline: *doodle bow shooter*.
 
 ## Pitch

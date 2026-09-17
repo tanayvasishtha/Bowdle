@@ -17,6 +17,7 @@ import { CreatureDownMessage, CreatureHitMessage, DamagedMessage, DownedMessage,
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import { ropeSag, type Renderer } from "../render/Renderer.ts";
 import { MatchHud, type RunSummary } from "../ui/hud.ts";
+import { chooseRegion, probeRegions, regionEndpoint } from "../regions.ts";
 import { ExpeditionHud, MODIFIER_NAMES, type ReviveView } from "../ui/expeditionHud.ts";
 import type { CreaturePose } from "../render/creatures.ts";
 import { SoundEffects } from "../audio/sfx.ts";
@@ -191,11 +192,15 @@ export class OnlineSession {
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
-  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number): Promise<OnlineSession> {
-    const endpoint = import.meta.env.VITE_SERVER_URL || location.origin;
+  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false): Promise<OnlineSession> {
+    const probes = await probeRegions();
+    const chosen = chooseRegion(probes);
+    const endpoint = regionEndpoint(chosen);
     const room = party
       ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party, mode }, MatchState)
-      : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}), ...(mode === "expedition" ? { checkpoint, ...(testing && testStartWave !== undefined ? { testStartWave } : {}) } : {}) }, MatchState);
+      : ranked
+        ? await new Client(endpoint).joinOrCreate<MatchState>("ranked", { name, token: loadToken(), ranked: true, test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}) }, MatchState)
+        : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}), ...(mode === "expedition" ? { checkpoint, ...(testing && testStartWave !== undefined ? { testStartWave } : {}) } : {}) }, MatchState);
     if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {
@@ -206,8 +211,27 @@ export class OnlineSession {
       });
     }
     room.send("setName", { name });
-    return new OnlineSession(renderer, sampler, room);
+    const session = new OnlineSession(renderer, sampler, room);
+    const pingRow = probes.find((row) => row.id === chosen?.id);
+    const label = chosen?.label ?? chosen?.id ?? "server";
+    session.setRegionPing(label, pingRow?.pingMs ?? null);
+    const refresh = async (): Promise<void> => {
+      const started = performance.now();
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2500);
+        await fetch(`${endpoint.replace(/\/$/, "")}/health`, { method: "GET", mode: "cors", cache: "no-store", signal: controller.signal });
+        clearTimeout(timer);
+        session.setRegionPing(label, Math.max(1, Math.round(performance.now() - started)));
+      } catch {
+        session.setRegionPing(label, null);
+      }
+    };
+    setInterval(() => { void refresh(); }, 5000);
+    return session;
   }
+
+  setRegionPing(label: string, pingMs: number | null): void { this.hud.setRegionPing(label, pingMs); }
 
   start(): void {
     if (this.room.state.mode === "expedition") void fetchProfile().then((profile) => { this.expeditionBest = profile?.expeditionBest ?? 0; });

@@ -1,4 +1,4 @@
-import express, { type Request, type Response, type Router } from "express";
+﻿import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import { DEV_GRANT_MAX, FUNNEL_EVENTS, MAX_NAME_LENGTH, ONBOARDING } from "../../shared/constants.ts";
 import { PROVIDERS, type GameDatabase, type Provider } from "../db/GameDatabase.ts";
@@ -202,6 +202,12 @@ export function apiRouter(options: ApiOptions): Router {
     response.json({ rows: await (await options.database()).expeditionLeaderboard() });
   });
 
+  
+  router.get("/ranked/leaderboard", async (request, response) => {
+    const db = await options.database();
+    const season = typeof request.query.season === "string" ? request.query.season : db.currentSeason();
+    response.json({ season, rows: await db.rankedLeaderboard(season, 50) });
+  });
   router.get("/leaderboard", async (request, response) => {
     const season = typeof request.query.season === "string" && /^\d{4}-S[1-4]$/.test(request.query.season) ? request.query.season : undefined;
     const db = await options.database();
@@ -229,3 +235,4 @@ export function apiRouter(options: ApiOptions): Router {
 
   return router;
 }
+

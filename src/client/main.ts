@@ -1,4 +1,4 @@
-﻿import { lineupMap } from "../shared/maps/fixtures/lineup.ts";
+import { lineupMap } from "../shared/maps/fixtures/lineup.ts";
 import { createMotion, type CharacterMotion } from "./render/characters/pose.ts";
 import { Renderer, type SnapshotFractions } from "./render/Renderer.ts";
 import { InputSampler } from "./game/InputSampler.ts";
@@ -84,7 +84,7 @@ else if (params.get("scene") === "online") {
   const requestedParty = normalizePartyCode(params.get("party") ?? "");
   const party = isPartyCode(requestedParty) ? requestedParty : undefined;
   if (party) loading.querySelector("p")!.textContent = `Joining party ${party}.`;
-  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm", params.has("checkpoint"), params.has("startWave") ? Number(params.get("startWave")) : undefined).then((session) => {
+  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm", params.has("checkpoint"), params.has("startWave") ? Number(params.get("startWave")) : undefined, params.has("ranked")).then((session) => {
     loading.remove();
     attachPauseMenu(app, sampler, party);
     attachControlsHelp(app, renderer.canvas);

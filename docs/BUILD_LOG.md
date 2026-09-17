@@ -1,5 +1,20 @@
 # Build log
 
+## G12: Ranked and regions
+
+Built:
+- Shared Glicko-2 rating, tiers, queue window helpers and region parse/pick helpers with unit tests.
+- Ratings table migration; get/set rating, apply ranked results, leave-as-loss, ranked leaderboard.
+- QueueRoom matchmaking and ranked TdmRoom (no bots; early leave counts as a loss).
+- Menu Ranked entry (level 10 + linked account), settings preferredRegion, /health region, DEPLOY multi-region notes.
+- Client region probe at connect, HUD live ping chip, API GET /api/ranked/leaderboard.
+
+Verified: npm run check (tsc + 344 vitest + build + size).
+
+Status: done.
+
+Left: profile/scoreboard/end tier badges polish; Playwright ranked screenshot pass optional.
+
 ## G11: Pings, spectating, AFK, reports, play of the match
 
 Built:

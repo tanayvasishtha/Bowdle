@@ -64,6 +64,8 @@ export type GameSettings = {
   crosshairColor: CrosshairColor;
   teamPalette: TeamPaletteName;
   keys: KeyBindings;
+  /** Empty string means auto-pick the lowest ping. */
+  preferredRegion: string;
 };
 
 export const DEFAULT_KEYS: KeyBindings = {
@@ -76,7 +78,7 @@ const STORAGE_KEY = "bowdle.settings.v1";
 const NAME_KEY = "bowdle.name";
 
 export function defaultSettings(): GameSettings {
-  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, invertY: false, aimSensitivity: 1, gamepadSensitivity: 1, trackpadMode: false, crosshairStyle: "circle", crosshairSize: CROSSHAIR_SIZE.default, crosshairColor: "sepia", teamPalette: "default", keys: { ...DEFAULT_KEYS } };
+  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, invertY: false, aimSensitivity: 1, gamepadSensitivity: 1, trackpadMode: false, crosshairStyle: "circle", crosshairSize: CROSSHAIR_SIZE.default, crosshairColor: "sepia", teamPalette: "default", keys: { ...DEFAULT_KEYS }, preferredRegion: "" };
 }
 
 function range(value: unknown, min: number, max: number, fallback: number): number {
@@ -113,6 +115,7 @@ export function loadSettings(): GameSettings {
       crosshairColor: oneOf(parsed.crosshairColor, CROSSHAIR_COLORS, defaults.crosshairColor),
       teamPalette: oneOf(parsed.teamPalette, TEAM_PALETTE_NAMES, defaults.teamPalette),
       keys: { ...DEFAULT_KEYS, ...parsed.keys },
+      preferredRegion: typeof parsed.preferredRegion === "string" ? parsed.preferredRegion : defaults.preferredRegion,
     };
   } catch { return defaults; }
 }

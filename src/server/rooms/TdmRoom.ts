@@ -78,7 +78,7 @@ const RELIC_CARRY_HEIGHT_M = 2.1;
 /** Falling out of the world in an Expedition costs this much health. */
 const EXPEDITION_FALL_DAMAGE = 25;
 
-type JoinOptions = { mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
+type JoinOptions = { mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number; ranked?: boolean };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage ; pingEvent: PingEventMessage; afkPrompt: AfkPromptMessage; afkRemoved: AfkRemovedMessage; playOfTheMatch: PlayOfTheMatchMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
@@ -133,6 +133,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private simulationNowMs = 0;
   private matchLiveAtMs = WARMUP_MS;
   private testMode = false;
+  private rankedMode = false;
+  private rankedLeft = new Set<string>();
   private readonly bots = new Map<string, BotController>();
   private readonly mapVotes = new Map<string, string>();
   private reportedPlayers = 0;
@@ -155,6 +157,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   skillsLoaded: Promise<void> = Promise.resolve();
 
   onCreate(options: JoinOptions): void {
+    this.rankedMode = options.ranked === true || this.roomName === "ranked";
     this.partyCode = isPartyCode(options.party) ? options.party : "";
     // Public rooms are named after their mode; a party room takes the mode its leader picked.
     const named = isGameMode(this.roomName) ? this.roomName : undefined;
@@ -176,7 +179,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.state.phaseEndsAtMs = WARMUP_MS;
     this.rewindState = this.allowRewindState({ maxRewindMs: MAX_REWIND_MS });
     this.rewindState.attachAll(this.state.players, { fields: ["x", "y", "z", "height", "yaw"], mode: "snapshot" });
-    this.fillBots();
+    if (!this.rankedMode) this.fillBots();
     this.reportedPlayers = this.state.players.size; serverMetrics.roomOpened(this.reportedPlayers);
     this.onMessage("setName", SetNameMessage, (client, message) => {
       const player = this.state.players.get(client.sessionId);
@@ -548,7 +551,15 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       lines.push({ accountId, kills: entry.kills, assists: entry.assists, won: entry.won, stats: entry.stats, medals: entry.medals, mapId: entry.mapId, ...(entry.expedition ? { expedition: entry.expedition } : {}) });
     }
     if (lines.length === 0) return;
-    const granted = await (await gameDatabase()).recordMatch(matchId, lines);
+    const db = await gameDatabase();
+    const granted = await db.recordMatch(matchId, lines);
+    if (this.rankedMode) {
+      const rankedLines = lines.filter((line) => line.accountId).map((line) => ({
+        accountId: line.accountId!,
+        won: !!line.won,
+      }));
+      if (rankedLines.length > 0) await db.applyRankedResults(rankedLines);
+    }
     for (const reward of granted) {
       // Account ids only: logs never carry names or tokens.
       if (reward.after.level > reward.before.level) console.log(JSON.stringify({ event: "levelUp", accountId: reward.accountId, level: reward.after.level }));
@@ -854,6 +865,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   private fillBots(): void {
+    if (this.rankedMode) return;
     const rules = modeRules(this.state.mode);
     if (this.expedition) {
       while (this.bots.size < this.expeditionBots) this.addBot(0);
@@ -976,9 +988,18 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   onLeave(client: GameClient): void {
-    const player = this.state.players.get(client.sessionId); this.state.players.delete(client.sessionId); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId); this.skills.delete(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    const accountPromise = this.accounts.get(client.sessionId);
+    this.state.players.delete(client.sessionId); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId); this.skills.delete(client.sessionId);
     this.updateBotDifficulty();
-    if (player && !this.testMode && !this.expedition) this.addBot(player.team, player);
+    if (this.rankedMode && accountPromise && this.state.phase === "live") {
+      void accountPromise.then((accountId) => {
+        if (!accountId || this.rankedLeft.has(accountId)) return;
+        this.rankedLeft.add(accountId);
+        return gameDatabase().then((db) => db.recordRankedLeave(accountId));
+      });
+    }
+    if (player && !this.testMode && !this.expedition && !this.rankedMode) this.addBot(player.team, player);
     this.reportPlayers();
   }
 

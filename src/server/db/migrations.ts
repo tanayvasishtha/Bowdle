@@ -106,6 +106,18 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX reports_target_reason_time ON reports (target_id, reason, created_at DESC)
   `,
+  `
+  CREATE TABLE ratings (
+    season TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    rating DOUBLE PRECISION NOT NULL DEFAULT 1500,
+    rd DOUBLE PRECISION NOT NULL DEFAULT 350,
+    volatility DOUBLE PRECISION NOT NULL DEFAULT 0.06,
+    matches INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (season, account_id)
+  );
+  CREATE INDEX ratings_season_rating ON ratings (season, rating DESC)
+  `
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

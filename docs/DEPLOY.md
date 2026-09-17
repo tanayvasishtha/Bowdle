@@ -81,3 +81,17 @@ Record the deployed commit and tag in the release notes. To roll back, open **Ev
 - Client JavaScript is below 900 KB gzipped.
 - Average server tick is below 3 ms with 8 players and 20 arrows.
 - The latency procedure in `docs/NETCODE.md` passes at about 150 ms against `https://bowdle.io`.
+
+## Multi-region
+
+Each region is its own Bowdle process (and usually its own Render service) with a shared Postgres.
+
+1. Set `REGION` on the server to a short id such as `eu` or `us`. Health checks stay on `/health`.
+2. At client build time set `VITE_REGIONS` to a JSON list of `{ "id", "url" }` entries, for example:
+
+```bash
+VITE_REGIONS='[{"id":"eu","url":"https://eu.bowdle.example"},{"id":"us","url":"https://us.bowdle.example"}]'
+```
+
+3. On boot the client probes `/health` on every entry, picks the lowest ping, shows that ping in the HUD, and lets players override the region in Settings.
+4. Ranked queue and public matches stay on the chosen region endpoint (`VITE_SERVER_URL` is only the fallback when `VITE_REGIONS` is empty).

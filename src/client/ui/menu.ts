@@ -9,6 +9,7 @@ import { ACTION_LABELS, ACTIONS, CROSSHAIR_COLORS, CROSSHAIR_SIZE, CROSSHAIR_STY
 import { showLeaderboard, showProfile } from "./profile.ts";
 import { platform } from "../platform/sdk.ts";
 import { showPartyPanel } from "./party.ts";
+import { configuredRegions, formatPingMs, probeRegions } from "../regions.ts";
 
 const LABELS: Record<Action, string> = ACTION_LABELS;
 const codeLabel = keyLabel;
@@ -56,7 +57,10 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     <label>Crosshair size <input data-setting="crosshairSize" type="range" min="${CROSSHAIR_SIZE.min}" max="${CROSSHAIR_SIZE.max}" step="2" value="${settings.crosshairSize}"></label>
     <label>Crosshair color ${choice("crosshairColor", CROSSHAIR_COLORS, settings.crosshairColor, { sepia: "Ink brown", sunInk: "Sun orange", gold: "Gold", moonInk: "Moon blue", parchment: "Paper" })}</label>
     <label>Team colors ${choice("teamPalette", TEAM_PALETTE_NAMES, settings.teamPalette, { default: "Standard", deuteranopia: "Deuteranopia", protanopia: "Protanopia", tritanopia: "Tritanopia" })}</label>
-    <h3>Bindings</h3><div class="bowdle-bindings"></div><button data-action="done">Done</button>`;
+        <h3>Region</h3>
+    <label>Server region <select data-setting="preferredRegion"><option value="">Auto (lowest ping)</option></select></label>
+    <p class="bowdle-small" data-testid="region-pings">Probing regions...</p>
+<h3>Bindings</h3><div class="bowdle-bindings"></div><button data-action="done">Done</button>`;
   const bindings = panel.querySelector<HTMLDivElement>(".bowdle-bindings")!;
   for (const action of ACTIONS) {
     const button = document.createElement("button");
@@ -77,18 +81,33 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     const number = (name: string): number => Number(panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.value);
     const checked = (name: string): boolean => panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.checked;
     const picked = <T extends string>(name: string): T => panel.querySelector<HTMLSelectElement>(`[data-setting=${name}]`)!.value as T;
-    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), musicVolume: number("musicVolume"), effectsVolume: number("effectsVolume"), ambienceVolume: number("ambienceVolume"), music: checked("music"), soundIndicators: checked("soundIndicators"), invertY: checked("invertY"), aimSensitivity: number("aimSensitivity"), gamepadSensitivity: number("gamepadSensitivity"), trackpadMode: checked("trackpadMode"), crosshairStyle: picked("crosshairStyle"), crosshairSize: number("crosshairSize"), crosshairColor: picked("crosshairColor"), teamPalette: picked("teamPalette"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
+    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), musicVolume: number("musicVolume"), effectsVolume: number("effectsVolume"), ambienceVolume: number("ambienceVolume"), music: checked("music"), soundIndicators: checked("soundIndicators"), invertY: checked("invertY"), aimSensitivity: number("aimSensitivity"), gamepadSensitivity: number("gamepadSensitivity"), trackpadMode: checked("trackpadMode"), crosshairStyle: picked("crosshairStyle"), crosshairSize: number("crosshairSize"), crosshairColor: picked("crosshairColor"), teamPalette: picked("teamPalette"), preferredRegion: picked("preferredRegion"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
     panel.querySelector("output")!.textContent = String(settings.fov); saveSettings(settings);
   };
   panel.addEventListener("input", update);
   panel.querySelector("[data-action=done]")!.addEventListener("click", () => { panel.remove(); onClose(); });
-  container.append(panel);
+  const regionSelect = panel.querySelector<HTMLSelectElement>("[data-setting=preferredRegion]");
+  const pingLine = panel.querySelector("[data-testid=region-pings]");
+  if (regionSelect) {
+    for (const region of configuredRegions()) {
+      const option = document.createElement("option");
+      option.value = region.id;
+      option.textContent = region.label ?? region.id;
+      regionSelect.append(option);
+    }
+    regionSelect.value = settings.preferredRegion ?? "";
+    void probeRegions().then((pings) => {
+      if (!pingLine) return;
+      pingLine.textContent = pings.length === 0 ? "Single region" : pings.map((row) => `${row.label ?? row.id}: ${formatPingMs(row.pingMs)}`).join(" / ");
+    });
+  }
+container.append(panel);
 }
 
 export function showMainMenu(container: HTMLElement): void {
   installMenuStyles(container);
   const menu = document.createElement("main"); menu.className = "bowdle-menu";
-  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><div class="bowdle-menu-grid"><button data-action="ffa">Free for All</button><button data-action="relic">Relic Run</button><button data-action="expedition">Expedition</button><button data-action="party">Play with friends</button><button data-action="practice">Practice</button><button data-action="course">Field course</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button></div><nav class="bowdle-legal"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></nav>`;
+  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><button data-action="ranked">Ranked</button><div class="bowdle-menu-grid"><button data-action="ffa">Free for All</button><button data-action="relic">Relic Run</button><button data-action="expedition">Expedition</button><button data-action="party">Play with friends</button><button data-action="practice">Practice</button><button data-action="course">Field course</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button></div><nav class="bowdle-legal"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></nav>`;
   container.append(menu);
   platform().loaded();
   reportFunnel("menuOpened");
@@ -129,9 +148,23 @@ export function showMainMenu(container: HTMLElement): void {
   };
   const play = (): void => withName((name) => { void enter(name); });
   menu.querySelector("[data-action=play]")!.addEventListener("click", play);
+  menu.querySelector("[data-action=ranked]")!.addEventListener("click", () => withName((name) => {
+    void (async () => {
+      const account = await ensureAccount(name);
+      const level = account?.progress.level ?? 0;
+      const linked = (account?.linked.length ?? 0) > 0;
+      if (level < 10 || !linked) {
+        const toast = document.createElement("div"); toast.className = "bowdle-toast";
+        toast.textContent = linked ? "Ranked unlocks at level 10." : "Link an account in Profile to play Ranked.";
+        container.append(toast); setTimeout(() => toast.remove(), 4000);
+        return;
+      }
+      location.search = onlineSearch("tdm") + "&ranked=1";
+    })();
+  }));
   menu.querySelector("[data-action=expedition]")!.addEventListener("click", () => withName(expedition));
   for (const mode of ["ffa", "relic"] as const) menu.querySelector(`[data-action=${mode}]`)!.addEventListener("click", () => withName((name) => { void enter(name, undefined, mode); }));
-  menu.querySelector("[data-action=party]")!.addEventListener("click", () => withName((name) => showPartyPanel(container, (code, mode) => { void enter(name, code, mode); })));
+menu.querySelector("[data-action=party]")!.addEventListener("click", () => withName((name) => showPartyPanel(container, (code, mode) => { void enter(name, code, mode); })));
   menu.querySelector("[data-action=practice]")!.addEventListener("click", () => navigate("camp"));
   menu.querySelector("[data-action=course]")!.addEventListener("click", () => { location.search = "?scene=camp&course"; });
   // First launch: a name, then the field course, which leads into a first match. Returning players stay on the menu.

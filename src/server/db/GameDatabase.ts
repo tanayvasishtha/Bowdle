@@ -10,6 +10,7 @@ import { createMatchStats } from "../../shared/matchStats.ts";
 import { DAILY_POOL, WEEKLY_POOL, challengeReward, dailyChallenges, weeklyChallenges, periodKeys, resetTimes, progressFrom, type ChallengeChange, type Challenges, type ChallengeState } from "../../shared/challenges.ts";
 import { PLAY_STREAK, UTC_DAY_MS, ONBOARDING } from "../../shared/constants.ts";
 import { explorerName } from "../../shared/pings.ts";
+import { defaultRating, softReset, updateRating, displayedSkill, tierFor, tierLabel, type Rating, type OpponentResult } from "../../shared/rating.ts";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
 /** expedition is set for Expedition runs: they pay by waves and bosses and are stored for personal bests and the weekly board. */
@@ -119,6 +120,7 @@ export class GameDatabase {
       nextUnlock: nextUnlock(levelProgress(account.xp).level),
       tutorialDone: account.tutorial_done,
       expeditionBest: await this.expeditionBest(account.id),
+      ...(await this.ratingFields(account.id)),
     };
   }
 
@@ -393,6 +395,86 @@ export class GameDatabase {
   async deleteAccount(accountId: string): Promise<boolean> {
     const rows = await this.sql.query<{ id: string }>("DELETE FROM accounts WHERE id = $1 RETURNING id", [accountId]);
     return rows.length === 1;
+  }
+
+
+  private async ratingFields(accountId: string): Promise<{ rating: number; rd: number; tier: string; rankedMatches: number; placement: boolean }> {
+    const row = await this.getRating(accountId);
+    const rating = { rating: row.rating, rd: row.rd, volatility: row.volatility };
+    return {
+      rating: row.rating,
+      rd: row.rd,
+      tier: tierLabel(tierFor(rating)),
+      rankedMatches: row.matches,
+      placement: row.matches < 5,
+    };
+  }
+
+  async getRating(accountId: string, season = this.currentSeason()): Promise<Rating & { matches: number }> {
+    const rows = await this.sql.query<{ rating: number; rd: number; volatility: number; matches: number }>(
+      "SELECT rating, rd, volatility, matches FROM ratings WHERE season = $1 AND account_id = $2",
+      [season, accountId],
+    );
+    const row = rows[0];
+    if (!row) return { ...defaultRating(), matches: 0 };
+    return { rating: row.rating, rd: row.rd, volatility: row.volatility, matches: row.matches };
+  }
+
+  async setRating(accountId: string, rating: Rating, matches: number, season = this.currentSeason()): Promise<void> {
+    await this.sql.query(
+      `INSERT INTO ratings (season, account_id, rating, rd, volatility, matches) VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (season, account_id) DO UPDATE SET rating = EXCLUDED.rating, rd = EXCLUDED.rd, volatility = EXCLUDED.volatility, matches = EXCLUDED.matches`,
+      [season, accountId, rating.rating, rating.rd, rating.volatility, matches],
+    );
+  }
+
+  /** Apply ranked results. Each line is one human; score 1 win / 0 loss / 0.5 draw vs every other line. */
+  async applyRankedResults(lines: readonly { accountId: string; won: boolean; drew?: boolean }[], season = this.currentSeason()): Promise<void> {
+    if (lines.length === 0) return;
+    const before = new Map<string, Rating & { matches: number }>();
+    for (const line of lines) before.set(line.accountId, await this.getRating(line.accountId, season));
+    for (const line of lines) {
+      const self = before.get(line.accountId)!;
+      const opponents: OpponentResult[] = [];
+      for (const other of lines) {
+        if (other.accountId === line.accountId) continue;
+        const opp = before.get(other.accountId)!;
+        const score: 0 | 0.5 | 1 = line.drew || other.drew ? 0.5 : line.won && !other.won ? 1 : !line.won && other.won ? 0 : 0.5;
+        opponents.push({ rating: opp.rating, rd: opp.rd, score });
+      }
+      const next = opponents.length ? updateRating(self, opponents) : self;
+      await this.setRating(line.accountId, next, self.matches + 1, season);
+    }
+  }
+
+  /** Leaving a live ranked match early counts as a loss against a virtual peer at the same rating. */
+  async recordRankedLeave(accountId: string, season = this.currentSeason()): Promise<void> {
+    const self = await this.getRating(accountId, season);
+    const next = updateRating(self, [{ rating: self.rating, rd: self.rd, score: 0 }]);
+    await this.setRating(accountId, next, self.matches + 1, season);
+  }
+
+  async rankedLeaderboard(season = this.currentSeason(), limit = 50): Promise<{ rank: number; name: string; rating: number; rd: number; tier: string; matches: number }[]> {
+    const rows = await this.sql.query<{ name: string; rating: number; rd: number; volatility: number; matches: number }>(
+      `SELECT a.name, r.rating, r.rd, r.volatility, r.matches FROM ratings r JOIN accounts a ON a.id = r.account_id
+       WHERE r.season = $1 AND r.matches > 0 ORDER BY (r.rating - 2 * r.rd) DESC, r.rating DESC LIMIT $2`,
+      [season, Math.max(1, Math.min(100, Math.floor(limit)))],
+    );
+    return rows.map((row, index) => {
+      const rating = { rating: row.rating, rd: row.rd, volatility: row.volatility };
+      return { rank: index + 1, name: row.name, rating: row.rating, rd: row.rd, tier: tierLabel(tierFor(rating)), matches: row.matches };
+    });
+  }
+
+  async softResetSeasonRatings(fromSeason: string, toSeason: string): Promise<number> {
+    const rows = await this.sql.query<{ account_id: string; rating: number; rd: number; volatility: number; matches: number }>(
+      "SELECT account_id, rating, rd, volatility, matches FROM ratings WHERE season = $1", [fromSeason],
+    );
+    for (const row of rows) {
+      const next = softReset({ rating: row.rating, rd: row.rd, volatility: row.volatility });
+      await this.setRating(row.account_id, next, 0, toSeason);
+    }
+    return rows.length;
   }
 
   async fileReport(reporterId: string, targetId: string, reason: "offensiveName" | "cheating" | "afk"): Promise<{ resetName?: string } | undefined> {

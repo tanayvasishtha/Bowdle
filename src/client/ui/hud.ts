@@ -52,6 +52,7 @@ export class MatchHud {
   private readonly ticker = document.createElement("div");
   private readonly streakLine = document.createElement("div");
   private readonly tipLine = document.createElement("div");
+  private readonly pingLine = document.createElement("div");
   private readonly objectiveMark = document.createElement("div");
   private endedStreak = 0;
   private summaryLine: HTMLElement | undefined;
@@ -88,6 +89,9 @@ export class MatchHud {
     this.ticker.className = "bowdle-xp-ticker"; this.ticker.dataset.testid = "xp-ticker";
     this.streakLine.className = "bowdle-streak"; this.streakLine.dataset.testid = "kill-streak";
     this.root.append(this.ticker, this.streakLine, this.tipLine);
+    this.pingLine.dataset.testid = "region-ping";
+    this.pingLine.style.cssText = "position:absolute;right:24px;bottom:24px;padding:4px 10px;background:#efe3c6dd;border:2px solid #4a3527;font:20px 'Gochi Hand';display:none";
+    this.root.append(this.pingLine);
     this.tipLine.dataset.testid = "tip";
     this.objectiveMark.dataset.testid = "objective";
     this.objectiveMark.textContent = "◆ RELIC";
@@ -99,6 +103,11 @@ export class MatchHud {
     style.textContent += `.bowdle-xp-ticker>div{animation-duration:${L.transitionMs}ms;animation-delay:${L.tickerFadeMs}ms}.bowdle-medals li{animation:postmatch-flash ${L.transitionMs}ms}`;
     style.textContent += `.bowdle-end[data-sequence=complete] .postmatch-xp>div{transition:none}.bowdle-end[data-sequence=complete] .postmatch-level-up,.bowdle-end[data-sequence=complete] .bowdle-medals li{animation:none;opacity:1}`;
     window.addEventListener("keyup", (event) => { if (event.code === loadSettings().keys.scoreboard) this.scoreboard.style.display = "none"; });
+  }
+
+  setRegionPing(label: string, pingMs: number | null): void {
+    this.pingLine.style.display = "block";
+    this.pingLine.textContent = pingMs == null ? `${label}: -` : `${label}: ${Math.round(pingMs)} ms`;
   }
 
   update(state: MatchState, sessionId: string, serverNow: number): void {

@@ -151,8 +151,8 @@ describe("Expedition", () => {
       seat._input.moveX = 0; seat._input.moveZ = 1; seat._input.yaw = -Math.PI / 2; seat._input.pitch = 0; seat._input.buttons = buttons;
       capture.capture(seat);
       room.simulateTick(step, now);
+      stepPlayer(direct, { moveX: 0, moveZ: 1, yaw: -Math.PI / 2, pitch: 0, buttons }, sunTempleMap, { nowMs: now, gravityMult: gravityMultiplier("lowGravity") });
       now += step.dtMs;
-      stepPlayer(direct, { moveX: 0, moveZ: 1, yaw: -Math.PI / 2, pitch: 0, buttons }, sunTempleMap, { nowMs: frame * 1000 / 30, gravityMult: gravityMultiplier("lowGravity") });
       peak = Math.max(peak, direct.y);
     }
     expect(peak).toBeGreaterThan(1.8);

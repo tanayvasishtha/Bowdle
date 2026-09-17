@@ -1,4 +1,4 @@
-﻿import type { Profile, Provider } from "../../shared/api.ts";
+import type { Profile, Provider } from "../../shared/api.ts";
 import { deleteAccount, enabledProviders, ensureAccount, fetchChallenges, fetchLeaderboard, fetchProfile, renameAccount, rerollChallenge, startProviderSignIn } from "../account.ts";
 import type { Challenges, ChallengeState } from "../../shared/challenges.ts";
 import { PLAY_STREAK, TIME_UNITS } from "../../shared/constants.ts";
@@ -16,7 +16,7 @@ export function escapeHtml(value: string): string {
 function panel(container: HTMLElement, className: string, onClose: () => void): HTMLElement {
   const section = document.createElement("section");
   section.className = `bowdle-panel ${className}`;
-  section.innerHTML = `<h2>Loadingâ€¦</h2>`;
+  section.innerHTML = `<h2>Loading…</h2>`;
   container.append(section);
   section.addEventListener("click", (event) => {
     if ((event.target as HTMLElement).closest("[data-action=close]")) { section.remove(); onClose(); }
@@ -49,7 +49,7 @@ export async function showProfile(container: HTMLElement, onClose: () => void): 
     <p class="bowdle-small" data-testid="tier">${profile.tier ? `Ranked: ${escapeHtml(profile.tier)}${profile.placement ? " (placement)" : ""}` : "Ranked: unranked"}</p>
     <p class="bowdle-small">Season ${escapeHtml(profile.season)}: ${profile.seasonKills} kills, ${profile.seasonWins} wins in ${profile.seasonMatches} matches</p>
     <p data-testid="play-streak">Play streak: ${profile.streakDays} days. Tomorrow's bonus: ${PLAY_STREAK.inkPerDay * Math.min(profile.streakDays + 1, PLAY_STREAK.capDays)} Ink</p>
-    <p data-testid="career">Career: ${profile.career.matches} matches Â· ${profile.career.wins} wins Â· ${profile.career.kills} kills Â· ${profile.career.headshots} headshots Â· best streak ${profile.career.bestStreak} Â· longest shot ${Math.round(profile.career.longestShotM)} m</p>
+    <p data-testid="career">Career: ${profile.career.matches} matches · ${profile.career.wins} wins · ${profile.career.kills} kills · ${profile.career.headshots} headshots · best streak ${profile.career.bestStreak} · longest shot ${Math.round(profile.career.longestShotM)} m</p>
     <p data-testid="next-unlock">${profile.nextUnlock ? `Next reward at level ${profile.nextUnlock.level}: ${profile.nextUnlock.itemId ? escapeHtml(cosmeticById(profile.nextUnlock.itemId)!.name) : `${profile.nextUnlock.ink} Ink`}` : "All level rewards earned"}</p>
     <div data-testid="challenges"></div>
     <label>Explorer name <input data-field="name" maxlength="16" value="${escapeHtml(profile.name)}"></label><div class="bowdle-error"></div>
@@ -62,7 +62,7 @@ export async function showProfile(container: HTMLElement, onClose: () => void): 
   const challengePanel = section.querySelector<HTMLDivElement>("[data-testid=challenges]")!;
   const renderChallenges = (state: Challenges | undefined): void => {
     if (!state) { challengePanel.textContent = "Challenge notes offline"; return; }
-    const rows = (list: ChallengeState[], daily: boolean): string => list.map((entry) => `<li data-challenge="${escapeHtml(entry.id)}"><span>${escapeHtml(entry.text)}</span> <progress max="${entry.target}" value="${entry.progress}"></progress> ${entry.progress}/${entry.target} ${entry.done ? "Done" : ""} Â· ${entry.reward.ink} Ink + ${entry.reward.xp} XP ${daily ? `<button data-reroll="${escapeHtml(entry.id)}" ${!state.rerollAvailable || entry.done ? "disabled" : ""}>Reroll</button>` : ""}</li>`).join("");
+    const rows = (list: ChallengeState[], daily: boolean): string => list.map((entry) => `<li data-challenge="${escapeHtml(entry.id)}"><span>${escapeHtml(entry.text)}</span> <progress max="${entry.target}" value="${entry.progress}"></progress> ${entry.progress}/${entry.target} ${entry.done ? "Done" : ""} · ${entry.reward.ink} Ink + ${entry.reward.xp} XP ${daily ? `<button data-reroll="${escapeHtml(entry.id)}" ${!state.rerollAvailable || entry.done ? "disabled" : ""}>Reroll</button>` : ""}</li>`).join("");
     challengePanel.innerHTML = `<h3>Daily challenges</h3><p data-reset="daily"></p><ul data-testid="daily-challenges">${rows(state.daily, true)}</ul><h3>Weekly challenges</h3><p data-reset="weekly"></p><ul data-testid="weekly-challenges">${rows(state.weekly, false)}</ul>`;
     for (const button of challengePanel.querySelectorAll<HTMLButtonElement>("[data-reroll]")) button.addEventListener("click", async () => {
       for (const current of challengePanel.querySelectorAll<HTMLButtonElement>("[data-reroll]")) current.disabled = true;

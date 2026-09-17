@@ -28,7 +28,11 @@ test("M switches the music bus, and an enemy shot nearby shows a sound indicator
   // The second player is on the other team; it shoots straight at the first player.
   const me = await page.evaluate(() => (window as unknown as { __bowdleTest: AudioApi }).__bowdleTest.sessionId);
   await peer.locator("#game-canvas").click();
-  await peer.evaluate((target) => (window as unknown as { __bowdleTest: { aimAt(id: string): void } }).__bowdleTest.aimAt(target), me);
+  await peer.evaluate((target) => {
+    const api = (window as unknown as { __bowdleTest: { placeNear(id: string, distance?: number): void; aimAt(id: string): void } }).__bowdleTest;
+    api.placeNear(target, 12);
+    api.aimAt(target);
+  }, me);
   await peer.mouse.down();
   // Hold until the draw is full; a loaded machine renders the second page slowly.
   await expect.poll(() => peer.evaluate(() => (window as unknown as { __bowdleTest: { drawMs(): number } }).__bowdleTest.drawMs()), { timeout: 10_000 }).toBeGreaterThanOrEqual(550);

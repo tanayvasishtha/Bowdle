@@ -155,8 +155,8 @@ Fix the cause. If a test is genuinely wrong, say so in BUILD_LOG and explain why
 1. Delete the roughly 40 `tmp-*` files in the repository root and add `tmp-*` and `.devmode.json` to `.gitignore`.
    `.devmode.json` is Colyseus dev state and must not be committed.
 2. Fix the mojibake and byte order marks introduced during G9 to G12: `src/client/main.ts:79` shows
-   `Opening the field journalâ€¦` to every online player, and `src/client/ui/profile.ts` has the same damage in two
-   places plus `Loadingâ€¦`. Strip the byte order marks from `main.ts`, `tests/e2e/audio.spec.ts`, `QueueRoom.ts`,
+   `Opening the field journal…` to every online player, and `src/client/ui/profile.ts` has the same damage in two
+   places plus `Loading…`. Strip the byte order marks from `main.ts`, `tests/e2e/audio.spec.ts`, `QueueRoom.ts`,
    `src/shared/regions.ts` and `profile.ts`, and add a check to `npm run check` that fails on `â€`, `Ã¢` or `﻿`
    anywhere in `src`.
 3. Rewrite `docs/BUILD_LOG.md` so entries run newest first with no stray `# Build log` heading in the middle (it is

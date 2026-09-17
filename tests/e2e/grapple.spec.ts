@@ -39,14 +39,14 @@ test("the grapple reels while held, swings when let go, and snaps when cut", asy
   await page.keyboard.up("e");
   expect(reeled).toBe(true);
   await expect.poll(() => call(page, "grappleReeling")).toBe(false);
-  // Under suite load the first swing can auto-detach (max duration or release distance) before the HUD settles on SWINGING.
-  await expect.poll(async () => {
-    const label = (await page.locator(".bowdle-ability").first().textContent()) ?? "";
-    if (label.includes("SWINGING")) return true;
-    if (label.includes("REELING")) await page.keyboard.up("e");
-    else if (!(await call<boolean>(page, "grappleActive"))) await attach();
-    return false;
-  }, { timeout: 20_000 }).toBe(true);
+  // Deterministic swing: attach at range, reel briefly, release, then assert active + SWINGING.
+  await page.evaluate(() => (window as unknown as { __bowdleTest: { aimAtGrapple(minDistance: number): void } }).__bowdleTest.aimAtGrapple(14));
+  await page.keyboard.down("e");
+  await expect.poll(() => call(page, "grappleActive")).toBe(true);
+  await page.waitForTimeout(200);
+  await page.keyboard.up("e");
+  await expect.poll(() => call(page, "grappleActive"), { timeout: 3_000 }).toBe(true);
+  await expect.poll(async () => ((await page.locator(".bowdle-ability").first().textContent()) ?? "").includes("SWINGING"), { timeout: 3_000 }).toBe(true);
   await page.screenshot({ path: "test-results/qa/g3/swing.png" });
   const me = await page.evaluate(() => (window as unknown as { __bowdleTest: GrappleApi }).__bowdleTest.sessionId);
   // Best effort side view for review: only when the other player has the rope in its state already.

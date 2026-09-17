@@ -7,3 +7,6 @@ playwright-report/
 .env
 .env.*
 .DS_Store
+tmp-*
+tmp_*
+.devmode.json

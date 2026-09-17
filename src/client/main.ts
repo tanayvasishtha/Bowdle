@@ -32,6 +32,7 @@ declare global {
       players?(): RenderedPlayer[];
       sessionId?: string;
       aimAt?(sessionId: string): void;
+      placeNear?(sessionId: string, distance?: number): void;
       drawMs?(): number;
       killFeed?(): string;
       cloudCount?(): number;
@@ -76,7 +77,7 @@ const touchOnly = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)"
 if (touchOnly) showDesktopOnly(app);
 else if (params.get("scene") === "online") {
   const loading = document.createElement("section"); loading.className = "bowdle-panel bowdle-loading";
-  loading.innerHTML = `<h2>Opening the field journalâ€¦</h2><p>Finding a match in the jungle.</p>`;
+  loading.innerHTML = `<h2>Opening the field journal…</h2><p>Finding a match in the jungle.</p>`;
   app.append(loading);
   const requestedMapId = params.get("map") ?? undefined;
   const renderer = new Renderer(app, params.has("debug"), requestedMapId ? mapById(requestedMapId) ?? defaultMatchMap : defaultMatchMap);
@@ -94,6 +95,7 @@ else if (params.get("scene") === "online") {
       players: () => session.players(),
       sessionId: session.sessionId,
       aimAt: (sessionId: string) => session.aimAt(sessionId),
+      placeNear: (sessionId, distance) => session.placeNear(sessionId, distance),
       drawMs: () => session.drawMs(),
       killFeed: () => session.killFeed(),
       cloudCount: () => session.cloudCount(),

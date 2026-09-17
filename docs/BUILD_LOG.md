@@ -1,3 +1,31 @@
+## F4: Repo hygiene, encoding and zero browser fails
+
+Built:
+- Cleared root scratch `tmp-*` / `tmp_*` files; `.gitignore` now ignores `tmp-*`, `tmp_*`, and `.devmode.json`.
+- Fixed double-encoded ellipsis and middle dots in client copy (`…`, `·`); stripped BOMs from touched sources.
+- Added `scripts/check-mojibake.mjs` and wired it into `npm run check`.
+- Gamepad menu focus order expects Play, Ranked, Free for All (matches the live main menu).
+- Restored `shotCueRangeM` to 30; audio e2e calls `placeNear(12)` before the enemy shot.
+- Health test sets `REGION=test-region` and asserts that exact value.
+- Expedition prediction test steps server and predicted player with the same `now` before advancing the clock.
+- Grapple e2e uses a deterministic attach / short reel / release / SWINGING path (no 20s reattach poll).
+- BUILD_LOG kept newest-first; stray mid-file heading / broken `\npm` refs / em dashes cleaned.
+
+Verified:
+- `npm run typecheck` - pass
+- `npm test` - 76 files / 359 tests
+- `npm run check-mojibake` - pass
+- `npm run build` + `npm run size` - pass (client JS gzip 321 KB / 900 KB budget)
+- `npm run smoke` - pass
+- targeted e2e (gamepad, audio, grapple, world-density) - 11/11 pass
+- `npm run e2e` - 57 passed, 0 failed
+
+Left:
+- None for F4 scope.
+
+Status: done.
+
+
 ## F3: Service worker, FPS cap and the release gate
 
 Built:
@@ -98,21 +126,21 @@ Status: done.
 ## G14: Balance pass, release QA, v2.0.0
 
 Built:
-- `scripts/balance-report.ts` — N bot matches per PvP mode×map (tdm/ffa/relic × matchMaps; skips expedition). CLI `node scripts/balance-report.ts [seeds]` (default 20). Prints kills by weapon and arrow kind, average TTK, headshot rate, movement verb samples (grapple/swing/zip/tether) plus zip/tether ride starts, and relic capture carry/match times. Flags weapons >45% of kills and team wins >60% of seeds (FFA reports kill-leader share instead).
+- `scripts/balance-report.ts`  -  N bot matches per PvP mode×map (tdm/ffa/relic × matchMaps; skips expedition). CLI `node scripts/balance-report.ts [seeds]` (default 20). Prints kills by weapon and arrow kind, average TTK, headshot rate, movement verb samples (grapple/swing/zip/tether) plus zip/tether ride starts, and relic capture carry/match times. Flags weapons >45% of kills and team wins >60% of seeds (FFA reports kill-leader share instead).
 - Public room audit ledger on `TdmRoom` (`auditKills`, `auditCaptures`, `auditMovement`, `clearBalanceAudit`) filled from the dealDamage/kill and relic capture paths without changing network messages; arrow kind comes from the existing kill path argument.
 - `npm run balance`, package version **2.0.0**.
-- Docs marked v2.0.0 / G1–G14 shipped: GAME.md, JUNGLE-MAPS.md, ECONOMY.md, RETENTION.md, README, DEPLOY.md.
+- Docs marked v2.0.0 / G1 - G14 shipped: GAME.md, JUNGLE-MAPS.md, ECONOMY.md, RETENTION.md, README, DEPLOY.md.
 - Optional Playwright screenshots: `G14_SHOTS=1 npx playwright test tests/e2e/g14-qa.spec.ts` → `test-results/qa/g14/` (not committed).
 
-Constant changes: **none.** Release balance (`seeds=20`, wall ~6.4 min) flagged arrow at ~96% of kills (expected primary weapon) and a mild Moon win skew on several mirrored TDM maps (65–70%). Across X-mirrored arenas that skew is attributed to bot fill/seed ordering in the soak harness, not map or damage constants — no shared-constant tweak without a clear gameplay problem. Scatter stayed well under 45% of kills (~13–27% depending on cell).
+Constant changes: **none.** Release balance (`seeds=20`, wall ~6.4 min) flagged arrow at ~96% of kills (expected primary weapon) and a mild Moon win skew on several mirrored TDM maps (65 - 70%). Across X-mirrored arenas that skew is attributed to bot fill/seed ordering in the soak harness, not map or damage constants  -  no shared-constant tweak without a clear gameplay problem. Scatter stayed well under 45% of kills (~13 - 27% depending on cell).
 
 Verified:
-- `npm run check` — typecheck + 349 vitest + build + size (pass).
-- `npm run smoke` — pass.
-- `npm run soak` — pass with **1 seed** (full 3-seed default not re-run; soak wall ~31 s for 1 seed across all PvP modes + expedition maps).
-- `npm run build:portals` — pass.
-- `npm run balance` — pass, **seeds=20** (logged release number); earlier seeds=5 used while iterating.
-- `npm run e2e` — 44 passed, 1 skipped (g14 shots without env), **12 failed** on this Linux SwiftShader box (render density washes=0, characters/gamepad/audio/expedition flakes). Failures look environmental vs Masky GPU; check remains green. Not treated as G14 regressions.
+- `npm run check`  -  typecheck + 349 vitest + build + size (pass).
+- `npm run smoke`  -  pass.
+- `npm run soak`  -  pass with **1 seed** (full 3-seed default not re-run; soak wall ~31 s for 1 seed across all PvP modes + expedition maps).
+- `npm run build:portals`  -  pass.
+- `npm run balance`  -  pass, **seeds=20** (logged release number); earlier seeds=5 used while iterating.
+- `npm run e2e`  -  44 passed, 1 skipped (g14 shots without env), **12 failed** on this Linux SwiftShader box (render density washes=0, characters/gamepad/audio/expedition flakes). Failures look environmental vs Masky GPU; check remains green. Not treated as G14 regressions.
 - Screenshots: 15 PNGs under `test-results/qa/g14/` via `G14_SHOTS=1`.
 - Retention report: **skipped** (no `DATABASE_URL` or `PGLITE_DIR`).
 
@@ -131,7 +159,6 @@ Verified: npm run check.
 
 Left: attract-mode orbit polish and Playwright Low-preset draw-call capture if budgets need a nudge; G14 balance/release.
 
-# Build log
 
 ## G12: Ranked and regions
 

@@ -106,19 +106,19 @@ for (const mode of MODES) {
 await colyseus.shutdown();
 
 function pct(n: number, d: number): string {
-  return d <= 0 ? "—" : `${((100 * n) / d).toFixed(1)}%`;
+  return d <= 0 ? " - " : `${((100 * n) / d).toFixed(1)}%`;
 }
 
 function avg(sum: number, n: number): string {
-  return n <= 0 ? "—" : `${(sum / n / 1000).toFixed(2)}s`;
+  return n <= 0 ? " - " : `${(sum / n / 1000).toFixed(2)}s`;
 }
 
 function mean(values: number[]): string {
-  if (values.length === 0) return "—";
+  if (values.length === 0) return " - ";
   return `${(values.reduce((a, b) => a + b, 0) / values.length / 1000).toFixed(2)}s`;
 }
 
-console.log(`\nBowdle balance report — ${seeds} seed(s) per mode×map (PvP only)\n`);
+console.log(`\nBowdle balance report  -  ${seeds} seed(s) per mode×map (PvP only)\n`);
 
 for (const cell of cells) {
   console.log(`=== ${cell.mode} / ${cell.mapId} (${cell.seeds} seeds) ===`);

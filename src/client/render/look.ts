@@ -56,7 +56,7 @@ export const AUDIO_MIX = {
   busRampS: 0.05, crossfadeS: 1.5, exploreIntensity: 0.4, combatAfterDamageMs: 4000, padFloor: 0.35,
   bpm: 92, padGain: 0.05, kickGain: 0.22, shakerGain: 0.05, melodyGain: 0.06, melodyChance: 0.55,
   footstepRangeM: 18, footstepMinSpeed: 1, footstepRunSpeed: 6, footstepWalkGain: 0.45, walkStrideM: 2, runStrideM: 2.8,
-  enemyViewM: 35, shotCueRangeM: 40, cueMs: 900, cueRadius: 0.38,
+  enemyViewM: 35, shotCueRangeM: 30, cueMs: 900, cueRadius: 0.38,
   defaultMusic: 0.5, defaultEffects: 1, defaultAmbience: 1,
 } as const;
 

@@ -18,7 +18,14 @@ describe("game server", () => {
   });
 
   it("answers GET /health", async () => {
-    const response = await colyseus.http.get("/health");
-    expect(response.data).toEqual({ ok: true, region: process.env.REGION || "local" });
+    const previous = process.env.REGION;
+    process.env.REGION = "test-region";
+    try {
+      const response = await colyseus.http.get("/health");
+      expect(response.data).toEqual({ ok: true, region: "test-region" });
+    } finally {
+      if (previous === undefined) delete process.env.REGION;
+      else process.env.REGION = previous;
+    }
   });
 });

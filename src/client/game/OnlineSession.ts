@@ -591,7 +591,7 @@ export class OnlineSession {
   private onWave(message: WaveMessage): void {
     if (message.event === "start") {
       const modifier = MODIFIER_NAMES[message.modifier] ?? "";
-      this.hud.banner(message.boss ? "THE COLOSSUS WAKES" : `WAVE ${message.wave}${modifier ? ` Â· ${modifier.toUpperCase()}` : ""}`);
+      this.hud.banner(message.boss ? "THE COLOSSUS WAKES" : `WAVE ${message.wave}${modifier ? ` · ${modifier.toUpperCase()}` : ""}`);
       this.sounds.play("paper");
     } else if (message.event === "clear") {
       this.hud.banner(`WAVE ${message.wave} CLEARED`);
@@ -861,6 +861,20 @@ export class OnlineSession {
   drawMs(): number { return this.me.state.drawMs; }
   killFeed(): string { return this.hud.feedText(); }
   cloudCount(): number { return this.room.state.inkClouds.size; }
+  /** Test helper: stand `distance` meters from another player and face them. */
+  /** Test helper: stand `distance` meters from another player and face them. */
+  placeNear(sessionId: string, distance = 12): void {
+    const target = this.room.state.players.get(sessionId);
+    if (!target) return;
+    const x = this.predict.value(target, "x"), z = this.predict.value(target, "z"), y = this.predict.value(target, "y");
+    const dx = x - this.me.state.x, dz = z - this.me.state.z;
+    const len = Math.hypot(dx, dz) || 1;
+    this.me.state.x = x - (dx / len) * distance;
+    this.me.state.z = z - (dz / len) * distance;
+    this.me.state.y = y;
+    this.sampler.setLook(Math.atan2(-(x - this.me.state.x), -(z - this.me.state.z)), 0);
+  }
+
   grappleActive(): boolean { return this.me.state.grappleActive; }
   /** Test hook: looks at the nearest grapple anchor the hook really reaches, at least minDistance away. */
   aimAtGrapple(minDistance = 0): void {

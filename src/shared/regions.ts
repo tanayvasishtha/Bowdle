@@ -1,4 +1,4 @@
-﻿/** Multi-region ping probe helpers (G12). */
+/** Multi-region ping probe helpers (G12). */
 
 export type RegionInfo = { id: string; url: string; label?: string };
 

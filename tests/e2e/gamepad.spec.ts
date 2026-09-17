@@ -82,7 +82,7 @@ test("menus and settings work with a gamepad", async ({ page }) => {
   await expect(page.locator(".bowdle-menu")).toBeVisible();
   const labels: string[] = [];
   for (let press = 0; press < 3; press += 1) labels.push(await focusNext(page));
-  expect(labels).toEqual(["Play", "Free for All", "Relic Run"]);
+  expect(labels).toEqual(["Play", "Ranked", "Free for All"]);
   // Walk down to Settings and open it with A.
   for (let press = 0; press < 12 && (await focused(page)) !== "Settings"; press += 1) await focusNext(page);
   await tap(page, 0);

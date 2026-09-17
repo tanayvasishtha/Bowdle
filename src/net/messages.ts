@@ -10,7 +10,7 @@ export const RobinHoodMessage = z.object({ shooterA: z.string(), shooterB: z.str
 export const RopeCutMessage = z.object({ cutter: z.string(), owner: z.string(), x: z.number(), y: z.number(), z: z.number(), tether: z.string().optional() });
 export const SwatMessage = z.object({ swatter: z.string(), shooter: z.string(), x: z.number(), y: z.number(), z: z.number() });
 /** In Free for All the winner is "player" and mvp names them. */
-export const MatchEndMessage = z.object({ winner: z.enum(["sun", "moon", "draw", "player"]), mvp: z.string() });
+export const MatchEndMessage = z.object({ winner: z.enum(["sun", "moon", "draw", "player"]), mvp: z.string(), playOf: z.object({ killerId: z.string(), victimId: z.string(), distance: z.number().nonnegative(), streak: z.number().int().nonnegative(), kind: z.enum(["longShot", "streak"]) }).optional() });
 export const RelicMessage = z.object({ event: z.enum(["pickup", "drop", "return", "capture"]), player: z.string(), team: z.number().int() });
 export const MapVoteMessage = z.object({ mapId: z.enum(["sun-temple", "canopy", "lost-river", "sky-bridges", "sunken-ruins"]) });
 
@@ -47,3 +47,35 @@ export const RewardMessage = z.object({
   unlocked: z.array(z.string()),
 });
 export type RewardMessage = z.infer<typeof RewardMessage>;
+
+export const PingMessage = z.object({
+  kind: z.enum(["enemy", "location", "relic", "anchor"]),
+  x: z.number(), y: z.number(), z: z.number(),
+  callout: z.enum(["enemyHere", "onMyWay", "needHelp", "grappleHere", "fallBack", "niceShot"]).optional(),
+});
+export const PingEventMessage = PingMessage.extend({
+  from: z.string(),
+  team: z.number().int(),
+  atMs: z.number(),
+});
+export const MutePingMessage = z.object({ targetId: z.string().min(1).max(64) });
+export const ReportMessage = z.object({
+  targetId: z.string().min(1).max(64),
+  reason: z.enum(["offensiveName", "cheating", "afk"]),
+});
+export const AfkPromptMessage = z.object({ secondsLeft: z.number().int().positive() });
+export const AfkRemovedMessage = z.object({ reason: z.literal("afk") });
+export const PlayOfTheMatchMessage = z.object({
+  killerId: z.string(),
+  victimId: z.string(),
+  distance: z.number().nonnegative(),
+  streak: z.number().int().nonnegative(),
+  kind: z.enum(["longShot", "streak"]),
+});
+export type PingMessage = z.infer<typeof PingMessage>;
+export type PingEventMessage = z.infer<typeof PingEventMessage>;
+export type MutePingMessage = z.infer<typeof MutePingMessage>;
+export type ReportMessage = z.infer<typeof ReportMessage>;
+export type AfkPromptMessage = z.infer<typeof AfkPromptMessage>;
+export type AfkRemovedMessage = z.infer<typeof AfkRemovedMessage>;
+export type PlayOfTheMatchMessage = z.infer<typeof PlayOfTheMatchMessage>;

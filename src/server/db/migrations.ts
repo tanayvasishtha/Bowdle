@@ -96,6 +96,16 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX expedition_runs_week ON expedition_runs (week, wave DESC)
   `,
+  `
+  CREATE TABLE reports (
+    id BIGSERIAL PRIMARY KEY,
+    reporter_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    target_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE INDEX reports_target_reason_time ON reports (target_id, reason, created_at DESC)
+  `,
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

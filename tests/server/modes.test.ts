@@ -46,7 +46,7 @@ describe("Free for All and Relic Run rooms", () => {
     expect(room.state.phase).toBe("end");
     expect(room.state.scoreSun).toBe(MODE_TUNING.ffaKillLimit);
     await wait(150);
-    expect(ends).toContainEqual({ winner: "player", mvp: attackerId });
+    expect(ends).toContainEqual(expect.objectContaining({ winner: "player", mvp: attackerId }));
     await client.leave();
   }, 20_000);
 

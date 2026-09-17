@@ -1,6 +1,17 @@
 # Build log
 
+## G11: Pings, spectating, AFK, reports, play of the match
 
+Built:
+- Shared ping kinds/callouts, rate limit and Explorer rename helpers with unit tests.
+- Room handlers for team-only pings, mute, AFK prompt/remove, and play-of-the-match on match end.
+- Reports table + API; three distinct offensive-name reports rename to Explorer####.
+- Client ping layer + callout wheel, AFK prompt, scoreboard mute/report menu, play-of-the-match on the end screen, death spectate captions.
+- Server social tests and e2e coverage for wheel, spectate, AFK prompt and play of the match.
+
+Verified: npm run check (tsc + 335 vitest + build + size). Playwright 56 passed (including social ping/spectate/AFK/play-of-the-match).
+
+Left: G12 ranked and regions.
 
 ## G10: Map kit v3, Sky Bridges, Sunken Ruins
 

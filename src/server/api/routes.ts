@@ -214,5 +214,18 @@ export function apiRouter(options: ApiOptions): Router {
     if (!response.headersSent) response.status(500).json({ error: "server" });
   });
 
+  
+  router.post("/report", async (request, response) => {
+    const auth = await signedIn(request, response); if (!auth) return;
+    const body = z.object({
+      targetId: z.string().min(1).max(64),
+      reason: z.enum(["offensiveName", "cheating", "afk"]),
+    }).safeParse(request.body);
+    if (!body.success) { response.status(400).json({ error: "bad_request" }); return; }
+    const result = await auth.db.fileReport(auth.accountId, body.data.targetId, body.data.reason);
+    if (!result) { response.status(400).json({ error: "bad_report" }); return; }
+    response.json(result);
+  });
+
   return router;
 }

@@ -29,6 +29,9 @@ import { ClipRecorder, clipsSupported, downloadBlob, shareOnXUrl } from "./clips
 import { CameraRig } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { ReplayDirector } from "./ReplayDirector.ts";
+import { AfkPrompt, PingLayer, type PingEvent } from "../ui/pings.ts";
+import { classifyPing, type CalloutId } from "../../shared/pings.ts";
+import { AfkPromptMessage, AfkRemovedMessage, MutePingMessage, PingEventMessage, PingMessage, PlayOfTheMatchMessage } from "../../net/messages.ts";
 import { spawnAbilityProjectile, tryAttachGrapple } from "../../shared/sim/abilities.ts";
 import { drawFraction } from "../../shared/sim/bow.ts";
 import { KillFeedbackTracker } from "../../shared/killFeedback.ts";
@@ -71,6 +74,15 @@ export class OnlineSession {
   private readonly motionScratch = createMotion();
   private readonly hud: MatchHud;
   private readonly replay: ReplayDirector;
+  private readonly pingLayer: PingLayer;
+  private readonly afkPrompt: AfkPrompt;
+  private readonly pingEvents: PingEvent[] = [];
+  private mutedPingFrom = new Set<string>();
+  private zHeldMs = 0;
+  private zWasDown = false;
+  private middleWasDown = false;
+  private readonly keysDown = new Set<string>();
+  private playOfTheMatch: PlayOfTheMatchMessage | undefined;
   private readonly sounds = new SoundEffects();
   private readonly cameraRig = new CameraRig();
   private map: MapData;
@@ -95,8 +107,17 @@ export class OnlineSession {
       newMatch: async () => { try { await this.room.leave(true); } finally { location.assign(`/${onlineSearch(isGameMode(this.room.state.mode) ? this.room.state.mode : "tdm")}`); } },
       saveClip: this.clips ? () => this.saveClip() : undefined,
       shareUrl: policy.externalLinks ? (text) => shareOnXUrl(text) : undefined,
+      mutePings: (playerId) => this.mutePingsFrom(playerId),
+      reportPlayer: (playerId, reason) => { void this.reportPlayer(playerId, reason); },
     });
     this.replay = new ReplayDirector(renderer.canvas.parentElement!);
+    this.pingLayer = new PingLayer(renderer.canvas.parentElement!);
+    this.afkPrompt = new AfkPrompt(renderer.canvas.parentElement!);
+    this.pingLayer.setCalloutHandler((id) => this.sendPing(undefined, id));
+    window.addEventListener("keydown", (event) => { if (!event.repeat) this.keysDown.add(event.code); });
+    window.addEventListener("keyup", (event) => { this.keysDown.delete(event.code); });
+    window.addEventListener("mousedown", (event) => { if (event.button === 1) { event.preventDefault(); this.keysDown.add("Mouse1"); } });
+    window.addEventListener("mouseup", (event) => { if (event.button === 1) this.keysDown.delete("Mouse1"); });
     this.quiver = new QuiverStrip(renderer.canvas.parentElement!);
     this.cues = new SoundCues(renderer.canvas.parentElement!);
     this.crosshair = new Crosshair(renderer.canvas.parentElement!);
@@ -144,9 +165,26 @@ export class OnlineSession {
     room.onMessage<RelicMessage>("relic", (payload) => { const parsed = RelicMessage.safeParse(payload); if (parsed.success) this.onRelic(parsed.data); });
     room.onMessage<SwatMessage>("swat", (payload) => { const parsed = SwatMessage.safeParse(payload); if (parsed.success) this.onSwat(parsed.data); });
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
+    room.onMessage("pingEvent", (payload) => {
+      const parsed = PingEventMessage.safeParse(payload);
+      if (!parsed.success || this.mutedPingFrom.has(parsed.data.from)) return;
+      this.pingEvents.push(parsed.data);
+    });
+    room.onMessage("afkPrompt", (payload) => {
+      const parsed = AfkPromptMessage.safeParse(payload);
+      if (parsed.success) this.afkPrompt.show(parsed.data.secondsLeft);
+    });
+    room.onMessage("afkRemoved", (payload) => {
+      const parsed = AfkRemovedMessage.safeParse(payload);
+      if (parsed.success) { this.afkPrompt.hide(); location.assign("/"); }
+    });
+    room.onMessage("playOfTheMatch", (payload) => {
+      const parsed = PlayOfTheMatchMessage.safeParse(payload);
+      if (parsed.success) this.playOfTheMatch = parsed.data;
+    });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.onHitConfirm(parsed.data); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) { this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); this.lastDamageAtMs = performance.now(); this.cameraRig.hurt(parsed.data.damage); } });
-    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps, this.runSummary()); });
+    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); if (parsed.data.playOf) this.playOfTheMatch = parsed.data.playOf; this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps, this.runSummary(), this.playOfTheMatch); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
     room.onMessage<RopeCutMessage>("ropeCut", (payload) => { const parsed = RopeCutMessage.safeParse(payload); if (parsed.success) this.onRopeCut(parsed.data); });
@@ -191,7 +229,32 @@ export class OnlineSession {
   /** Test hook: shows the end screen with the current scoreboard. */
   showEndScreen(): void {
     this.hud.endPinned = true;
-    this.hud.end({ winner: "draw", mvp: this.sessionId }, this.names, { kills: this.me.state.kills, deaths: this.me.state.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps, this.runSummary());
+    this.hud.end({ winner: "draw", mvp: this.sessionId }, this.names, { kills: this.me.state.kills, deaths: this.me.state.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps, this.runSummary(), this.playOfTheMatch);
+  }
+
+  /** Test hook: plants a play-of-the-match highlight for the end screen. */
+  setPlayOfTheMatch(playOf: PlayOfTheMatchMessage): void { this.playOfTheMatch = playOf; }
+
+  openPingWheel(): void { this.pingLayer.showWheel(); }
+  closePingWheel(): void { this.pingLayer.hideWheel(); }
+  pingWheelOpen(): boolean { return this.pingLayer.isWheelOpen; }
+  pingMarkerCount(): number { return this.pingLayer.root.querySelectorAll('[data-testid="ping-marker"]').length; }
+  forcePing(kind: PingEvent["kind"] = "location"): void {
+    this.sendPing(kind);
+    const me = this.me.state;
+    const event: PingEvent = {
+      kind, x: me.x + Math.sin(me.yaw) * 8, y: me.y + 1.2, z: me.z + Math.cos(me.yaw) * 8,
+      from: this.sessionId, team: me.team, atMs: performance.now(),
+    };
+    this.pingEvents.push(event);
+    this.pingLayer.show(event, performance.now(), (x, y, z) => this.renderer.screenPoint(x, y, z));
+  }
+  afkPromptVisible(): boolean { return !this.afkPrompt.root.hidden; }
+  showAfkPrompt(secondsLeft = 30): void { this.afkPrompt.show(secondsLeft); }
+  isSpectating(): boolean { return this.replay.isSpectating(); }
+  startSpectate(killerId: string, killerName = "Rival"): void {
+    this.replay.start(this.sessionId, killerId, performance.now());
+    this.replay.setKillerCaption(killerName, "spectating");
   }
 
   showMatchRewards(stats: MatchStatsMessage, reward: RewardMessage): void {
@@ -275,7 +338,8 @@ export class OnlineSession {
     this.crosshair.update(drawn);
     this.sampler.setAimSlowdown(this.enemyUnderCrosshair);
     this.renderer.setMeleeSwing(stabProgress(this.me.state.meleeCooldownMs));
-    if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
+    if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs);
+    this.tickPings(timeMs); }
     else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); this.hud.setReplay(false); }
     this.wasAlive = this.me.state.alive;
     this.renderer.setGrappleHighlights(this.me.state.grappleCooldownMs <= 0 && !this.me.state.grappleActive);
@@ -634,7 +698,13 @@ export class OnlineSession {
       this.hud.feedback(feedback); if (feedback.multikill) this.sounds.play("multikill"); if (feedback.unstoppable) happyTime("unstoppable");
     }
     if (message.victim === this.sessionId) this.hud.feedback(this.feedback.death(atMs));
-    if (message.victim === this.sessionId && message.weapon === "arrow") { this.hud.setReplay(true); this.replay.start(message.victim, message.killer, performance.now()); }
+    if (message.victim === this.sessionId) {
+      this.hud.setReplay(true);
+      this.replay.start(message.victim, message.killer, performance.now());
+      const killer = this.room.state.players.get(message.killer);
+      const name = killer?.name ?? this.names.get(message.killer) ?? "Foe";
+      this.replay.setKillerCaption(name, `${message.weapon}${message.headshot ? " · headshot" : ""}`);
+    }
   }
 
   private markBodyArrow(x: number, y: number, z: number): void {
@@ -642,6 +712,56 @@ export class OnlineSession {
     for (const render of this.arrowRenders.values()) { const candidate = Math.hypot(render.sim.x - x, render.sim.y - y, render.sim.z - z); if (candidate < distance) { distance = candidate; nearest = render; } }
     if (nearest) nearest.stuckForMs = BODY_ARROW_STUCK_MS;
   }
+
+  private tickPings(timeMs: number): void {
+    const z = this.keysDown.has("KeyZ");
+    const middle = this.keysDown.has("Mouse1");
+    if (z && !this.zWasDown) this.zHeldMs = timeMs;
+    if (z && this.zWasDown && timeMs - this.zHeldMs >= 250) this.pingLayer.showWheel();
+    if (!z && this.zWasDown) {
+      if (this.pingLayer.isWheelOpen) this.pingLayer.hideWheel();
+      else if (timeMs - this.zHeldMs < 250) this.sendPing();
+    }
+    if (middle && !this.middleWasDown) this.sendPing();
+    this.zWasDown = z;
+    this.middleWasDown = middle;
+    this.pingLayer.prune(timeMs);
+    for (const event of this.pingEvents) {
+      this.pingLayer.show(event, timeMs, (x, y, z) => this.renderer.screenPoint(x, y, z));
+    }
+  }
+
+  private sendPing(kind?: PingEvent["kind"], callout?: CalloutId): void {
+    const me = this.me.state;
+    const dist = 12;
+    const payload = {
+      kind: kind ?? ("location" as const),
+      x: me.x + Math.sin(me.yaw) * dist,
+      y: me.y + 1,
+      z: me.z + Math.cos(me.yaw) * dist,
+      callout,
+    };
+    const parsed = PingMessage.safeParse(payload);
+    if (parsed.success) this.room.send("ping", parsed.data);
+  }
+
+  mutePingsFrom(targetId: string): void {
+    this.mutedPingFrom.add(targetId);
+    this.room.send("mutePing", MutePingMessage.parse({ targetId }));
+  }
+
+  async reportPlayer(targetId: string, reason: "offensiveName" | "cheating" | "afk"): Promise<void> {
+    const token = loadToken();
+    await fetch("/api/report", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ targetId, reason }),
+    });
+  }
+
   private hash(value: string): number { let hash = 0; for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619); return hash; }
 
   players(): RenderedPlayer[] {

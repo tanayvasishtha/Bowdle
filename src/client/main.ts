@@ -51,7 +51,7 @@ declare global {
       stats?(): { drawCalls: number; triangles: number; renderScale: number };
       cameraAt?(x: number, y: number, z: number, lookX: number, lookY: number, lookZ: number): void;
       locker?: LockerTestHooks;
-      showEndScreen?(): void;
+      showEndScreen?(): void; setPlayOfTheMatch?(playOf: { killerId: string; victimId: string; distance: number; streak: number; kind: "longShot" | "streak" }): void; openPingWheel?(): void; closePingWheel?(): void; pingWheelOpen?(): boolean; pingMarkerCount?(): number; forcePing?(kind?: "enemy" | "location" | "relic" | "anchor"): void; showAfkPrompt?(secondsLeft?: number): void; afkPromptVisible?(): boolean; startSpectate?(killerId: string, killerName?: string): void; isSpectating?(): boolean; mutePingsFrom?(id: string): void; reportPlayer?(id: string, reason: "offensiveName" | "cheating" | "afk"): Promise<void>;
       showKill?(message: import("../net/messages.ts").KillMessage, atMs: number): void;
       showHitConfirm?(message: import("../net/messages.ts").HitConfirmMessage): void;
       cameraFeel?(): { fov: number; offsetY: number; offsetX: number; rollDeg: number; hurt: number; streaks: number };
@@ -111,6 +111,18 @@ else if (params.get("scene") === "online") {
       stats: () => renderer.stats(),
       cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
       showEndScreen: () => session.showEndScreen(),
+      setPlayOfTheMatch: (playOf) => session.setPlayOfTheMatch(playOf),
+      openPingWheel: () => session.openPingWheel(),
+      closePingWheel: () => session.closePingWheel(),
+      pingWheelOpen: () => session.pingWheelOpen(),
+      pingMarkerCount: () => session.pingMarkerCount(),
+      forcePing: (kind) => session.forcePing(kind as "enemy" | "location" | "relic" | "anchor" | undefined),
+      showAfkPrompt: (secondsLeft) => session.showAfkPrompt(secondsLeft),
+      afkPromptVisible: () => session.afkPromptVisible(),
+      startSpectate: (killerId, killerName) => session.startSpectate(killerId, killerName),
+      isSpectating: () => session.isSpectating(),
+      mutePingsFrom: (id) => session.mutePingsFrom(id),
+      reportPlayer: (id, reason) => session.reportPlayer(id, reason),
       showKill: (message, atMs) => session.showKill(message, atMs),
       showHitConfirm: (message) => session.showHitConfirm(message),
       cameraFeel: () => session.cameraFeel(),

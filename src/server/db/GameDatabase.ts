@@ -9,6 +9,7 @@ import type { MatchStats } from "../../shared/matchStats.ts";
 import { createMatchStats } from "../../shared/matchStats.ts";
 import { DAILY_POOL, WEEKLY_POOL, challengeReward, dailyChallenges, weeklyChallenges, periodKeys, resetTimes, progressFrom, type ChallengeChange, type Challenges, type ChallengeState } from "../../shared/challenges.ts";
 import { PLAY_STREAK, UTC_DAY_MS, ONBOARDING } from "../../shared/constants.ts";
+import { explorerName } from "../../shared/pings.ts";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
 /** expedition is set for Expedition runs: they pay by waves and bosses and are stored for personal bests and the weekly board. */
@@ -392,6 +393,24 @@ export class GameDatabase {
   async deleteAccount(accountId: string): Promise<boolean> {
     const rows = await this.sql.query<{ id: string }>("DELETE FROM accounts WHERE id = $1 RETURNING id", [accountId]);
     return rows.length === 1;
+  }
+
+  async fileReport(reporterId: string, targetId: string, reason: "offensiveName" | "cheating" | "afk"): Promise<{ resetName?: string } | undefined> {
+    if (reporterId === targetId) return undefined;
+    if (!(await this.accountExists(reporterId)) || !(await this.accountExists(targetId))) return undefined;
+    await this.sql.query(
+      "INSERT INTO reports (reporter_id, target_id, reason) VALUES ($1, $2, $3)",
+      [reporterId, targetId, reason],
+    );
+    if (reason !== "offensiveName") return {};
+    const rows = await this.sql.query<{ reporter_id: string }>(
+      "SELECT DISTINCT reporter_id FROM reports WHERE target_id = $1 AND reason = 'offensiveName' AND created_at > now() - interval '24 hours'",
+      [targetId],
+    );
+    if (rows.length < 3) return {};
+    const name = explorerName(targetId);
+    await this.sql.query("UPDATE accounts SET name = $2 WHERE id = $1", [targetId, name]);
+    return { resetName: name };
   }
 }
 

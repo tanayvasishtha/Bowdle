@@ -33,12 +33,13 @@ import {
   SWAT,
 } from "../../shared/constants.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
+import { AFK_PROMPT_MS, AFK_REMOVE_MS, allowPing } from "../../shared/pings.ts";
 import { kitMap } from "../../shared/maps/fixtures/kit.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { defaultMatchMap, mapById, matchMaps, nextMatchMap } from "../../shared/maps/registry.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState, TetherState } from "../../net/schema.ts";
-import { MapVoteMessage, SetNameMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RelicMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage } from "../../net/messages.ts";
+import { MapVoteMessage, SetNameMessage, PingMessage, MutePingMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RelicMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage, type PingEventMessage, type AfkPromptMessage, type AfkRemovedMessage, type PlayOfTheMatchMessage } from "../../net/messages.ts";
 import { gameDatabase, type MatchResultLine } from "../db/GameDatabase.ts";
 import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
 import { botDifficultyFor, type BotDifficulty, type HumanSkill } from "../../shared/bots/difficulty.ts";
@@ -78,7 +79,7 @@ const RELIC_CARRY_HEIGHT_M = 2.1;
 const EXPEDITION_FALL_DAMAGE = 25;
 
 type JoinOptions = { mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage ; pingEvent: PingEventMessage; afkPrompt: AfkPromptMessage; afkRemoved: AfkRemovedMessage; playOfTheMatch: PlayOfTheMatchMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
 type ArrowOrigin = { x: number; y: number; z: number };
@@ -137,6 +138,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private reportedPlayers = 0;
   private botSeedBase = 0;
   private readonly accounts = new Map<string, Promise<string | undefined>>();
+  private readonly lastInputAtMs = new Map<string, number>();
+  private readonly pingStamps = new Map<string, number[]>();
+  private readonly mutedPings = new Map<string, Set<string>>();
+  private readonly afkPrompted = new Set<string>();
+  private playOfTheMatch: PlayOfTheMatchMessage | undefined;
   private readonly skills = new Map<string, HumanSkill>();
   private botDifficulty: BotDifficulty = "normal";
   partyCode = "";
@@ -177,6 +183,12 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       if (player && !nameError(message.name)) player.name = message.name;
     });
     this.onMessage("mapVote", MapVoteMessage, (client, message) => this.voteMap(client.sessionId, message.mapId));
+    this.onMessage("ping", PingMessage, (client, message) => this.handlePing(client, message));
+    this.onMessage("mutePing", MutePingMessage, (client, message) => {
+      let set = this.mutedPings.get(client.sessionId);
+      if (!set) { set = new Set(); this.mutedPings.set(client.sessionId, set); }
+      set.add(message.targetId);
+    });
     this.setFixedTimestep((context) => this.simulateTick(context, this.clock.elapsedTime), TICK_HZ, { subSteps: SUBSTEPS });
   }
 
@@ -199,6 +211,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       const player = this.state.players.get(sessionId);
       if (!player) continue;
       for (const frame of frames) {
+        if (frame.moveX || frame.moveZ || frame.buttons) {
+          this.lastInputAtMs.set(sessionId, nowMs);
+          this.afkPrompted.delete(sessionId);
+        }
         if (!player.alive) continue;
         player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
         this.tryLever(sessionId, player, frame, nowMs);
@@ -211,6 +227,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       const frame = controller.update(player, this.expedition ? this.creatureTargets() : this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards, this.relicView());
       const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.playMap, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(id, beforeZip, player.zipId);
     }
+    this.checkAfk(nowMs);
     this.checkFalls();
     this.stepRelic();
     this.updateHazards(nowMs, context.dt);
@@ -434,17 +451,79 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
     if (victimStats) recordDeath(victimStats);
     this.broadcast("kill", { killer: attackerId, victim: targetId, weapon, headshot, distance });
+    this.notePlayOfTheMatch(attackerId, targetId, distance, attacker.kills);
     if (scoreKillFor(this.state, this.state.mode, attacker.team, attacker.kills, this.simulationNowMs)) this.sendMatchEnd();
   }
 
   private clientById(sessionId: string): GameClient | undefined { return this.clients.find((client) => client.sessionId === sessionId); }
+
+  private handlePing(client: GameClient, message: PingMessage): void {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || player.isBot) return;
+    const stamps = this.pingStamps.get(client.sessionId) ?? [];
+    if (!allowPing(stamps, this.simulationNowMs)) { this.pingStamps.set(client.sessionId, stamps); return; }
+    this.pingStamps.set(client.sessionId, stamps);
+    const event: PingEventMessage = {
+      kind: message.kind, x: message.x, y: message.y, z: message.z, callout: message.callout,
+      from: client.sessionId, team: player.team, atMs: this.simulationNowMs,
+    };
+    for (const other of this.clients) {
+      const mate = this.state.players.get(other.sessionId);
+      if (!mate || mate.isBot || mate.team !== player.team) continue;
+      if (this.mutedPings.get(other.sessionId)?.has(client.sessionId)) continue;
+      other.send("pingEvent", event);
+    }
+  }
+
+  private checkAfk(nowMs: number): void {
+    if (this.state.phase !== "live" || this.testMode) return;
+    for (const [sessionId, player] of this.state.players) {
+      if (player.isBot) continue;
+      let last = this.lastInputAtMs.get(sessionId);
+      if (last === undefined) { this.lastInputAtMs.set(sessionId, nowMs); continue; }
+      const idle = nowMs - last;
+      if (idle >= AFK_REMOVE_MS) {
+        const client = this.clientById(sessionId);
+        const payload: AfkRemovedMessage = { reason: "afk" };
+        client?.send("afkRemoved", payload);
+        client?.leave(4000);
+        this.lastInputAtMs.delete(sessionId);
+        this.afkPrompted.delete(sessionId);
+        continue;
+      }
+      if (idle >= AFK_PROMPT_MS && !this.afkPrompted.has(sessionId)) {
+        this.afkPrompted.add(sessionId);
+        const payload: AfkPromptMessage = { secondsLeft: Math.max(1, Math.ceil((AFK_REMOVE_MS - idle) / 1000)) };
+        this.clientById(sessionId)?.send("afkPrompt", payload);
+      }
+    }
+  }
+
+  private notePlayOfTheMatch(killerId: string, victimId: string, distance: number, streak: number): void {
+    const longShot = distance >= 35;
+    const streakHit = streak >= 3;
+    if (!longShot && !streakHit) return;
+    const next: PlayOfTheMatchMessage = {
+      killerId, victimId, distance, streak,
+      kind: longShot && (!this.playOfTheMatch || distance >= (this.playOfTheMatch.distance)) ? "longShot" : "streak",
+    };
+    if (this.playOfTheMatch) {
+      if (next.kind === "longShot" && this.playOfTheMatch.kind === "longShot" && next.distance < this.playOfTheMatch.distance) return;
+      if (next.kind === "streak" && this.playOfTheMatch.kind === "longShot") return;
+      if (next.kind === "streak" && this.playOfTheMatch.kind === "streak" && next.streak <= this.playOfTheMatch.streak) return;
+    }
+    this.playOfTheMatch = next;
+  }
+
   private deleteArrow(id: string): void { this.state.arrows.delete(id); this.arrowOrigins.delete(id); }
   private sendMatchEnd(): void {
     const winner = matchWinner(this.state.mode, this.state.scoreSun, this.state.scoreMoon);
     let mvp = "", kills = -1; for (const [id, player] of this.state.players) if (player.kills > kills) { kills = player.kills; mvp = id; }
     if (this.rewardedSerial === this.matchSerial) return;
     this.rewardedSerial = this.matchSerial;
-    this.broadcast("matchEnd", { winner, mvp });
+    const playOf = this.playOfTheMatch;
+    this.playOfTheMatch = undefined;
+    this.broadcast("matchEnd", { winner, mvp, ...(playOf ? { playOf } : {}) });
     let humans = 0; for (const [id, player] of this.state.players) { const stats = this.humanStats.get(id); if (!stats || player.isBot) continue; humans += 1; stats.kills = player.kills; stats.deaths = player.deaths; stats.assists = player.assists; stats.won = winner === "player" ? id === mvp : winner !== "draw" && player.team === (winner === "sun" ? 0 : 1); this.clientById(id)?.send("matchStats", { stats: { ...stats }, medals: medalsFor(stats, kills) }); }
     console.log(JSON.stringify({ event: "matchFinished", mapId: this.map.id, humans, bots: this.state.players.size - humans, durationS: Math.max(0, (this.simulationNowMs - this.matchLiveAtMs) / 1000), scoreSun: this.state.scoreSun, scoreMoon: this.state.scoreMoon }));
     this.rewardsSettled = this.grantRewards(`${this.roomId}:${this.matchSerial}`, winner).catch((error: unknown) => {

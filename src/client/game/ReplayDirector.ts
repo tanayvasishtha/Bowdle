@@ -22,7 +22,7 @@ export class ReplayDirector {
 
   constructor(container: HTMLElement) {
     this.overlay = document.createElement("div"); this.overlay.className = "bowdle-replay";
-    this.overlay.innerHTML = `<span>ARROW CAM</span><button style="margin-left:12px;border:2px solid #4a3527;background:#efe3c6;color:#4a3527;font:18px 'Gochi Hand'">SKIP ›</button>`;
+    this.overlay.innerHTML = `<span>ARROW CAM</span><span data-testid="replay-killer" style="margin-left:12px"></span><button style="margin-left:12px;border:2px solid #4a3527;background:#efe3c6;color:#4a3527;font:18px 'Gochi Hand'">SKIP ›</button>`;
     this.overlay.style.cssText = "display:none;position:absolute;left:24px;bottom:24px;padding:10px 14px;background:#efe3c6dd;border:3px solid #4a3527;color:#4a3527;font:24px 'Permanent Marker';pointer-events:auto;transform:rotate(-1deg)";
     this.overlay.querySelector("button")!.addEventListener("click", () => { this.replaying = false; this.spectating = true; }); container.append(this.overlay);
   }
@@ -58,7 +58,14 @@ export class ReplayDirector {
     }
     return this.followPlayer(camera, this.frames[this.cursor]!, this.killerId);
   }
+  setKillerCaption(name: string, detail = ""): void {
+    const node = this.overlay.querySelector("[data-testid=replay-killer]");
+    if (node) node.textContent = detail ? `${name} · ${detail}` : name;
+  }
+
   stop(): void { this.replaying = false; this.spectating = false; this.overlay.style.display = "none"; }
+  isSpectating(): boolean { return this.spectating; }
+  isReplaying(): boolean { return this.replaying; }
   private followArrow(camera: PerspectiveCamera, playbackMs: number): boolean {
     const history = Math.min(this.captured - 1, Math.ceil(REPLAY_DURATION_MS * REPLAY_CAPTURE_HZ / 1000));
     const step = Math.min(history, Math.floor(playbackMs * REPLAY_CAPTURE_HZ / 1000));

@@ -34,7 +34,7 @@ describe("authoritative online abilities", () => {
       wire.data.moveZ = moveZ;
       wire.data.moveX = 0; wire.data.yaw = yaw; wire.data.pitch = pitch; wire.data.buttons = buttons;
       wire.send(); await room.waitForNextTimestep();
-      stepPlayer(direct, { moveX: 0, moveZ, yaw, pitch, buttons }, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(direct, { moveX: 0, moveZ, yaw, pitch, buttons }, defaultMatchMap, { nowMs: frame * 1000 / 30, matchTimeMs: room.clock.elapsedTime, geyserLaunches: (room as unknown as { geyserLaunches: Map<string, number> }).geyserLaunches, geyserPlayerId: client.sessionId });
       if (direct.grappleActive && direct.grappleReeling) attached += 1;
       if (direct.grappleActive && !direct.grappleReeling) swung += 1;
     }

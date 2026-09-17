@@ -87,6 +87,7 @@ export function tryAttachGrapple(state: PlayerSim, input: PlayerInputFrame, map:
       hitX = state.x + dx * hit; hitY = eyeY + dy * hit; hitZ = state.z + dz * hit;
     }
   }
+  let hitAnchorId = "";
   for (const anchor of map.anchors ?? []) {
     const [ax, ay, az] = anchorPosAt(anchor, matchTimeMs);
     const toX = ax - state.x; const toY = ay - eyeY; const toZ = az - state.z;
@@ -94,10 +95,11 @@ export function tryAttachGrapple(state: PlayerSim, input: PlayerInputFrame, map:
     if (along <= 0 || along > GRAPPLE_RANGE || along >= distance) continue;
     const lat = Math.hypot(toX - dx * along, toY - dy * along, toZ - dz * along);
     if (lat > GRAPPLE.anchorHitRadius) continue;
-    distance = along; grappleHit = true; hitX = ax; hitY = ay; hitZ = az;
+    distance = along; grappleHit = true; hitX = ax; hitY = ay; hitZ = az; hitAnchorId = anchor.id;
   }
   if (!Number.isFinite(distance) || !grappleHit) return null;
   state.grappleActive = true;
+  state.grappleAnchorId = hitAnchorId;
   state.grappleX = hitX;
   state.grappleY = hitY;
   state.grappleZ = hitZ;
@@ -121,6 +123,7 @@ export function releaseGrapple(state: PlayerSim, launch: boolean): void {
   if (!state.grappleActive) return;
   state.grappleActive = false;
   state.grappleReeling = false;
+  state.grappleAnchorId = "";
   state.grappleMs = 0;
   state.grappleBlockedMs = 0;
   state.grappleCooldownMs = GRAPPLE_COOLDOWN_MS;

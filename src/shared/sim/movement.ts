@@ -1,43 +1,5 @@
-import {
-  QUIVER,
-  RELIC,
-  CREATURE_TUNING,
-  EXPEDITION,
-  ABSOLUTE_SPEED_CAP,
-  AIM_SPEED_MULT,
-  AIR_ACCEL,
-  AIR_WISH_CAP,
-  COYOTE_MS,
-  CROUCH_HEIGHT,
-  CROUCH_SPEED,
-  DODGE,
-  FRICTION,
-  GRAVITY,
-  GROUND_ACCEL,
-  JUMP_BUFFER_MS,
-  JUMP_VELOCITY,
-  LANDING_GRACE,
-  MANTLE,
-  MAX_HORIZONTAL_SPEED,
-  MAX_HP,
-  RUN_SPEED,
-  SLIDE_AIR_MS,
-  SLIDE_BOOST,
-  SLIDE_COOLDOWN_MS,
-  SLIDE_DECEL,
-  SLIDE_END_SPEED,
-  SLIDE_JUMP_MULT,
-  SLIDE_MAX_SPEED,
-  SLIDE_MIN_SPEED,
-  SLIDE_STEER_ACCEL,
-  STAND_HEIGHT,
-  STOP_SPEED,
-  SUBSTEPS,
-  TICK_HZ,
-  VINE_HOP,
-  WALL_JUMP,
-  WATER_SPEED_MULT,
-} from "../constants.ts";
+import { QUIVER, RELIC, CREATURE_TUNING, EXPEDITION, ABSOLUTE_SPEED_CAP, AIM_SPEED_MULT, AIR_ACCEL, AIR_WISH_CAP, COYOTE_MS, CROUCH_HEIGHT, CROUCH_SPEED, DODGE, FRICTION, GRAVITY, GROUND_ACCEL, JUMP_BUFFER_MS, JUMP_VELOCITY, LANDING_GRACE, MANTLE, MAX_HORIZONTAL_SPEED, MAX_HP, RUN_SPEED, SLIDE_AIR_MS, SLIDE_BOOST, SLIDE_COOLDOWN_MS, SLIDE_DECEL, SLIDE_END_SPEED, SLIDE_JUMP_MULT, SLIDE_MAX_SPEED, SLIDE_MIN_SPEED, SLIDE_STEER_ACCEL, STAND_HEIGHT, STOP_SPEED, SUBSTEPS, TICK_HZ, VINE_HOP, WALL_JUMP, WATER_SPEED_MULT, GEYSER } from "../constants.ts";
+import { anchorPosAt } from "../maps/kit.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData, ZipLine } from "../maps/types.ts";
 import { normalizeXZ, type Vec3 } from "../math/vec3.ts";
@@ -59,7 +21,7 @@ export type PlayerSim = {
   hp: number; alive: boolean; drawMs: number; releaseCooldownMs: number; meleeCooldownMs: number;
   prevButtons: number; lastDamageAtMs: number; spawnProtectMs: number; respawnAtMs: number;
   grappleCooldownMs: number; grappleActive: boolean; grappleX: number; grappleY: number; grappleZ: number; grappleMs: number; inkCooldownMs: number;
-  grappleLen: number; grappleBlockedMs: number; grappleReeling: boolean;
+  grappleLen: number; grappleBlockedMs: number; grappleReeling: boolean; grappleAnchorId?: string;
   arrowSlot: number; scatterCharges: number; scatterRechargeMs: number; tetherCooldownMs: number;
   /** Relic Run: the carrier is slower and cannot grapple, vine hop or shoot a tether. */
   relicCarrier: boolean;
@@ -75,7 +37,14 @@ export type PlayerSim = {
 };
 
 /** zipLines are the zip lines that exist only for part of a match, such as tethers. */
-export type StepContext = { nowMs: number; zipLines?: readonly ZipLine[]; gravityMult?: number };
+export type StepContext = {
+  nowMs: number;
+  zipLines?: readonly ZipLine[];
+  gravityMult?: number;
+  matchTimeMs?: number;
+  geyserLaunches?: Map<string, number>;
+  geyserPlayerId?: string;
+};
 export type PlayerEvent = CombatEvent | AbilityEvent;
 
 const wish: Vec3 = { x: 0, y: 0, z: 0 };
@@ -89,7 +58,7 @@ export function createPlayerSim(x = 0, y = 0, z = 0): PlayerSim {
     grounded: true, crouched: false, sliding: false, slideMs: 0, slideCooldownMs: 0, coyoteMs: COYOTE_MS, jumpBufferMs: 0,
     hp: MAX_HP, alive: true, drawMs: 0, releaseCooldownMs: 0, meleeCooldownMs: 0, prevButtons: 0, lastDamageAtMs: 0, spawnProtectMs: 0, respawnAtMs: 0,
     grappleCooldownMs: 0, grappleActive: false, grappleX: 0, grappleY: 0, grappleZ: 0, grappleMs: 0, inkCooldownMs: 0,
-    grappleLen: 0, grappleBlockedMs: 0, grappleReeling: false,
+    grappleLen: 0, grappleBlockedMs: 0, grappleReeling: false, grappleAnchorId: "",
     arrowSlot: 0, scatterCharges: QUIVER.scatter.charges, scatterRechargeMs: 0, tetherCooldownMs: 0, relicCarrier: false, downed: false, slowMs: 0,
     zipId: "", zipT: 0,
     kills: 0, deaths: 0, assists: 0,
@@ -212,6 +181,28 @@ function downedInput(input: PlayerInputFrame): PlayerInputFrame {
 
 export function stepPlayer(state: PlayerSim, rawInput: PlayerInputFrame, map: MapData, ctx: StepContext): PlayerEvent[] {
   const gravityMult = ctx.gravityMult ?? 1;
+  const matchTimeMs = ctx.matchTimeMs ?? ctx.nowMs;
+  if (state.grappleActive && state.grappleAnchorId) {
+    const anchor = (map.anchors ?? []).find((entry) => entry.id === state.grappleAnchorId);
+    if (anchor) {
+      const [ax, ay, az] = anchorPosAt(anchor, matchTimeMs);
+      state.grappleX = ax; state.grappleY = ay; state.grappleZ = az;
+    }
+  }
+  if (ctx.geyserLaunches && ctx.geyserPlayerId && state.alive && !state.downed && (state.grounded || state.vy <= 0) && (map.geysers?.length ?? 0) > 0) {
+    for (const geyser of map.geysers!) {
+      const dx = state.x - geyser.pos[0]; const dz = state.z - geyser.pos[2];
+      if (dx * dx + dz * dz > geyser.radius * geyser.radius) continue;
+      if (state.y + 0.2 < geyser.pos[1] || state.y > geyser.pos[1] + 2.5) continue;
+      const stampKey = `${ctx.geyserPlayerId}:${geyser.id}`;
+      const prev = ctx.geyserLaunches.get(stampKey) ?? 0;
+      if (matchTimeMs - prev < GEYSER.cooldownMs) continue;
+      ctx.geyserLaunches.set(stampKey, matchTimeMs);
+      state.vy = Math.max(state.vy, geyser.launch);
+      state.grounded = false;
+      break;
+    }
+  }
   state.slowMs = Math.max(0, state.slowMs - 1000 / TICK_HZ);
   // A downed player only crawls: no jumps, shots, stabs or abilities.
   const input = state.downed ? downedInput(rawInput) : rawInput;

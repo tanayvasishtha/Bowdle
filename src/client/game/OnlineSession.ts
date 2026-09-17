@@ -5,6 +5,7 @@ import { defaultMatchMap, mapById, matchMaps } from "../../shared/maps/registry.
 import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { createPlayerSim, stepPlayer } from "../../shared/sim/movement.ts";
+import { mergeBreakablesIntoMap, type BreakableRuntime } from "../../shared/sim/mapFeatures.ts";
 import { spawnVolley, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { ARROW_SLOTS, fullDrawMs } from "../../shared/sim/bow.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
@@ -101,6 +102,7 @@ export class OnlineSession {
     this.sampler = sampler;
     this.room = room;
     this.map = mapById(room.state.mapId) ?? defaultMatchMap;
+    this.playMap = this.map;
     this.renderer.setMap(this.map);
     this.clips = clipsSupported() ? new ClipRecorder(renderer.canvas) : undefined;
     const policy = portalPolicy();
@@ -146,7 +148,8 @@ export class OnlineSession {
       input: this.input,
       smoothMs: RECONCILE_SMOOTH_MS,
       step: (context, state, command) => {
-        const events = stepPlayer(state, command, this.map, { nowMs: context.reckonTime, zipLines: this.tetherZips, gravityMult: gravityMultiplier(this.room.state.expedition.modifier) });
+        this.refreshPlayMap();
+        const events = stepPlayer(state, command, this.playMap, { nowMs: context.reckonTime, matchTimeMs: this.room.clock.serverNow(), zipLines: this.tetherZips, gravityMult: gravityMultiplier(this.room.state.expedition.modifier), geyserLaunches: this.geyserLaunches, geyserPlayerId: this.sessionId });
         if (context.isReplay) return;
         for (const event of events) {
           if (event.type === "fire") for (const arrow of spawnVolley(event, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
@@ -156,6 +159,7 @@ export class OnlineSession {
     });
     const callbacks = Callbacks.get(room);
     callbacks.onRemove("players", (_player, id) => this.renderer.removePlayer(id));
+    callbacks.onAdd("arrows", (arrow, id) => { if (!this.heardShots.has(id) && this.hearShot(arrow, arrow)) this.heardShots.add(id); });
     callbacks.onAdd("inkClouds", (cloud, id) => this.renderer.setInkCloud(id, cloud.x, cloud.y, cloud.z, cloud.radius));
     callbacks.onRemove("inkClouds", (_cloud, id) => this.renderer.removeInkCloud(id));
     callbacks.onAdd("tethers", () => this.rebuildTetherZips());
@@ -296,6 +300,7 @@ export class OnlineSession {
   }
 
   private frame(timeMs: number): void {
+    try {
     if (this.room.state.phase === "warmup" && this.feedbackPhase !== "warmup") { this.feedback.reset(); this.hud.resetFeedback(); }
     this.feedbackPhase = this.room.state.phase;
     if (this.room.state.mapId !== this.map.id) {
@@ -346,7 +351,7 @@ export class OnlineSession {
       const herbReady = new Map<string, boolean>();
       this.room.state.breakables?.forEach((item, id) => { broken.set(String(id), !!item.broken); });
       this.room.state.mapHerbs?.forEach((herb, id) => { herbReady.set(String(id), !!herb.ready); });
-      this.renderer.updateMapKit(timeMs, broken, herbReady);
+      this.renderer.updateMapKit(serverNow, broken, herbReady);
     } catch {
       // Map-kit draw must never stop the match frame (shot cues, prediction, HUD).
     }
@@ -374,10 +379,15 @@ export class OnlineSession {
     this.previousHazardPhase = hazardPhase; this.renderer.setBoulderAudio(hazardPhase); this.renderer.setZipAudio(this.me.state.zipId ? ZIP_SPEED : 0);
     if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; this.updateTips(timeMs); this.expeditionHud?.update(this.room.state, this.sessionId, this.room.clock.serverNow(), this.reviveView()); }
     this.renderer.render(timeMs);
-    requestAnimationFrame((time) => this.frame(time));
+    } catch (error) {
+      console.error("OnlineSession.frame", error);
+    } finally {
+      requestAnimationFrame((time) => this.frame(time));
+    }
   }
 
   private renderArrows(timeMs: number, capture: boolean): void {
+    try {
     for (const entry of this.arrows.entries()) {
       let render = this.arrowRenders.get(entry.id);
       const source = entry.server ?? entry.local;
@@ -396,6 +406,9 @@ export class OnlineSession {
       if (render.removedAtMs === 0) render.removedAtMs = timeMs;
       if (timeMs - render.removedAtMs >= render.stuckForMs) { this.renderer.removeVisual(render.visual); this.arrowRenders.delete(id); this.heardShots.delete(id); }
     }
+    } catch (error) {
+      console.error("OnlineSession.renderArrows", error);
+    }
   }
 
   private readonly lookScratch = { bow: "", outfit: "" };
@@ -405,6 +418,8 @@ export class OnlineSession {
   }
 
   /** Tethers as zip lines, so prediction rides them like the server does. */
+  private readonly geyserLaunches = new Map<string, number>();
+  private playMap!: MapData;
   private tetherZips: ZipLine[] = [];
   private tipsOn = false;
   private readonly cues: SoundCues;
@@ -474,6 +489,22 @@ export class OnlineSession {
     this.sounds.playAt("twang", at.x, at.y, at.z, 1 - distance / AUDIO_MIX.shotCueRangeM);
     this.cue("shot", at.x, at.z);
     return true;
+  }
+
+
+  private refreshPlayMap(): void {
+    const items: BreakableRuntime[] = (this.map.breakables ?? []).map((entry) => {
+      const net = this.room.state.breakables?.get(entry.id);
+      return {
+        id: entry.id,
+        hp: net?.hp ?? entry.hp,
+        maxHp: entry.hp,
+        broken: !!net?.broken,
+        rebuildAtMs: 0,
+        box: entry.box,
+      };
+    });
+    this.playMap = mergeBreakablesIntoMap(this.map, items);
   }
 
   private showObjective(timeMs: number): void {

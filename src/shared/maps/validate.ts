@@ -1,4 +1,5 @@
-import { BOULDER_RADIUS, BOULDER_SPAWN_CLEARANCE, CANOPY_SPIRAL_MAX_SLOPE_DEG, EYE_STAND, FLOOD_RISE, PLAYER_WIDTH, RAMP_MAX_SLOPE_DEG, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP, ZIP_CLEARANCE } from "../constants.ts";
+import { BOULDER_RADIUS, BOULDER_SPAWN_CLEARANCE, CANOPY_SPIRAL_MAX_SLOPE_DEG, EYE_STAND, PLAYER_WIDTH, RAMP_MAX_SLOPE_DEG, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP, ZIP_CLEARANCE } from "../constants.ts";
+import { floodTimingFor } from "./kit.ts";
 import { mirrorX } from "./helpers.ts";
 import { rampHeightAt, rampSlopeDegrees } from "./ramps.ts";
 import type { Boulder, Box, Breakable, Geyser, Herb, MapData, Prop, Ramp, SpawnPoint, SwingAnchor, Vec3Tuple, Volume, ZipLine } from "./types.ts";
@@ -224,7 +225,7 @@ export function validateMap(map: MapData): string[] {
     const floodTop = map.volumes.find((volume) => volume.flood)?.max[1];
     for (const id of ["aqueduct-sun", "aqueduct-moon", "wreck-roof", "log-north", "log-south"]) {
       const surface = map.boxes.find((box) => box.id === id)?.max[1];
-      if (floodTop === undefined || surface === undefined || floodTop + FLOOD_RISE >= surface - EPSILON) errors.push(`flood clearance: ${id}`);
+      if (floodTop === undefined || surface === undefined || floodTop + floodTimingFor(map).rise >= surface - EPSILON) errors.push(`flood clearance: ${id}`);
     }
   }
   for (const point of map.waypoints) for (const link of point.links) {

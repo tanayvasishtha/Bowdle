@@ -92,7 +92,7 @@ export function stepArrow(arrow: ArrowSim, map: MapData, dt: number, gravity = A
   for (const volume of map.volumes) if (volume.kind === "water") {
     const startInside = from.x >= volume.min[0] && from.x <= volume.max[0] && from.z >= volume.min[2] && from.z <= volume.max[2];
     const endInside = to.x >= volume.min[0] && to.x <= volume.max[0] && to.z >= volume.min[2] && to.z <= volume.max[2];
-    const surface = volumeSurfaceY(volume, matchTimeMs);
+    const surface = volumeSurfaceY(volume, matchTimeMs, map);
     const t = surfaceHit(from, to, startInside ? surface : null, endInside ? surface : null);
     if (t !== null && t < earliest) { earliest = t; hit = true; boxHit = false; }
   }

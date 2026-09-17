@@ -1,12 +1,12 @@
-import { BREAKABLE, GEYSER, MAP_HERB, MAX_HP } from "../constants.ts";
+import { BREAKABLE, GEYSER, MAP_HERB, MAX_HP, PLAYER_WIDTH } from "../constants.ts";
 import type { Breakable, Geyser, Herb, MapData } from "../maps/types.ts";
 import type { PlayerSim } from "./movement.ts";
 
-export type BreakableRuntime = { id: string; hp: number; broken: boolean; rebuildAtMs: number; box: Breakable["box"] };
+export type BreakableRuntime = { id: string; hp: number; maxHp: number; broken: boolean; rebuildAtMs: number; box: Breakable["box"] };
 export type HerbRuntime = { id: string; pos: Herb["pos"]; readyAtMs: number };
 
 export function createBreakables(map: MapData): BreakableRuntime[] {
-  return (map.breakables ?? []).map((item) => ({ id: item.id, hp: item.hp, broken: false, rebuildAtMs: 0, box: item.box }));
+  return (map.breakables ?? []).map((item) => ({ id: item.id, hp: item.hp, maxHp: item.hp, broken: false, rebuildAtMs: 0, box: item.box }));
 }
 
 export function createHerbs(map: MapData): HerbRuntime[] {
@@ -14,7 +14,8 @@ export function createHerbs(map: MapData): HerbRuntime[] {
 }
 
 function insideBox(x: number, y: number, z: number, box: Breakable["box"]): boolean {
-  return x >= box.min[0] && x <= box.max[0] && y >= box.min[1] && y <= box.max[1] && z >= box.min[2] && z <= box.max[2];
+  const pad = PLAYER_WIDTH * 0.5;
+  return x >= box.min[0] - pad && x <= box.max[0] + pad && y >= box.min[1] && y <= box.max[1] && z >= box.min[2] - pad && z <= box.max[2] + pad;
 }
 
 /** Damage a breakable hit by an arrow or melee. Returns true when it just broke. */
@@ -33,7 +34,8 @@ export function solidBreakableBoxes(items: readonly BreakableRuntime[]): Breakab
   return items.filter((item) => !item.broken).map((item) => item.box);
 }
 
-export function stepBreakables(items: BreakableRuntime[], players: Iterable<PlayerSim>, nowMs: number): void {
+export function stepBreakables(items: BreakableRuntime[], players: readonly PlayerSim[], nowMs: number): void {
+  if (!items.some((item) => item.broken)) return;
   for (const item of items) {
     if (!item.broken || nowMs < item.rebuildAtMs) continue;
     let blocked = false;
@@ -43,7 +45,7 @@ export function stepBreakables(items: BreakableRuntime[], players: Iterable<Play
     }
     if (blocked) { item.rebuildAtMs = nowMs + 500; continue; }
     item.broken = false;
-    item.hp = BREAKABLE.defaultHp;
+    item.hp = item.maxHp;
     item.rebuildAtMs = 0;
   }
 }
@@ -78,7 +80,7 @@ export function tryGeyserLaunch(geysers: readonly Geyser[], player: PlayerSim, p
 }
 
 /** Find the first unbroken breakable whose box is hit by a segment. */
-export function breakableHitBySegment(items: readonly BreakableRuntime[], x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): BreakableRuntime | null {
+export function breakableHitBySegment(items: readonly BreakableRuntime[], x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): { item: BreakableRuntime; t: number } | null {
   let best: BreakableRuntime | null = null;
   let bestT = 1;
   for (const item of items) {
@@ -86,7 +88,7 @@ export function breakableHitBySegment(items: readonly BreakableRuntime[], x0: nu
     const t = segmentBoxEnter(x0, y0, z0, x1, y1, z1, item.box);
     if (t !== null && t < bestT) { bestT = t; best = item; }
   }
-  return best;
+  return best ? { item: best, t: bestT } : null;
 }
 
 function segmentBoxEnter(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, box: Breakable["box"]): number | null {
@@ -99,4 +101,23 @@ function segmentBoxEnter(x0: number, y0: number, z0: number, x1: number, y1: num
     near = Math.max(near, a); far = Math.min(far, b); if (near > far) return null;
   }
   return near >= 0 && near <= 1 ? near : null;
+}
+
+/** Collision map with unbroken breakables merged as solid+grapple wood boxes. */
+export function mergeBreakablesIntoMap(map: MapData, items: readonly BreakableRuntime[]): MapData {
+  const extras = solidBreakableBoxes(items);
+  if (extras.length === 0) return map;
+  return {
+    ...map,
+    boxes: [
+      ...map.boxes,
+      ...extras.map((box, index) => ({
+        id: `breakable-solid-${index}`,
+        min: box.min,
+        max: box.max,
+        material: "wood" as const,
+        tags: ["solid", "grapple"] as const,
+      })),
+    ],
+  };
 }

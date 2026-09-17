@@ -1,6 +1,7 @@
 import { jungleDressing } from "./dressing.ts";
 import { mirrorX } from "./helpers.ts";
 import { rect } from "./scatter.ts";
+import { tideFlood } from "./kit.ts";
 import type { Box, MapData, Prop, Ramp, SpawnPoint, Volume, Waypoint } from "./types.ts";
 
 const boxes: Box[] = [
@@ -122,5 +123,5 @@ export const sunkenRuinsMap: MapData = {
     { id: "sun-crate", box: { min: [-12, 0, 10], max: [-10, 1.5, 12] }, hp: 60 },
     { id: "moon-crate", box: { min: [10, 0, 10], max: [12, 1.5, 12] }, hp: 60 },
   ],
-  flood: { periodMs: 90000, activeMs: 25000, rise: 1.4 },
+  flood: tideFlood(),
 };

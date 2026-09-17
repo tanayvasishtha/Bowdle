@@ -14,7 +14,7 @@ export default defineConfig({
     // WebGL without a GPU (CI, Codex cloud): software rendering through SwiftShader.
     launchOptions: {
       ...(executablePath ? { executablePath } : {}),
-      args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
+      args: ['--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
     },
   },
   projects: [{ name: "chromium" }],

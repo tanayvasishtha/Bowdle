@@ -511,7 +511,7 @@ export const BOT_PROGRESS_M = 0.5;
 export const SERVER_METRICS_MS = 10000;
 
 /** G10 map-kit geyser/herb probes on launch maps need a little headroom over the old 3 ms line. */
-export const SERVER_TICK_BUDGET_MS = 4;
+export const SERVER_TICK_BUDGET_MS = 3;
 
 export const PARTY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 

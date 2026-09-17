@@ -1,3 +1,34 @@
+## F2: Prediction parity, map kit and the tick budget
+
+Built:
+- Breakables merge into the shared collision map on server and client with solid+grapple tags; broken-id set drives playMap refresh.
+- Geyser launch runs inside stepPlayer via StepContext so client prediction matches the room.
+- Grapple stores grappleAnchorId and resamples swinging anchors each tick.
+- Map kit view uses serverNow; anchors get a chain, geysers pulse, planks show crack-tint stages.
+- stepBreakables takes a player array (fixes one-shot iterator); rebuild uses authored maxHp; insideBox pads by PLAYER_WIDTH.
+- Arrow vs plank picks the nearer hit; removed damage||25 fallback.
+- SERVER_TICK_BUDGET_MS restored to 3; bots path on playMap; geyser launch keys cleared on leave.
+- Sky Bridges gains herbSpawns and creatureSpawns for Expedition.
+- Tide/flood: arrows pass map into volumeSurfaceY; validate uses floodTimingFor rise; Sunken Ruins uses tideFlood().
+- Enemy shot cues also fire from arrows onAdd so background-tab rAF throttle cannot skip them; Playwright disables background timer throttling; OnlineSession.frame reschedules in finally.
+- F2 prediction parity unit tests for geyser launch, breakable merge, and swinging anchors.
+
+Verified:
+- npm run typecheck
+- npm run check - 76 files / 356 tests
+- npm run soak - 3 seeds all modes/maps including sky-bridges expedition (pass)
+- npm run smoke - pass
+- npm run build:portals - pass
+- npm run e2e - 54 passed, 1 skipped, 1 failed before audio fix; audio.spec now passes with Chrome + onAdd cues; gamepad menu order still expects Relic Run before Ranked (F4)
+
+Left:
+- Map-kit bounds/spawn clearance validation pass is still light.
+- Living-player ping browser e2e remains with F4.
+- gamepad.spec menus order (Ranked inserted) remains with F4.
+
+Status: done.
+
+
 ## F1: Ranked, reports and pings
 
 Built:
@@ -12,11 +43,11 @@ Built:
 
 Verified:
 - npm run typecheck
-- npm run check — 353 vitest + build + size (pass)
-- npm run soak — 3 seeds (pass)
-- npm run smoke — pass
-- npm run build:portals — pass
-- npm run e2e — 55 passed, 1 skipped, 1 failed (gamepad menu order still expects Relic Run before Ranked; F4)
+- npm run check - 353 vitest + build + size (pass)
+- npm run soak - 3 seeds (pass)
+- npm run smoke - pass
+- npm run build:portals - pass
+- npm run e2e - 55 passed, 1 skipped, 1 failed (gamepad menu order still expects Relic Run before Ranked; F4)
 - tests/server/f1-security.test.ts (4 passed)
 - Break-it: set RANKED.minLevel to 5, confirmed the level-gate test fails, restored minLevel 10
 

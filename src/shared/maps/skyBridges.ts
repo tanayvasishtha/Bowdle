@@ -127,5 +127,7 @@ export const skyBridgesMap: MapData = { relic: [0, 4.8, 5], camps: { sun: { min:
     { id: "sun-herb", pos: [-22, 0, 3] },
     { id: "moon-herb", pos: [22, 0, 3] },
   ],
+  herbSpawns: [[-22, 0, 3], [22, 0, 3]],
+  creatureSpawns: [[26, 0, 0], [20, 0, -11], [20, 0, 11], [7, 0.3, 23], [29, 0, -6], [11, 0, -11]],
   breakables: [],
   decor: [], notes: [{ text: "rope bridges", pos: [0,10,4] }, { text: "hollow tree", pos: [-7,9,8] }], look: { sunShafts: true, stainSeed: 6101 }, landmark: [0, 16, 0] };

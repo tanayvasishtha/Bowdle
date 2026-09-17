@@ -53,7 +53,7 @@ import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
 import { CREATURE_TEAM, ExpeditionDirector, type ExpeditionHost } from "./expedition.ts";
 import { checkpointFor } from "../../shared/sim/waves.ts";
 import { createPlayerSim, type PlayerSim } from "../../shared/sim/movement.ts";
-import { breakableHitBySegment, createBreakables, createHerbs, damageBreakable, solidBreakableBoxes, stepBreakables, tryGeyserLaunch, tryPickHerb, type BreakableRuntime, type HerbRuntime } from "../../shared/sim/mapFeatures.ts";
+import { breakableHitBySegment, createBreakables, createHerbs, damageBreakable, mergeBreakablesIntoMap, solidBreakableBoxes, stepBreakables, tryPickHerb, type BreakableRuntime, type HerbRuntime } from "../../shared/sim/mapFeatures.ts";
 import { BreakableState, MapHerbState } from "../../net/schema.ts";
 import { tuning as creatureTuning } from "../../shared/sim/creatures.ts";
 import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, WaveMessage } from "../../net/messages.ts";
@@ -264,14 +264,14 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         if (!player.alive) continue;
         player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
         this.tryLever(sessionId, player, frame, nowMs);
-        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.playMap, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(sessionId, beforeZip, player.zipId);
+        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.playMap, { nowMs, matchTimeMs: nowMs, geyserLaunches: this.geyserLaunches, geyserPlayerId: sessionId, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(sessionId, beforeZip, player.zipId);
       }
     }
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
-      const frame = controller.update(player, this.expedition ? this.creatureTargets() : this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards, this.relicView());
-      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.playMap, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(id, beforeZip, player.zipId);
+      const frame = controller.update(player, this.expedition ? this.creatureTargets() : this.state.players, this.playMap, nowMs, this.state.inkClouds.values(), this.state.hazards, this.relicView());
+      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.playMap, { nowMs, matchTimeMs: nowMs, geyserLaunches: this.geyserLaunches, geyserPlayerId: id, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(id, beforeZip, player.zipId);
     }
     this.checkAfk(nowMs);
     this.checkFalls();
@@ -350,15 +350,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
           this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
           if (this.expedition.arrowStep(arrow.owner, arrow, this.arrowFrom, this.arrowTo)) { this.removeArrows.push(id); continue; }
         }
+        let breakableHit: { item: BreakableRuntime; t: number } | null = null;
         if (this.breakables.length > 0 && isDamaging(arrow.kind) && !boulderBlocked) {
-          const hit = breakableHitBySegment(this.breakables, fromX, fromY, fromZ, arrow.x, arrow.y, arrow.z);
-          if (hit) {
-            const broke = damageBreakable(this.breakables, hit.id, arrow.damage || 25, this.simulationNowMs);
-            const state = this.state.breakables.get(hit.id);
-            if (state) { state.hp = hit.hp; state.broken = hit.broken; }
-            if (broke) this.rebuildPlayMap();
-            this.removeArrows.push(id); continue;
-          }
+          breakableHit = breakableHitBySegment(this.breakables, fromX, fromY, fromZ, arrow.x, arrow.y, arrow.z);
         }
         if (isDamaging(arrow.kind) && !boulderBlocked && this.swatArrow(id, arrow, fromX, fromY, fromZ)) continue;
         if (isDamaging(arrow.kind) && !boulderBlocked) {
@@ -372,6 +366,14 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
             const hit = sweepArrowVsTarget(this.arrowFrom, this.arrowTo, this.hitTarget, arrow.kind);
             if (hit && hit.t < earliest) { earliest = hit.t; targetId = candidateId; headshot = hit.kind === "head"; }
           }
+        }
+        if (breakableHit && breakableHit.t < earliest) {
+          const hit = breakableHit.item;
+          const broke = damageBreakable(this.breakables, hit.id, arrow.damage, this.simulationNowMs);
+          const state = this.state.breakables.get(hit.id);
+          if (state) { state.hp = hit.hp; state.broken = hit.broken; }
+          if (broke) this.rebuildPlayMap();
+          this.removeArrows.push(id); continue;
         }
         if (isDamaging(arrow.kind) && !boulderBlocked) this.cutRopes(arrow, fromX, fromY, fromZ);
         if (targetId) {
@@ -679,17 +681,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   private rebuildPlayMap(): void {
-    const extras = solidBreakableBoxes(this.breakables);
-    if (extras.length === 0) { this.playMap = this.map; return; }
-    this.playMap = {
-      ...this.map,
-      boxes: [
-        ...this.map.boxes,
-        ...extras.map((box, index) => ({
-          id: `breakable-solid-${index}`, min: box.min, max: box.max, material: "wood" as const, tags: ["solid"] as const,
-        })),
-      ],
-    };
+    this.playMap = mergeBreakablesIntoMap(this.map, this.breakables);
   }
 
   private syncBreakableState(): void {
@@ -712,11 +704,18 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   private stepMapFeatures(nowMs: number): void {
-    const hasGeysers = (this.map.geysers?.length ?? 0) > 0;
     const hasHerbs = this.mapHerbs.length > 0;
     const hasBreakables = this.breakables.length > 0;
-    if (!hasGeysers && !hasHerbs && !hasBreakables) return;
-    const players = this.state.players.values();
+    if (!hasHerbs && !hasBreakables) return;
+    // Full-HP lobbies skip herb work most ticks; breakable rebuilds still run when needed.
+    if (!hasBreakables && hasHerbs) {
+      let hungry = false;
+      for (const player of this.state.players.values()) {
+        if (player.alive && player.hp < MAX_HP) { hungry = true; break; }
+      }
+      if (!hungry && (nowMs % 500) >= 16) return;
+    }
+    const players = hasBreakables ? [...this.state.players.values()] : [];
     const before = hasBreakables ? this.breakables.map((item) => item.broken) : [];
     if (hasBreakables) stepBreakables(this.breakables, players, nowMs);
     if (hasBreakables) {
@@ -728,19 +727,19 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       }
       if (solidsChanged) this.rebuildPlayMap();
     }
-    if (hasGeysers || hasHerbs) {
+    if (hasHerbs) {
+      let pickedAny = false;
       for (const [sessionId, player] of this.state.players) {
-        if (!player.alive) continue;
-        if (hasGeysers) tryGeyserLaunch(this.map.geysers ?? [], player, sessionId, this.geyserLaunches, nowMs);
-        if (hasHerbs) {
-          const picked = tryPickHerb(this.mapHerbs, player, nowMs);
-          if (picked) {
-            const state = this.state.mapHerbs.get(picked.id);
-            if (state) state.ready = false;
-          }
+        if (!player.alive || player.hp >= MAX_HP) continue;
+        const picked = tryPickHerb(this.mapHerbs, player, nowMs);
+        if (picked) {
+          pickedAny = true;
+          const state = this.state.mapHerbs.get(picked.id);
+          if (state) state.ready = false;
         }
       }
-      if (hasHerbs) {
+      // Ready flags only need a refresh when something was picked or a respawn clock may have elapsed.
+      if (pickedAny || (nowMs % 250) < 16) {
         for (const herb of this.mapHerbs) {
           const state = this.state.mapHerbs.get(herb.id);
           if (state) state.ready = nowMs >= herb.readyAtMs;
@@ -1078,7 +1077,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   onLeave(client: GameClient): void {
     const player = this.state.players.get(client.sessionId);
     const accountPromise = this.accounts.get(client.sessionId);
-    this.state.players.delete(client.sessionId); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId); this.skills.delete(client.sessionId);
+    this.state.players.delete(client.sessionId);
+    for (const key of [...this.geyserLaunches.keys()]) if (key.startsWith(`${client.sessionId}:`)) this.geyserLaunches.delete(key); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId); this.skills.delete(client.sessionId);
     this.updateBotDifficulty();
     if (this.rankedMode && accountPromise && this.state.phase === "live") {
       void accountPromise.then((accountId) => {

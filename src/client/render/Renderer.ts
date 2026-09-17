@@ -28,7 +28,8 @@ import { defaultMatchMap } from "../../shared/maps/registry.ts";
 import { BODY_RADIUS, BOULDER_RADIUS, EYE_STAND, HEAD_RADIUS, PIN_SEARCH_M, PIN_SEARCH_STEP_M, SPLAT_MAX_VERTICES, SPLAT_MIN_VERTICES, STAND_HEIGHT } from "../../shared/constants.ts";
 import { mulberry32 } from "../../shared/math/rng.ts";
 import { ArrowTrailMesh, KillBurst, RopeMesh } from "./effects.ts";
-import { FFA_RING_COLORS, RELIC_LOOK, ROPE_LOOK } from "./look.ts";
+import { CreatureRenderer, type CreaturePose } from "./creatures.ts";
+import { CREATURE_LOOK, FFA_RING_COLORS, RELIC_LOOK, ROPE_LOOK } from "./look.ts";
 import { killEffect } from "../../shared/cosmetics.ts";
 import type { ArrowSim } from "../../shared/sim/arrows.ts";
 import { CompositePass } from "./CompositePass.ts";
@@ -137,11 +138,11 @@ function phaseFor(id: string): number {
   return hash / 97;
 }
 
-export type ArrowVisualKind = "arrow" | "scatter" | "tether" | "grapple" | "ink";
+export type ArrowVisualKind = "arrow" | "scatter" | "tether" | "grapple" | "ink" | "spit";
 
 function createArrowVisual(kind: ArrowVisualKind = "arrow"): Group {
   const group = new Group();
-  const material = new InkMaterial(kind === "arrow" || kind === "scatter" ? MATERIAL_ID.wood : kind === "tether" ? MATERIAL_ID.rope : MATERIAL_ID.gold);
+  const material = new InkMaterial(kind === "arrow" || kind === "scatter" ? MATERIAL_ID.wood : kind === "tether" ? MATERIAL_ID.rope : kind === "spit" ? MATERIAL_ID.foliageDark : MATERIAL_ID.gold);
   const shaft = new Mesh(new CylinderGeometry(0.012, 0.012, 0.8, 6), material);
   const head = new Mesh(new ConeGeometry(0.055, 0.14, 6), material);
   head.position.y = 0.47;
@@ -404,6 +405,36 @@ export class Renderer {
   }
 
   /** Free for All: neutral outfits, and a colored name ring over every player instead of team colors. */
+  private creatureView: CreatureRenderer | null = null;
+  private night = 0;
+  private nightTarget = 0;
+
+  /** Expedition: every creature and herb for this frame. Creatures are drawn instanced, see CreatureRenderer. */
+  setCreatures(creatures: Iterable<readonly [string, CreaturePose]>, herbs: Iterable<{ x: number; y: number; z: number }>, timeMs: number): void {
+    this.creatureView ??= new CreatureRenderer(this.worldScene);
+    this.creatureView.begin();
+    for (const [id, pose] of creatures) this.creatureView.add(pose, phaseFor(id), timeMs);
+    for (const herb of herbs) this.creatureView.addHerb(herb.x, herb.y, herb.z, timeMs);
+    this.creatureView.end();
+  }
+
+  creaturesDrawn(): Record<string, number> { return this.creatureView?.drawn() ?? {}; }
+  herbsDrawn(): number { return this.creatureView?.herbsDrawn() ?? 0; }
+
+  /** A burst of ink where a creature fell; the Colossus gets a bigger one. */
+  creatureBurst(kind: string, x: number, y: number, z: number, seed: number, nowMs = performance.now()): void {
+    const effect = kind === "wisp" ? "effect.leaves" : kind === "guardian" || kind === "colossus" ? "effect.idol" : "effect.dust";
+    const count = kind === "colossus" ? CREATURE_LOOK.bossBursts : 1;
+    for (let index = 0; index < count; index += 1) {
+      const burst = new KillBurst(effect, 0, x, y + 0.4 + index * 1.6, z, nowMs, seed + index);
+      this.bursts.push(burst); this.worldScene.add(burst.mesh);
+    }
+  }
+
+  /** The Night modifier fades in and out over a moment instead of snapping. */
+  setNight(on: boolean): void { this.nightTarget = on ? 1 : 0; }
+  nightAmount(): number { return this.night; }
+
   setFreeForAll(on: boolean): void {
     if (this.freeForAll === on) return;
     this.freeForAll = on;
@@ -604,6 +635,11 @@ export class Renderer {
     for (const rig of this.targets.values()) rig.update(seconds);
     for (const rig of this.showcase) rig.update(seconds);
     this.updateSnaps(timeMs);
+    if (this.night !== this.nightTarget) {
+      const step = frameMs / CREATURE_LOOK.nightFadeMs;
+      this.night = this.night < this.nightTarget ? Math.min(this.nightTarget, this.night + step) : Math.max(this.nightTarget, this.night - step);
+      this.composite.setNight(this.night);
+    }
     for (let index = this.bursts.length - 1; index >= 0; index -= 1) {
       const burst = this.bursts[index]!;
       if (!burst.update(timeMs)) { burst.dispose(this.worldScene); this.bursts.splice(index, 1); }

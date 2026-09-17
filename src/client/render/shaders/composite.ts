@@ -21,6 +21,7 @@ export const compositeFragmentShader = /* glsl */ `
   uniform float cameraYaw;
   uniform float hurt;
   uniform float streaks;
+  uniform float night;
   uniform vec3 sunWash;
   uniform vec3 moonWash;
   uniform vec3 sunInk;
@@ -34,6 +35,9 @@ export const compositeFragmentShader = /* glsl */ `
   const vec3 SEPIA = vec3(0.290, 0.208, 0.153);
   const vec3 CANOPY_HAZE = vec3(0.420, 0.557, 0.408);
   const vec3 CANOPY_INK = vec3(0.184, 0.290, 0.133);
+  const vec3 NIGHT = vec3(0.137, 0.153, 0.235);
+  // Night shortens the view: everything fades into the dark background sooner.
+  float viewScale() { return mix(1.0, ${F.nightViewScale}, night); }
 
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
   vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(17.2, 91.7))); }
@@ -135,7 +139,7 @@ export const compositeFragmentShader = /* glsl */ `
       // Silhouettes against far things get full ink; creases inside one surface stay lighter.
       float weight = mix(${L.colorEdgeWeight}, 1.0, smoothstep(1.0, ${L.depthEdgeFullRatio}.0, depthEdge));
       vec3 under = centerId < 0.5 ? background : mix(PARCHMENT, wash(centerId), ${L.washLight} + ${L.washShade} * (1.0 - center.b));
-      return vec4(mix(mix(under, ink, weight), background, smoothstep(${L.fadeNearM}.0, ${L.fadeFarM}.0, nearestDepth)), 1.0);
+      return vec4(mix(mix(under, ink, weight), background, smoothstep(${L.fadeNearM}.0 * viewScale(), ${L.fadeFarM}.0 * viewScale(), nearestDepth)), 1.0);
     }
     float noise = (hash(floor((p + boil) / 4.0)) - 0.5) * granulation(id) * 0.18;
     vec3 color = mix(PARCHMENT, wash(id), ${L.washLight} + ${L.washShade} * (1.0 - center.b)); color *= 1.0 + noise;
@@ -145,12 +149,12 @@ export const compositeFragmentShader = /* glsl */ `
     if (mode > 1.5 && center.b < ${L.hatchFullTone}) hatch = max(hatch, stroke(hp.x - hp.y, ${L.hatchCssPx * 1.414}, 0.7));
     if (id > 6.5 && id < 7.5) hatch = max(hatch, stroke(hp.x + sin(hp.y * 0.03) * 3.0 + time * ${L.waterDriftCssPxPerSecond}.0, ${L.waterStrokeCssPx}.0, 0.8) * ${L.waterStrokeOpacity});
     color = mix(color, ink, hatch * ${L.hatchOpacity});
-    color = mix(color, background, smoothstep(${L.fadeNearM}.0, ${L.fadeFarM}.0, depth));
+    color = mix(color, background, smoothstep(${L.fadeNearM}.0 * viewScale(), ${L.fadeFarM}.0 * viewScale(), depth));
     return vec4(color, 1.0);
   }
 
   void main() {
-    vec2 p = gl_FragCoord.xy / devicePixelRatio / renderScale; vec3 background = journalBackground(p);
+    vec2 p = gl_FragCoord.xy / devicePixelRatio / renderScale; vec3 background = mix(journalBackground(p), NIGHT, night * ${F.nightTint});
     float frame = floor(time * ${L.boilHz}.0); vec2 boil = (hash2(floor(p / 3.0) + frame) - 0.5) * ${L.boilCssPx}.0;
     vec4 world = compose(worldColor, worldDepth, vUv, p, boil, background); vec4 viewmodel = compose(viewColor, viewDepth, vUv, p, boil, background);
     vec3 color = world.a > 0.0 ? world.rgb : background; if (viewmodel.a > 0.0) color = viewmodel.rgb;

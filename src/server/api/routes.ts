@@ -198,6 +198,10 @@ export function apiRouter(options: ApiOptions): Router {
     });
   }
 
+  router.get("/expedition/leaderboard", async (_request, response) => {
+    response.json({ rows: await (await options.database()).expeditionLeaderboard() });
+  });
+
   router.get("/leaderboard", async (request, response) => {
     const season = typeof request.query.season === "string" && /^\d{4}-S[1-4]$/.test(request.query.season) ? request.query.season : undefined;
     const db = await options.database();

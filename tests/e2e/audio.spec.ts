@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+﻿import { expect, test, type Page } from "@playwright/test";
 import { collectErrors, onlineUrl } from "./helpers.ts";
 
 type AudioApi = { audioState(): { musicBus: number; layers: { pad: number; percussion: number; melody: number }; cues: number }; sessionId: string };

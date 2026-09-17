@@ -19,6 +19,20 @@ describe("computer-controlled navigation and aim", () => {
     }
   });
 
+  it("keeps a filtered route to the links a walker can take", () => {
+    const walkable = (link: { kind: string }): boolean => link.kind === "walk" || link.kind === "jump" || link.kind === "drop";
+    for (const map of [defaultMatchMap, canopyMap]) {
+      const start = nearestWaypoint(map, ...map.spawns.sun[0]!.pos), goal = nearestWaypoint(map, ...map.spawns.moon[0]!.pos);
+      const path = findPath(map, start.id, goal.id, walkable);
+      for (let index = 1; index < path.length; index += 1) {
+        const link = path[index - 1]!.links.find((entry) => entry.to === path[index]!.id)!;
+        expect(walkable(link)).toBe(true);
+      }
+    }
+    const start = defaultMatchMap.waypoints[0]!, other = defaultMatchMap.waypoints[1]!;
+    expect(findPath(defaultMatchMap, start.id, other.id, () => false)).toEqual([]);
+  });
+
   it("leads a 6 m/s target at 30 m in at least 90 seeded trials", () => {
     const rng = mulberry32(0xb0d1e); let hits = 0;
     for (let trial = 0; trial < 100; trial += 1) {

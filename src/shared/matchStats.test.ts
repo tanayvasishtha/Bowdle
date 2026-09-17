@@ -6,14 +6,14 @@ import { matchReward } from "./progression.ts";
 describe("match statistics and medals", () => {
   it("tracks weapons, arrow-only distances, zip kills, clashes, rope cuts, swats, scatter kills, tether rides, relic captures and death streak resets", () => {
     const stats = createMatchStats();
-    expect(stats).toEqual({ kills: 0, deaths: 0, assists: 0, headshots: 0, longShots: 0, longestShotM: 0, daggerKills: 0, boulderKills: 0, zipKills: 0, robinHoods: 0, ropeCuts: 0, swats: 0, scatterKills: 0, tetherRides: 0, relicCaptures: 0, streak: 0, bestStreak: 0, won: false });
+    expect(stats).toEqual({ kills: 0, deaths: 0, assists: 0, headshots: 0, longShots: 0, longestShotM: 0, daggerKills: 0, boulderKills: 0, zipKills: 0, robinHoods: 0, ropeCuts: 0, swats: 0, scatterKills: 0, tetherRides: 0, relicCaptures: 0, waveReached: 0, colossusKills: 0, streak: 0, bestStreak: 0, won: false });
     recordKill(stats, { weapon: "arrow", headshot: true, distance: 35, onZip: true });
     recordKill(stats, { weapon: "arrow", headshot: false, distance: 34.9, onZip: false });
     recordKill(stats, { weapon: "dagger", headshot: true, distance: 100, onZip: false });
     recordDeath(stats); recordRobinHood(stats); recordRopeCut(stats); recordSwat(stats); recordTetherRide(stats); recordRelicCapture(stats);
     recordKill(stats, { weapon: "arrow", headshot: false, distance: 5, onZip: false, scatter: true }); recordDeath(stats);
     recordKill(stats, { weapon: "boulder", headshot: true, distance: 200, onZip: false });
-    expect(stats).toEqual({ kills: 5, deaths: 2, assists: 0, headshots: 1, longShots: 1, longestShotM: 35, daggerKills: 1, boulderKills: 1, zipKills: 1, robinHoods: 1, ropeCuts: 1, swats: 1, scatterKills: 1, tetherRides: 1, relicCaptures: 1, streak: 1, bestStreak: 3, won: false });
+    expect(stats).toEqual({ kills: 5, deaths: 2, assists: 0, headshots: 1, longShots: 1, longestShotM: 35, daggerKills: 1, boulderKills: 1, zipKills: 1, robinHoods: 1, ropeCuts: 1, swats: 1, scatterKills: 1, tetherRides: 1, relicCaptures: 1, waveReached: 0, colossusKills: 0, streak: 1, bestStreak: 3, won: false });
     expect(createMatchStats().kills).toBe(0);
   });
   it("awards every medal in table order and excludes On a Roll from Unstoppable", () => {

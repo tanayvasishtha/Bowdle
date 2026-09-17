@@ -1,4 +1,4 @@
-import { lineupMap } from "../shared/maps/fixtures/lineup.ts";
+﻿import { lineupMap } from "../shared/maps/fixtures/lineup.ts";
 import { createMotion, type CharacterMotion } from "./render/characters/pose.ts";
 import { Renderer, type SnapshotFractions } from "./render/Renderer.ts";
 import { InputSampler } from "./game/InputSampler.ts";
@@ -57,6 +57,7 @@ declare global {
       cameraFeel?(): { fov: number; offsetY: number; offsetX: number; rollDeg: number; hurt: number; streaks: number };
       forceFeel?(hurt: number, streaks: number): void;
       showMatchRewards?(stats: import("../net/messages.ts").MatchStatsMessage, reward: import("../net/messages.ts").RewardMessage): void;
+      expedition?(): import("./game/OnlineSession.ts").ExpeditionView;
     };
   }
 }
@@ -75,7 +76,7 @@ const touchOnly = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)"
 if (touchOnly) showDesktopOnly(app);
 else if (params.get("scene") === "online") {
   const loading = document.createElement("section"); loading.className = "bowdle-panel bowdle-loading";
-  loading.innerHTML = `<h2>Opening the field journal…</h2><p>Finding a match in the jungle.</p>`;
+  loading.innerHTML = `<h2>Opening the field journalâ€¦</h2><p>Finding a match in the jungle.</p>`;
   app.append(loading);
   const requestedMapId = params.get("map") ?? undefined;
   const renderer = new Renderer(app, params.has("debug"), requestedMapId ? mapById(requestedMapId) ?? defaultMatchMap : defaultMatchMap);
@@ -83,7 +84,7 @@ else if (params.get("scene") === "online") {
   const requestedParty = normalizePartyCode(params.get("party") ?? "");
   const party = isPartyCode(requestedParty) ? requestedParty : undefined;
   if (party) loading.querySelector("p")!.textContent = `Joining party ${party}.`;
-  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm").then((session) => {
+  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm", params.has("checkpoint"), params.has("startWave") ? Number(params.get("startWave")) : undefined).then((session) => {
     loading.remove();
     attachPauseMenu(app, sampler, party);
     attachControlsHelp(app, renderer.canvas);
@@ -115,6 +116,7 @@ else if (params.get("scene") === "online") {
       cameraFeel: () => session.cameraFeel(),
       forceFeel: (hurt, streaks) => renderer.forceFeel(hurt, streaks),
       showMatchRewards: (stats, reward) => session.showMatchRewards(stats, reward),
+      expedition: () => session.expeditionState(),
     };
   }).catch((error: unknown) => {
     const reason = error instanceof Error ? error.message : "Connection failed";
@@ -166,3 +168,4 @@ else if (params.get("scene") === "online") {
 } else {
   showMainMenu(app);
 }
+

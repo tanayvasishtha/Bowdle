@@ -11,6 +11,7 @@ export type Profile = {
   career: { matches: number; wins: number; kills: number; headshots: number; bestStreak: number; longestShotM: number };
   nextUnlock?: import("./cosmetics.ts").LevelReward;
   tutorialDone?: boolean;
+  expeditionBest?: number;
 };
 
 export type LeaderboardRow = { rank: number; name: string; kills: number; wins: number; matches: number; level: number };

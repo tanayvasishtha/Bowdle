@@ -1,9 +1,9 @@
-import { END_SCREEN_MS, MODE_TUNING, SCORE_LIMIT, TEAM_SIZE, TIME_LIMIT_S } from "../constants.ts";
+import { END_SCREEN_MS, EXPEDITION, MODE_TUNING, SCORE_LIMIT, TEAM_SIZE, TIME_LIMIT_S } from "../constants.ts";
 import type { MapData, SpawnPoint } from "../maps/types.ts";
 import { chooseSpawn, type MatchCore } from "./match.ts";
 import type { PlayerSim } from "./movement.ts";
 
-export const GAME_MODES = ["tdm", "ffa", "relic"] as const;
+export const GAME_MODES = ["tdm", "ffa", "relic", "expedition"] as const;
 export type GameMode = typeof GAME_MODES[number];
 
 /**
@@ -16,19 +16,22 @@ export const MODE_RULES: Record<GameMode, ModeRules> = {
   tdm: { teams: true, scoreLimit: SCORE_LIMIT, timeLimitS: TIME_LIMIT_S, killsScore: true, maxPlayers: TEAM_SIZE * 2 },
   ffa: { teams: false, scoreLimit: MODE_TUNING.ffaKillLimit, timeLimitS: MODE_TUNING.ffaTimeLimitS, killsScore: true, maxPlayers: MODE_TUNING.ffaPlayers },
   relic: { teams: true, scoreLimit: MODE_TUNING.relicCaptureLimit, timeLimitS: MODE_TUNING.relicTimeLimitS, killsScore: false, maxPlayers: TEAM_SIZE * 2 },
+  // Expedition runs end when every player is down, not on a clock; the limit only stops a forgotten room.
+  expedition: { teams: true, scoreLimit: Number.POSITIVE_INFINITY, timeLimitS: 4 * 60 * 60, killsScore: false, maxPlayers: EXPEDITION.maxPlayers },
 };
 
 export function isGameMode(value: unknown): value is GameMode {
   return typeof value === "string" && (GAME_MODES as readonly string[]).includes(value);
 }
 
-export const MODE_NAMES: Record<GameMode, string> = { tdm: "Quick Play", ffa: "Free for All", relic: "Relic Run" };
+export const MODE_NAMES: Record<GameMode, string> = { tdm: "Quick Play", ffa: "Free for All", relic: "Relic Run", expedition: "Expedition" };
 
 /** The address of an online match in a mode; team deathmatch keeps the plain address. */
-export function onlineSearch(mode: GameMode, party?: string): string {
+export function onlineSearch(mode: GameMode, party?: string, checkpoint = false): string {
   const params = new URLSearchParams({ scene: "online" });
   if (party) params.set("party", party);
   if (mode !== "tdm") params.set("mode", mode);
+  if (checkpoint && mode === "expedition" && !party) params.set("checkpoint", "1");
   return `?${params.toString()}`;
 }
 

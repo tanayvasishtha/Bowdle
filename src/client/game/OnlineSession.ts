@@ -1,6 +1,6 @@
-import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
+﻿import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
-import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
+import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, CREATURE_TUNING, EXPEDITION, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
 import { defaultMatchMap, mapById, matchMaps } from "../../shared/maps/registry.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
@@ -13,13 +13,15 @@ import { emptySnapshot, moveSignals, snapshotOf } from "./course.ts";
 import { TIP_TEXT, TipScheduler, countMatchStart, tipsActive, type TipId } from "./tips.ts";
 import { loadSettings } from "../settings.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
-import { DamagedMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RelicMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
+import { CreatureDownMessage, CreatureHitMessage, DamagedMessage, DownedMessage, WaveMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RelicMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import { ropeSag, type Renderer } from "../render/Renderer.ts";
-import { MatchHud } from "../ui/hud.ts";
+import { MatchHud, type RunSummary } from "../ui/hud.ts";
+import { ExpeditionHud, MODIFIER_NAMES, type ReviveView } from "../ui/expeditionHud.ts";
+import type { CreaturePose } from "../render/creatures.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { happyTime } from "../platform/web.ts";
-import { loadToken } from "../account.ts";
+import { fetchProfile, loadToken } from "../account.ts";
 import { setAudioSuspended } from "../audio/bus.ts";
 import { portalPolicy } from "../platform/platform.ts";
 import { platform } from "../platform/sdk.ts";
@@ -32,6 +34,7 @@ import { drawFraction } from "../../shared/sim/bow.ts";
 import { KillFeedbackTracker } from "../../shared/killFeedback.ts";
 import { isGameMode, onlineSearch, type GameMode } from "../../shared/sim/modes.ts";
 import { isInWater } from "../../shared/sim/volumes.ts";
+import { gravityMultiplier } from "../../shared/sim/waves.ts";
 import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
 import { createMotion } from "../render/characters/pose.ts";
 import { AUDIO_MIX, ROPE_LOOK } from "../render/look.ts";
@@ -45,7 +48,12 @@ import { boulderPosition } from "../../shared/sim/hazards.ts";
 import type { GameSettings } from "../settings.ts";
 
 export type RenderedPlayer = { id: string; team: number; x: number; y: number; z: number; yaw?: number; grapple?: [number, number, number] };
-type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "scatter" | "tether" | "grapple" | "ink" };
+type LocalArrow = ArrowSim & { owner: string; team: number; bornMs: number; kind: "arrow" | "scatter" | "tether" | "grapple" | "ink" | "spit" };
+export type ExpeditionView = {
+  mode: string; phase: string; wave: number; runPhase: string; left: number; modifier: string;
+  creatures: Array<{ kind: string; x: number; y: number; z: number; yaw: number }>; drawn: Record<string, number>;
+  herbs: number; herbsDrawn: number; downed: boolean; night: number; hud: string; me: { x: number; y: number; z: number };
+};
 type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number };
 
 export class OnlineSession {
@@ -100,6 +108,8 @@ export class OnlineSession {
     this.predict = Predict.get(room, { mode: "lerp", delay: INTERP_DELAY_MS, renderPresent: false });
     this.predict.attachAll("players", { mode: "lerp", fields: ["x", "y", "z", "height"], smoothMs: 0 });
     this.predict.attachAll("players", { mode: "lerp", fields: ["yaw", "pitch"], angle: true, smoothMs: 0 });
+    this.predict.attachAll("creatures", { mode: "lerp", fields: ["x", "y", "z"], smoothMs: 0 });
+    this.predict.attachAll("creatures", { mode: "lerp", fields: ["yaw"], angle: true, smoothMs: 0 });
     const local = room.state.players.get(room.sessionId);
     if (!local) throw new Error("Server joined without a local player");
     this.sampler.setLook(local.yaw, local.pitch);
@@ -113,7 +123,7 @@ export class OnlineSession {
       input: this.input,
       smoothMs: RECONCILE_SMOOTH_MS,
       step: (context, state, command) => {
-        const events = stepPlayer(state, command, this.map, { nowMs: context.reckonTime, zipLines: this.tetherZips });
+        const events = stepPlayer(state, command, this.map, { nowMs: context.reckonTime, zipLines: this.tetherZips, gravityMult: gravityMultiplier(this.room.state.expedition.modifier) });
         if (context.isReplay) return;
         for (const event of events) {
           if (event.type === "fire") for (const arrow of spawnVolley(event, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
@@ -127,23 +137,27 @@ export class OnlineSession {
     callbacks.onRemove("inkClouds", (_cloud, id) => this.renderer.removeInkCloud(id));
     callbacks.onAdd("tethers", () => this.rebuildTetherZips());
     callbacks.onRemove("tethers", (_tether, id) => { this.rebuildTetherZips(); this.renderer.removeRope(id); });
+    room.onMessage<CreatureHitMessage>("creatureHit", (payload) => { const parsed = CreatureHitMessage.safeParse(payload); if (parsed.success) this.onCreatureHit(parsed.data); });
+    room.onMessage<CreatureDownMessage>("creatureDown", (payload) => { const parsed = CreatureDownMessage.safeParse(payload); if (parsed.success) this.onCreatureDown(parsed.data); });
+    room.onMessage<WaveMessage>("wave", (payload) => { const parsed = WaveMessage.safeParse(payload); if (parsed.success) this.onWave(parsed.data); });
+    room.onMessage<DownedMessage>("downed", (payload) => { const parsed = DownedMessage.safeParse(payload); if (parsed.success) this.onDowned(parsed.data); });
     room.onMessage<RelicMessage>("relic", (payload) => { const parsed = RelicMessage.safeParse(payload); if (parsed.success) this.onRelic(parsed.data); });
     room.onMessage<SwatMessage>("swat", (payload) => { const parsed = SwatMessage.safeParse(payload); if (parsed.success) this.onSwat(parsed.data); });
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.onHitConfirm(parsed.data); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) { this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); this.lastDamageAtMs = performance.now(); this.cameraRig.hurt(parsed.data.damage); } });
-    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps); });
+    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps, this.runSummary()); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
     room.onMessage<RopeCutMessage>("ropeCut", (payload) => { const parsed = RopeCutMessage.safeParse(payload); if (parsed.success) this.onRopeCut(parsed.data); });
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
-  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm"): Promise<OnlineSession> {
+  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number): Promise<OnlineSession> {
     const endpoint = import.meta.env.VITE_SERVER_URL || location.origin;
     const room = party
       ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party, mode }, MatchState)
-      : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}) }, MatchState);
+      : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}), ...(mode === "expedition" ? { checkpoint, ...(testing && testStartWave !== undefined ? { testStartWave } : {}) } : {}) }, MatchState);
     if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {
@@ -158,6 +172,7 @@ export class OnlineSession {
   }
 
   start(): void {
+    if (this.room.state.mode === "expedition") void fetchProfile().then((profile) => { this.expeditionBest = profile?.expeditionBest ?? 0; });
     this.tipsOn = tipsActive(loadSettings().tips, countMatchStart());
     this.clips?.start();
     platform().loaded();
@@ -176,7 +191,7 @@ export class OnlineSession {
   /** Test hook: shows the end screen with the current scoreboard. */
   showEndScreen(): void {
     this.hud.endPinned = true;
-    this.hud.end({ winner: "draw", mvp: this.sessionId }, this.names, { kills: this.me.state.kills, deaths: this.me.state.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps);
+    this.hud.end({ winner: "draw", mvp: this.sessionId }, this.names, { kills: this.me.state.kills, deaths: this.me.state.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps, this.runSummary());
   }
 
   showMatchRewards(stats: MatchStatsMessage, reward: RewardMessage): void {
@@ -237,11 +252,12 @@ export class OnlineSession {
     this.renderArrows(timeMs, capture);
     this.hearHazards();
     this.showObjective(timeMs);
+    this.showExpedition(timeMs);
     const camera = this.renderer.camera.position;
     this.sounds.setListener(camera.x, camera.y, camera.z, this.me.state.yaw);
-    music().setIntensity(musicIntensity("match", this.enemyInView, performance.now() - this.lastDamageAtMs));
+    music().setIntensity(musicIntensity("match", this.enemyInView || this.creatureInView, performance.now() - this.lastDamageAtMs));
     this.renderer.setLocalTeam(this.room.state.mode === "ffa" ? -1 : this.me.state.team);
-    this.renderer.setLocalBowSkin(this.me.state.bowSkin);
+    this.renderer.setLocalBowSkin(this.me.state.look?.bowSkin ?? "bow.default");
     this.renderer.setLocalArrowKind(ARROW_SLOTS[this.me.state.arrowSlot] ?? "arrow");
     this.quiver.update(this.me.state);
     for (const [id, tether] of this.room.state.tethers) this.renderer.setTether(id, tether.fromX, tether.fromY, tether.fromZ, tether.toX, tether.toY, tether.toZ);
@@ -258,7 +274,7 @@ export class OnlineSession {
     for (const hazard of this.room.state.hazards.values()) if (hazard.phase === "roll" || hazard.phase === "telegraph") { hazardPhase = hazard.phase; break; }
     if (hazardPhase === "telegraph" && this.previousHazardPhase !== "telegraph") this.renderer.leverAudio();
     this.previousHazardPhase = hazardPhase; this.renderer.setBoulderAudio(hazardPhase); this.renderer.setZipAudio(this.me.state.zipId ? ZIP_SPEED : 0);
-    if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; this.updateTips(timeMs); }
+    if (timeMs >= this.nextHudAtMs) { this.hud.update(this.room.state, this.sessionId, this.room.clock.serverNow()); this.nextHudAtMs = timeMs + HUD_REFRESH_MS; this.updateTips(timeMs); this.expeditionHud?.update(this.room.state, this.sessionId, this.room.clock.serverNow(), this.reviveView()); }
     this.renderer.render(timeMs);
     requestAnimationFrame((time) => this.frame(time));
   }
@@ -270,7 +286,7 @@ export class OnlineSession {
       if (!source) continue;
       if (!render) {
         const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
+        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.look.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
       }
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
       if (!this.heardShots.has(entry.id) && this.hearShot(source, render.sim)) this.heardShots.add(entry.id);
@@ -286,7 +302,7 @@ export class OnlineSession {
 
   private readonly lookScratch = { bow: "", outfit: "" };
   private lookFor(player: PlayerState): { bow: string; outfit: string } {
-    this.lookScratch.bow = player.bowSkin; this.lookScratch.outfit = player.outfit;
+    this.lookScratch.bow = player.look.bowSkin; this.lookScratch.outfit = player.look.outfit;
     return this.lookScratch;
   }
 
@@ -362,6 +378,108 @@ export class OnlineSession {
     this.renderer.setRelic(relicMode, relic.x, relic.y, relic.z, relic.carrier, timeMs);
     const point = relicMode && relic.carrier !== this.sessionId ? this.renderer.screenPoint(relic.x, relic.y + (relic.carrier ? 0.6 : 1.8), relic.z) : undefined;
     this.hud.objective(point ?? null);
+  }
+
+  private expeditionHud: ExpeditionHud | null = null;
+  private expeditionBest = 0;
+  private creatureInView = false;
+  private lastHp = -1;
+  private readonly poses: Array<[string, CreaturePose]> = [];
+  private readonly creatureSeen = new Map<string, { x: number; y: number; z: number; kind: string }>();
+
+  /** Expedition: creatures and herbs every frame, the Night modifier, and hurt feedback from creature damage. */
+  private showExpedition(timeMs: number): void {
+    const state = this.room.state;
+    if (state.mode !== "expedition") return;
+    this.expeditionHud ??= new ExpeditionHud(this.renderer.canvas.parentElement!);
+    const me = this.me.state;
+    let count = 0;
+    this.creatureInView = false;
+    for (const [id, creature] of state.creatures) {
+      let entry = this.poses[count];
+      if (!entry) { entry = ["", { kind: "", x: 0, y: 0, z: 0, yaw: 0, action: "", actionMs: 0 }]; this.poses.push(entry); }
+      const pose = entry[1];
+      entry[0] = id; pose.kind = creature.kind; pose.action = creature.action; pose.actionMs = creature.actionMs;
+      pose.x = this.predict.value(creature, "x"); pose.y = this.predict.value(creature, "y"); pose.z = this.predict.value(creature, "z"); pose.yaw = this.predict.value(creature, "yaw");
+      count += 1;
+      let seen = this.creatureSeen.get(id);
+      if (!seen) { seen = { x: 0, y: 0, z: 0, kind: creature.kind }; this.creatureSeen.set(id, seen); }
+      seen.x = pose.x; seen.y = pose.y; seen.z = pose.z;
+      if (!this.creatureInView && Math.hypot(pose.x - me.x, pose.z - me.z) < AUDIO_MIX.enemyViewM) this.creatureInView = true;
+    }
+    this.poses.length = count;
+    this.renderer.setCreatures(this.poses, state.herbs.values(), timeMs);
+    this.renderer.setNight(state.expedition.modifier === "night" && state.expedition.phase === "fight");
+    // Creature damage has no damaged message; a drop in health is enough for the camera and music.
+    if (this.lastHp >= 0 && me.hp < this.lastHp && me.alive) { this.cameraRig.hurt(this.lastHp - me.hp); this.lastDamageAtMs = performance.now(); }
+    this.lastHp = me.hp;
+  }
+
+  /** The nearest downed teammate within reach, while this player can revive. */
+  private reviveView(): ReviveView {
+    const me = this.me.state;
+    if (this.room.state.mode !== "expedition" || !me.alive || me.downed) return null;
+    for (const [id, player] of this.room.state.players) {
+      if (id === this.sessionId || !player.downed) continue;
+      if (Math.hypot(player.x - me.x, player.z - me.z) <= EXPEDITION.reviveRangeM) return { name: player.name, progress: Math.min(1, player.reviveMs / EXPEDITION.reviveMs) };
+    }
+    return null;
+  }
+
+  private runSummary(): RunSummary | undefined {
+    const run = this.room.state.expedition;
+    if (this.room.state.mode !== "expedition") return undefined;
+    return { wave: run.wave, best: Math.max(this.expeditionBest, run.wave), cleared: run.cleared, bosses: run.bosses };
+  }
+
+  private onCreatureHit(message: CreatureHitMessage): void {
+    if (message.blocked) { this.sounds.play("dagger"); this.hud.tickerLine("Shield blocked"); return; }
+    this.hud.hit(message.gem);
+    this.sounds.play("hit", message.damage);
+    const creature = this.room.state.creatures.get(message.id) ?? this.creatureSeen.get(message.id);
+    if (!creature) return;
+    const stats: { height: number; gemHeightM?: number } = CREATURE_TUNING[(creature.kind in CREATURE_TUNING ? creature.kind : "beetle") as keyof typeof CREATURE_TUNING];
+    const point = this.renderer.screenPoint(creature.x, creature.y + (message.gem ? stats.gemHeightM ?? stats.height : stats.height * 0.6), creature.z);
+    if (point) this.hud.damageNumber(point.x, point.y, message.damage, message.gem);
+  }
+
+  private onCreatureDown(message: CreatureDownMessage): void {
+    const seen = this.creatureSeen.get(message.id);
+    this.creatureSeen.delete(message.id);
+    if (seen) this.renderer.creatureBurst(message.kind, seen.x, seen.y, seen.z, this.hash(message.id));
+    if (message.kind === "colossus") { this.hud.banner("COLOSSUS DEFEATED!"); this.sounds.play("multikill"); }
+    if (message.killer !== this.sessionId) return;
+    this.hud.killConfirm(false); this.sounds.play("kill");
+  }
+
+  private onWave(message: WaveMessage): void {
+    if (message.event === "start") {
+      const modifier = MODIFIER_NAMES[message.modifier] ?? "";
+      this.hud.banner(message.boss ? "THE COLOSSUS WAKES" : `WAVE ${message.wave}${modifier ? ` Â· ${modifier.toUpperCase()}` : ""}`);
+      this.sounds.play("paper");
+    } else if (message.event === "clear") {
+      this.hud.banner(`WAVE ${message.wave} CLEARED`);
+      this.sounds.play("multikill");
+    } else this.hud.banner("RUN OVER");
+  }
+
+  private onDowned(message: DownedMessage): void {
+    const mine = message.player === this.sessionId, name = this.names.get(message.player) ?? "A teammate";
+    if (message.event === "down") { if (mine) this.hud.banner("DOWN!"); else this.hud.tickerLine(`${name} is down`); }
+    else if (message.event === "revived") { if (mine) this.hud.banner("BACK UP"); else this.hud.tickerLine(`${name} is back up`); this.sounds.play("paper"); }
+    else if (message.event === "life") { if (mine) this.hud.banner("SPARE LIFE USED"); }
+    else if (!mine) this.hud.tickerLine(`${name} is out until the break`);
+  }
+
+  /** Test hook: the run as this client sees and draws it. */
+  expeditionState(): ExpeditionView {
+    const state = this.room.state, run = state.expedition;
+    return {
+      mode: state.mode, phase: state.phase, wave: run.wave, runPhase: run.phase, left: run.left, modifier: run.modifier,
+      creatures: [...state.creatures.values()].map((creature) => ({ kind: creature.kind, x: creature.x, y: creature.y, z: creature.z, yaw: creature.yaw })),
+      drawn: this.renderer.creaturesDrawn(), herbs: state.herbs.size, herbsDrawn: this.renderer.herbsDrawn(), downed: this.me.state.downed,
+      night: this.renderer.nightAmount(), hud: this.expeditionHud?.text() ?? "", me: { x: this.me.state.x, y: this.me.state.y, z: this.me.state.z },
+    };
   }
 
   private hearHazards(): void {
@@ -484,7 +602,7 @@ export class OnlineSession {
     if (message.killer === this.sessionId && message.weapon === "arrow") this.bestShot = Math.max(this.bestShot, message.distance);
     if (victim) {
       const seed = this.hash(message.victim) + Math.round(this.room.clock.serverNow());
-      const bought = killer ? this.renderer.spawnKillEffect(killer.killEffect, killer.team, victim.x, victim.y, victim.z, seed) : false;
+      const bought = killer ? this.renderer.spawnKillEffect(killer.look.killEffect, killer.team, victim.x, victim.y, victim.z, seed) : false;
       if (!bought && message.headshot) this.renderer.addInkSplat(victim.x, victim.y, victim.z, victim.team, seed);
       if (killer && message.weapon === "arrow") this.renderer.pinPlayer(message.victim, killer.x, killer.z);
       this.markBodyArrow(victim.x, victim.y, victim.z);
@@ -563,3 +681,4 @@ export class OnlineSession {
     }
   }
 }
+

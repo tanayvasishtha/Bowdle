@@ -104,7 +104,8 @@ props.push(...dressing.props);
 boxes.push(...dressing.patches);
 
 export const lostRiverMap: MapData = {
-  relic: [0, -1, 7], camps: { sun: { min: [-34, -1.5, -9], max: [-25, 4, 9] }, moon: { min: [25, -1.5, -9], max: [34, 4, 9] } },
+  relic: [0, -1, 7],
+  creatureSpawns: [[27, 0, 0], [20, 0, 10], [8, 0, 18], [8, 0, -18], [8, 0, -23], [30, 0, 6]], herbSpawns: [[-6, 0.2, -6], [6, 0.2, -6]], camps: { sun: { min: [-34, -1.5, -9], max: [-25, 4, 9] }, moon: { min: [25, -1.5, -9], max: [34, 4, 9] } },
   id: "lost-river", name: "Lost River", bounds: { min: [-36, -2, -28], max: [36, 14, 28] }, boxes, ramps, volumes, zipLines: [], boulders: [], props,
   spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "flood every two minutes", pos: [0, 3, 4] }, { text: "behind the falls", pos: [0, 3, -22] }], look: { sunShafts: true, stainSeed: 6301 }, landmark: [0, 6, 10],
 };

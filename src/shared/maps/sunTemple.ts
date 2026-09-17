@@ -114,7 +114,8 @@ connect("altar-s-11", "altar", "walk"); connect("altar-n-11", "altar", "walk");
 const waypoints: Waypoint[] = nodes.map((node) => ({ ...node, links: links.get(node.id) ?? [] }));
 
 export const sunTempleMap: MapData = {
-  relic: [0, 4.8, 0], camps: { sun: { min: [-34, -1.5, -9], max: [-25, 4, 9] }, moon: { min: [25, -1.5, -9], max: [34, 4, 9] } },
+  relic: [0, 4.8, 0],
+  creatureSpawns: [[26, 0, 0], [20, 0, -11], [20, 0, 11], [7, 0.3, 23], [29, 0, -6], [11, 0, -11]], herbSpawns: [[0, 0, -11], [0, 0, 11]], camps: { sun: { min: [-34, -1.5, -9], max: [-25, 4, 9] }, moon: { min: [25, -1.5, -9], max: [34, 4, 9] } },
   id: "sun-temple", name: "Sun Temple", bounds: { min: [-36, -5, -28], max: [36, 17, 28] }, boxes, ramps, volumes, zipLines: [], boulders: [boulder], props,
   spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "altar", pos: [0, 6.5, 0] }, { text: "tunnel: listen for the rumble", pos: [-8, 0.2, 0] }], look: { sunShafts: false, stainSeed: 4401 }, landmark: [0, 6.6, 0],
 };

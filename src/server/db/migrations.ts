@@ -84,6 +84,18 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE accounts ADD COLUMN tutorial_done BOOLEAN NOT NULL DEFAULT false
   `,
+  `
+  CREATE TABLE expedition_runs (
+    match_id TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    wave INTEGER NOT NULL,
+    bosses INTEGER NOT NULL,
+    week TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (match_id, account_id)
+  );
+  CREATE INDEX expedition_runs_week ON expedition_runs (week, wave DESC)
+  `,
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

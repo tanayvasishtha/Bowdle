@@ -1,4 +1,5 @@
-import { MATCH_INK, MAX_LEVEL, RETENTION_XP, XP_PER_LEVEL_STEP } from "./constants.ts";
+import { MATCH_INK, MAX_LEVEL, RETENTION_XP, XP_PER_LEVEL_STEP, EXPEDITION } from "./constants.ts";
+import { expeditionReward } from "./sim/waves.ts";
 import type { MatchStats } from "./matchStats.ts";
 export { MATCH_INK, MAX_LEVEL, XP_PER_LEVEL_STEP } from "./constants.ts";
 export const MATCH_XP = RETENTION_XP;
@@ -38,6 +39,16 @@ export function matchReward(line: MatchLine & Partial<MatchStats>, medals: reado
     { label: "Medals", xp: MATCH_XP.medal * Math.min(MATCH_XP.maxMedals, medals.length), ink: 0 },
   ];
   return { xp: breakdown.reduce((sum, row) => sum + row.xp, 0), ink: breakdown.reduce((sum, row) => sum + row.ink, 0), breakdown };
+}
+
+/** An Expedition run pays for cleared waves and bosses only; Ink is capped per run. */
+export function expeditionMatchReward(wavesCleared: number, bosses: number): MatchReward {
+  const reward = expeditionReward(wavesCleared, bosses);
+  const breakdown: RewardBreakdown[] = [
+    { label: "Waves cleared", xp: reward.waves * EXPEDITION.xpPerWave, ink: reward.ink },
+    { label: "Temple Colossus", xp: reward.bosses * EXPEDITION.xpPerBoss, ink: 0 },
+  ];
+  return { xp: reward.xp, ink: reward.ink, breakdown };
 }
 
 /** Seasons follow calendar quarters in UTC, for example "2026-S3". */

@@ -1,9 +1,13 @@
 import { defineRoom, defineServer } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import express from "express";
+import { Encoder } from "@colyseus/schema";
 import { apiRouter } from "./api/routes.ts";
 import { gameDatabase } from "./db/GameDatabase.ts";
 import { TdmRoom } from "./rooms/TdmRoom.ts";
+
+// A full state with nested looks, hazards and Expedition creatures passes the 8 KB default; start larger than growing mid-match.
+Encoder.BUFFER_SIZE = 32 * 1024;
 
 export const server = defineServer({
   transport: new WebSocketTransport(),
@@ -13,6 +17,8 @@ export const server = defineServer({
     tdm: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom"]),
     ffa: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom"]),
     relic: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom"]),
+    // Expedition runs are co-op; a checkpoint start opens a room of its own.
+    expedition: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom", "checkpoint"]),
     party: defineRoom(TdmRoom).filterBy(["party"]),
   },
   express: (app) => {

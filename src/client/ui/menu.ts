@@ -1,5 +1,6 @@
 import { MAX_FOV, MIN_FOV } from "../../shared/constants.ts";
 import { consumeSignInFragment, ensureAccount, reportFunnel } from "../account.ts";
+import { checkpointFor } from "../../shared/sim/waves.ts";
 import { courseDone } from "../game/course.ts";
 import { onlineSearch, type GameMode } from "../../shared/sim/modes.ts";
 import { music } from "../audio/music.ts";
@@ -87,7 +88,7 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
 export function showMainMenu(container: HTMLElement): void {
   installMenuStyles(container);
   const menu = document.createElement("main"); menu.className = "bowdle-menu";
-  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><div class="bowdle-menu-grid"><button data-action="ffa">Free for All</button><button data-action="relic">Relic Run</button><button data-action="party">Play with friends</button><button data-action="practice">Practice</button><button data-action="course">Field course</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button></div><nav class="bowdle-legal"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></nav>`;
+  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><div class="bowdle-menu-grid"><button data-action="ffa">Free for All</button><button data-action="relic">Relic Run</button><button data-action="expedition">Expedition</button><button data-action="party">Play with friends</button><button data-action="practice">Practice</button><button data-action="course">Field course</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button></div><nav class="bowdle-legal"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></nav>`;
   container.append(menu);
   platform().loaded();
   reportFunnel("menuOpened");
@@ -107,12 +108,28 @@ export function showMainMenu(container: HTMLElement): void {
     card.querySelector("button")!.addEventListener("click", () => { const issue = nameError(input.value); error.textContent = issue; if (!issue) { saveName(input.value.trim()); card.remove(); next(input.value.trim()); } });
     container.append(card); input.focus();
   };
-  const enter = async (name: string, party?: string, mode: GameMode = "tdm"): Promise<void> => {
+  const enter = async (name: string, party?: string, mode: GameMode = "tdm", checkpoint = false): Promise<void> => {
     await ensureAccount(name);
-    location.search = onlineSearch(mode, party);
+    location.search = onlineSearch(mode, party, checkpoint);
+  };
+  /** Expedition: a returning player past a checkpoint picks where the run starts. */
+  const expedition = (name: string): void => {
+    void (async () => {
+      const checkpoint = checkpointFor((await ensureAccount(name))?.expeditionBest ?? 0);
+      if (checkpoint <= 0) { location.search = onlineSearch("expedition"); return; }
+      const card = document.createElement("section"); card.className = "bowdle-panel"; card.dataset.testid = "expedition-start";
+      card.innerHTML = `<h2>Expedition</h2><p>Hold the camp against waves of ink creatures, alone or with up to three friends.</p><button data-start="checkpoint">Start after wave ${checkpoint}</button><button data-start="fresh">Start at wave 1</button><button data-start="back">Back</button>`;
+      card.addEventListener("click", (event) => {
+        const start = (event.target as HTMLElement).dataset.start;
+        if (start === "back") card.remove();
+        else if (start) location.search = onlineSearch("expedition", undefined, start === "checkpoint");
+      });
+      container.append(card);
+    })();
   };
   const play = (): void => withName((name) => { void enter(name); });
   menu.querySelector("[data-action=play]")!.addEventListener("click", play);
+  menu.querySelector("[data-action=expedition]")!.addEventListener("click", () => withName(expedition));
   for (const mode of ["ffa", "relic"] as const) menu.querySelector(`[data-action=${mode}]`)!.addEventListener("click", () => withName((name) => { void enter(name, undefined, mode); }));
   menu.querySelector("[data-action=party]")!.addEventListener("click", () => withName((name) => showPartyPanel(container, (code, mode) => { void enter(name, code, mode); })));
   menu.querySelector("[data-action=practice]")!.addEventListener("click", () => navigate("camp"));

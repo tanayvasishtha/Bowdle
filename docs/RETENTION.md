@@ -135,8 +135,10 @@ With 3 dailies, a player who finishes them earns 90 Ink a day on top of match In
 | `w.maps` | Win on all three maps | mapsWon | 3 |
 | `w.medals` | Earn 15 medals | medals | 15 |
 | `w.tether` | Ride 10 tether lines | tetherRides | 10 |
+| `w.wave10` | Reach wave 10 in Expedition | wave10 | 1 |
+| `w.colossus` | Defeat a Temple Colossus | colossusKills | 1 |
 
-Derived stats: `matches` adds 1 per finished match; `won` adds 1 per win; `streaks3` adds 1 when `bestStreak` >= 3; `medals` adds the medal count; `mapsWon` counts distinct map ids won this week (stored as a list on the challenge row).
+Derived stats: `matches` adds 1 per finished match; `won` adds 1 per win; `streaks3` adds 1 when `bestStreak` >= 3; `medals` adds the medal count; `mapsWon` counts distinct map ids won this week (stored as a list on the challenge row); `wave10` adds 1 when an Expedition run reaches wave 10.
 
 ## Play streak and first win
 

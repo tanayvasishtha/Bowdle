@@ -9,6 +9,8 @@ import type { MapData } from "../../shared/maps/types.ts";
 import { loadSettings } from "../settings.ts";
 
 type EndStats = { kills: number; deaths: number; bestShot: number; bestStreak?: number };
+/** An Expedition run's end: the wave reached, the personal best, waves cleared and bosses defeated. */
+export type RunSummary = { wave: number; best: number; cleared: number; bosses: number };
 
 export type HudActions = {
   /** Runs before the end screen closes, for example a portal ad break. */
@@ -81,21 +83,23 @@ export class MatchHud {
   }
 
   update(state: MatchState, sessionId: string, serverNow: number): void {
-    const freeForAll = state.mode === "ffa";
+    const freeForAll = state.mode === "ffa", expedition = state.mode === "expedition";
     const mine = state.players.get(sessionId);
     this.score.textContent = freeForAll ? `YOU ${mine?.kills ?? 0}  ·  BEST ${state.scoreSun}` : `${state.mode === "relic" ? "◆ " : ""}${state.scoreSun}  ·  ${state.scoreMoon}`;
     const seconds = Math.max(0, Math.ceil((state.phaseEndsAtMs - serverNow) / 1000));
     this.timer.textContent = state.phase === "warmup" ? `DRAW IN ${seconds}` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-    let board = freeForAll ? "FREE FOR ALL\n" : "SUN                         MOON\n";
+    // Expedition shows its own wave line in place of the score and clock.
+    if (expedition) { this.score.textContent = ""; if (state.phase !== "warmup") this.timer.textContent = ""; }
+    let board = expedition ? `EXPEDITION · WAVE ${state.expedition.wave}\n` : freeForAll ? "FREE FOR ALL\n" : "SUN                         MOON\n";
     const rows = [...state.players].sort(([, left], [, right]) => freeForAll ? right.kills - left.kills : 0);
-    for (const [id, player] of rows) board += `${freeForAll ? "◯" : player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${player.relicCarrier ? "  ◆" : ""}${id === sessionId ? "  YOU" : ""}\n`;
+    for (const [id, player] of rows) board += expedition ? `● ${player.name}  ${player.kills} creatures${player.downed ? "  DOWN" : ""}${id === sessionId ? "  YOU" : ""}\n` : `${freeForAll ? "◯" : player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${player.relicCarrier ? "  ◆" : ""}${id === sessionId ? "  YOU" : ""}\n`;
     this.scoreboard.textContent = board;
     const me = state.players.get(sessionId);
     if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS, me.grappleActive ? (me.grappleReeling ? "REELING" : "SWINGING") : "")}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}${this.ability("SHIFT", "DODGE", me.dodgeCooldownMs, DODGE.cooldownMs)}`;
     if (state.phase === "end" || this.endPinned) { this.sequence.countdown(seconds); return; }
     this.sequence.stop();
     this.endPanel.style.display = "none";
-    this.center.textContent = me && !me.alive ? `INKED!\n${this.endedStreak >= MEDAL_LIMITS.onARoll ? `Streak ended at ${this.endedStreak}\n` : ""}Back in ${Math.ceil(Math.max(0, me.respawnAtMs - serverNow) / 1000)}` : "";
+    this.center.textContent = me && !me.alive && !expedition ? `INKED!\n${this.endedStreak >= MEDAL_LIMITS.onARoll ? `Streak ended at ${this.endedStreak}\n` : ""}Back in ${Math.ceil(Math.max(0, me.respawnAtMs - serverNow) / 1000)}` : "";
   }
 
   hit(headshot: boolean): void { this.marker.textContent = headshot ? "HEADSHOT!" : "✕"; this.marker.classList.remove("kill"); this.flash(this.marker); }
@@ -124,18 +128,24 @@ export class MatchHud {
     const row = document.createElement("div"); row.textContent = `${names.get(message.killer) ?? message.killer}  ${message.weapon === "arrow" ? "➳" : message.weapon === "boulder" ? "●" : message.weapon === "fall" ? "↓" : "🗡"}  ${names.get(message.victim) ?? message.victim}${message.headshot ? "  HEADSHOT" : ""}`;
     this.feed.prepend(row); while (this.feed.childElementCount > 5) this.feed.lastElementChild?.remove();
   }
-  end(message: MatchEndMessage, names: ReadonlyMap<string, string>, stats: EndStats, maps: readonly MapData[]): void {
+  end(message: MatchEndMessage, names: ReadonlyMap<string, string>, stats: EndStats, maps: readonly MapData[], run?: RunSummary): void {
     this.center.textContent = ""; this.endPanel.replaceChildren(); this.endPanel.style.display = "block";
-    const title = document.createElement("h2"); title.textContent = message.winner === "draw" ? "Draw in the dust" : message.winner === "player" ? `${(names.get(message.mvp) ?? "A player").toUpperCase()} WINS` : `${message.winner.toUpperCase()} WINS`;
+    this.endPanel.dataset.run = run ? "expedition" : "";
+    const title = document.createElement("h2"); title.textContent = run ? "Run over" : message.winner === "draw" ? "Draw in the dust" : message.winner === "player" ? `${(names.get(message.mvp) ?? "A player").toUpperCase()} WINS` : `${message.winner.toUpperCase()} WINS`;
     const summary = document.createElement("p"); summary.textContent = `${stats.kills} kills · ${stats.deaths} deaths · best shot ${Math.round(stats.bestShot)} m · best streak ${stats.bestStreak ?? 0}\nMVP: ${names.get(message.mvp) ?? message.mvp}`;
     const scores = document.createElement("p"); scores.textContent = this.score.textContent;
-    this.summaryLine = summary; this.summaryMvp = names.get(message.mvp) ?? message.mvp;
+    if (run) {
+      scores.dataset.testid = "run-summary";
+      scores.textContent = `Reached wave ${run.wave}${run.wave >= run.best ? " · new best!" : ` · best ${run.best}`}`;
+      summary.textContent = `${run.cleared} ${run.cleared === 1 ? "wave" : "waves"} cleared · ${run.bosses} Colossus defeated · ${stats.kills} creatures`;
+    }
+    this.summaryLine = run ? undefined : summary; this.summaryMvp = names.get(message.mvp) ?? message.mvp;
     const footer = document.createElement("div"); footer.dataset.testid = "postmatch-footer";
-    const vote = document.createElement("p"); vote.textContent = "Vote for the next expedition";
+    const vote = document.createElement("p"); vote.textContent = run ? "" : "Vote for the next expedition";
     this.rewardLine.textContent = ""; this.rewardLine.dataset.testid = "rewards";
     this.medalList.replaceChildren(); this.medalList.dataset.testid = "medals";
     this.endPanel.append(title, scores, summary, this.medalList, this.rewardLine, footer); footer.append(vote);
-    for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); footer.append(button); }
+    if (!run) for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); footer.append(button); }
     const extras = document.createElement("div"); extras.className = "bowdle-end-extras";
     if (this.actions.saveClip) {
       const save = document.createElement("button"); save.textContent = "Save clip"; save.dataset.action = "save-clip";
@@ -144,11 +154,11 @@ export class MatchHud {
     }
     if (this.actions.shareUrl) {
       const share = document.createElement("a"); share.textContent = "Share on X"; share.dataset.action = "share"; share.target = "_blank"; share.rel = "noopener";
-      share.href = this.actions.shareUrl(message.winner === "draw" ? `Drew a Bowdle match with ${stats.kills} kills.` : `${stats.kills} kills and a ${Math.round(stats.bestShot)} m best shot in Bowdle.`);
+      share.href = this.actions.shareUrl(run ? `Reached wave ${run.wave} in a Bowdle Expedition.` : message.winner === "draw" ? `Drew a Bowdle match with ${stats.kills} kills.` : `${stats.kills} kills and a ${Math.round(stats.bestShot)} m best shot in Bowdle.`);
       extras.append(share);
     }
     if (extras.childElementCount > 0) footer.append(extras);
-    const again = document.createElement("button"); again.className = "play-again"; again.textContent = "Play again";
+    const again = document.createElement("button"); again.className = "play-again"; again.textContent = run ? "Run again" : "Play again";
     again.addEventListener("click", async () => {
       again.disabled = true;
       await this.actions.playAgain?.();

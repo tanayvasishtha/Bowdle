@@ -2,7 +2,7 @@ import { CHALLENGE_COUNT, CHALLENGE_REWARDS, DAILY_TARGETS as D, DAYS_PER_WEEK, 
 import { mulberry32 } from "./math/rng.ts";
 import type { MatchStats } from "./matchStats.ts";
 
-export type ChallengeStat = "kills" | "headshots" | "won" | "matches" | "longShots" | "daggerKills" | "assists" | "zipKills" | "streaks3" | "robinHoods" | "boulderKills" | "mapsWon" | "medals" | "scatterKills" | "tetherRides" | "relicCaptures";
+export type ChallengeStat = "kills" | "headshots" | "won" | "matches" | "longShots" | "daggerKills" | "assists" | "zipKills" | "streaks3" | "robinHoods" | "boulderKills" | "mapsWon" | "medals" | "scatterKills" | "tetherRides" | "relicCaptures" | "wave10" | "colossusKills";
 export type Challenge = { id: string; text: string; stat: ChallengeStat; target: number };
 export type ChallengeState = Omit<Challenge, "stat"> & { progress: number; done: boolean; reward: { ink: number; xp: number } };
 export type ChallengeChange = { id: string; text: string; before: number; after: number; target: number; done: boolean };
@@ -30,6 +30,8 @@ export const WEEKLY_POOL: readonly Challenge[] = [
   { id: "w.maps", text: "Win on all three maps", stat: "mapsWon", target: W.maps },
   { id: "w.medals", text: "Earn 15 medals", stat: "medals", target: W.medals },
   { id: "w.tether", text: "Ride 10 tether lines", stat: "tetherRides", target: W.tether },
+  { id: "w.wave10", text: "Reach wave 10 in Expedition", stat: "wave10", target: W.wave10 },
+  { id: "w.colossus", text: "Defeat a Temple Colossus", stat: "colossusKills", target: W.colossus },
 ];
 
 function calendar(date: Date): { day: number; year: number; week: number; monday: number } {
@@ -73,5 +75,6 @@ export function progressFrom(stats: MatchStats & { medals?: readonly string[] },
   if (challenge.stat === "won" || challenge.stat === "mapsWon") return stats.won ? 1 : 0;
   if (challenge.stat === "streaks3") return stats.bestStreak >= MEDAL_LIMITS.onARoll ? 1 : 0;
   if (challenge.stat === "medals") return stats.medals?.length ?? 0;
+  if (challenge.stat === "wave10") return (stats.waveReached ?? 0) >= 10 ? 1 : 0;
   return Math.max(0, Math.floor(stats[challenge.stat]));
 }

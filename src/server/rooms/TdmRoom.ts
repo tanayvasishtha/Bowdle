@@ -11,6 +11,10 @@ import {
   INK_CLOUD_RADIUS,
   MAX_NAME_LENGTH,
   MAX_HP,
+  MELEE_DAMAGE,
+  MELEE_RANGE,
+  END_SCREEN_MS,
+  EXPEDITION,
   MAX_REWIND_MS,
   BOULDER_RADIUS,
   PLAYER_WIDTH,
@@ -44,13 +48,18 @@ import type { FireEvent } from "../../shared/sim/bow.ts";
 import { tetherLine } from "../../shared/sim/tether.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
+import { CREATURE_TEAM, ExpeditionDirector, type ExpeditionHost } from "./expedition.ts";
+import { checkpointFor } from "../../shared/sim/waves.ts";
+import { createPlayerSim, type PlayerSim } from "../../shared/sim/movement.ts";
+import { tuning as creatureTuning } from "../../shared/sim/creatures.ts";
+import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, WaveMessage } from "../../net/messages.ts";
 import { respawnPlayer, updateMatchPhase } from "../../shared/sim/match.ts";
 import { chooseSpawnFor, freeTeam, isGameMode, matchWinner, modeRules, scoreCapture, scoreKillFor } from "../../shared/sim/modes.ts";
 import { dropRelic, inCamp, relicExpired, relicTouch, resetRelic, touchesRelic } from "../../shared/sim/relic.ts";
 import { inSwatWindow, meleeHit, swatHits } from "../../shared/sim/melee.ts";
 import { stepPlayer } from "../../shared/sim/movement.ts";
 import { segmentDistance } from "../../shared/math/segments.ts";
-import { BotController, type RelicView } from "../bots/BotController.ts";
+import { AIM_HEIGHTS, BotController, type RelicView } from "../bots/BotController.ts";
 import { releaseGrapple, ropeSegment, spawnAbilityProjectile, type GrappleEvent, type InkEvent } from "../../shared/sim/abilities.ts";
 import { resetBoulderHazard, segmentHitsBoulder, stepBoulderHazard, triggerBoulder } from "../../shared/sim/hazards.ts";
 import { nameError } from "../../shared/name.ts";
@@ -63,9 +72,11 @@ import type { MatchStatsMessage } from "../../net/messages.ts";
 export const PARTY_ROOM = "party";
 /** The relic floats above its carrier's head. */
 const RELIC_CARRY_HEIGHT_M = 2.1;
+/** Falling out of the world in an Expedition costs this much health. */
+const EXPEDITION_FALL_DAMAGE = 25;
 
-type JoinOptions = { mode?: string; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
+type JoinOptions = { mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
 type ArrowOrigin = { x: number; y: number; z: number };
@@ -97,6 +108,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   /** Tethers as zip lines for the shared simulation; rebuilt whenever a tether comes or goes. */
   private tetherZips: ZipLine[] = [];
   private tetherSerial = 0;
+  /** Expedition only: the wave director, the checkpoint the next run starts from, and bot players for the soak. */
+  expedition: ExpeditionDirector | null = null;
+  private startWave = 0;
+  private expeditionBots = 0;
+  private readonly creatureEnemies = new Map<string, PlayerSim>();
   private readonly tetherFrom = { x: 0, y: 0, z: 0 };
   private readonly tetherTo = { x: 0, y: 0, z: 0 };
   private readonly ropeFrom = { x: 0, y: 0, z: 0 };
@@ -131,8 +147,16 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const named = isGameMode(this.roomName) ? this.roomName : undefined;
     this.state.mode = named ?? (this.roomName === PARTY_ROOM && isGameMode(options.mode) ? options.mode : "tdm");
     this.maxClients = modeRules(this.state.mode).maxPlayers;
+    if (this.state.mode === "expedition") {
+      this.expedition = new ExpeditionDirector(this.expeditionHost(), (Number.isFinite(options.testBotSeed) ? options.testBotSeed! : Date.now()) ^ 0x5eed);
+      // Tests may start a run later, for example right before a boss wave.
+      if (options.test && Number.isFinite(options.testStartWave)) this.startWave = Math.max(0, Math.floor(options.testStartWave!));
+      if (Number.isFinite(options.testBotSeed)) this.expeditionBots = Math.max(0, Math.min(EXPEDITION.maxPlayers, Math.floor(options.botPlayers ?? 0)));
+    }
     this.botSeedBase = Number.isFinite(options.testBotSeed) ? options.testBotSeed! : 0;
-    const selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
+    let selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
+    // Expeditions need creature spawns and always keep their map.
+    if (this.state.mode === "expedition" && !selected?.creatureSpawns) selected = defaultMatchMap;
     this.fixedMap = selected !== undefined;
     this.loadMap(selected ?? defaultMatchMap, 0);
     this.state.phase = "warmup";
@@ -159,6 +183,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       for (const frames of this.pending.values()) for (const _frame of frames) { /* consume during warmup */ }
       const changed = updateMatchPhase(this.state, nowMs, modeRules(this.state.mode).timeLimitS);
       if (changed === "restart") this.resetPlayers();
+      if (changed === "live") this.expedition?.reset(this.startWave);
       return;
     }
     if (updateMatchPhase(this.state, nowMs, modeRules(this.state.mode).timeLimitS) === "end") this.sendMatchEnd();
@@ -170,26 +195,27 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         if (!player.alive) continue;
         player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
         this.tryLever(sessionId, player, frame, nowMs);
-        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips })); this.noteZipRide(sessionId, beforeZip, player.zipId);
+        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(sessionId, beforeZip, player.zipId);
       }
     }
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
-      const frame = controller.update(player, this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards, this.relicView());
-      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips })); this.noteZipRide(id, beforeZip, player.zipId);
+      const frame = controller.update(player, this.expedition ? this.creatureTargets() : this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards, this.relicView());
+      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(id, beforeZip, player.zipId);
     }
     this.checkFalls();
     this.stepRelic();
     this.updateHazards(nowMs, context.dt);
     this.stepArrows(context);
+    this.expedition?.step(context.dt, context.dtMs);
     for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
     let expired = false;
     for (const [id, tether] of this.state.tethers) if (tether.expiresAtMs <= nowMs) { this.state.tethers.delete(id); expired = true; }
     if (expired) this.rebuildTetherZips();
     for (const player of this.state.players.values()) {
-      if (player.alive) stepRegen(player, nowMs, context.dt);
-      else if (nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player));
+      if (player.alive) { if (!player.downed) stepRegen(player, nowMs, context.dt); }
+      else if (!this.expedition && nowMs >= player.respawnAtMs) respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player));
     }
     } finally { serverMetrics.tick(performance.now() - tickStarted); }
   }
@@ -235,11 +261,17 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       for (const [id, arrow] of this.state.arrows) {
         const fromX = arrow.x, fromY = arrow.y, fromZ = arrow.z;
         arrow.prevX = fromX; arrow.prevY = fromY; arrow.prevZ = fromZ;
-        const gravity = arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined;
+        const gravity = arrow.kind === "grapple" || arrow.kind === "spit" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined;
         const world = stepArrow(arrow, this.map, context.subDt, gravity, this.simulationNowMs);
         let boulderBlocked = false;
         for (const hazard of this.state.hazards.values()) if (hazard.phase === "roll" && segmentHitsBoulder(fromX, fromY, fromZ, arrow.x, arrow.y, arrow.z, hazard, BOULDER_RADIUS + ARROW_RADIUS)) { boulderBlocked = true; break; }
         let targetId = "", headshot = false, earliest = Number.POSITIVE_INFINITY;
+        if (arrow.kind === "spit") { if (this.spitStep(id, arrow, fromX, fromY, fromZ, world.worldHit)) continue; }
+        if (this.expedition && isDamaging(arrow.kind) && !boulderBlocked) {
+          this.arrowFrom.x = fromX; this.arrowFrom.y = fromY; this.arrowFrom.z = fromZ;
+          this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
+          if (this.expedition.arrowStep(arrow.owner, arrow, this.arrowFrom, this.arrowTo)) { this.removeArrows.push(id); continue; }
+        }
         if (isDamaging(arrow.kind) && !boulderBlocked && this.swatArrow(id, arrow, fromX, fromY, fromZ)) continue;
         if (isDamaging(arrow.kind) && !boulderBlocked) {
           const seen = this.rewindState.lastSeenBy(arrow.owner);
@@ -353,6 +385,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   private resolveMelee(attackerId: string, x: number, y: number, z: number, yaw: number): void {
     const attacker = this.state.players.get(attackerId); if (!attacker) return;
+    if (this.expedition) { this.expedition.melee(attackerId, x, y, z, yaw, MELEE_DAMAGE, MELEE_RANGE); return; }
     const seen = this.rewindState.lastSeenBy(attackerId);
     for (const [targetId, target] of this.state.players) {
       if (targetId === attackerId || target.team === attacker.team || !target.alive || target.spawnProtectMs > 0) continue;
@@ -409,13 +442,13 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const snapshot = [...this.accounts].flatMap(([sessionId, pending]) => {
       const player = this.state.players.get(sessionId);
       const stats = this.humanStats.get(sessionId); let bestKills = 0; for (const other of this.state.players.values()) bestKills = Math.max(bestKills, other.kills);
-      return player && !player.isBot && stats ? [{ sessionId, pending, mapId: this.map.id, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, won: winner === "player" ? stats.won : winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
+      return player && !player.isBot && stats ? [{ sessionId, pending, mapId: this.map.id, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, expedition: this.expedition ? { waves: this.state.expedition.cleared, bosses: this.state.expedition.bosses, reachedWave: this.state.expedition.wave } : undefined, won: winner === "player" ? stats.won : winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
     });
     for (const entry of snapshot) {
       const accountId = await entry.pending;
       if (!accountId || sessionsByAccount.has(accountId)) continue;
       sessionsByAccount.set(accountId, entry.sessionId);
-      lines.push({ accountId, kills: entry.kills, assists: entry.assists, won: entry.won, stats: entry.stats, medals: entry.medals, mapId: entry.mapId });
+      lines.push({ accountId, kills: entry.kills, assists: entry.assists, won: entry.won, stats: entry.stats, medals: entry.medals, mapId: entry.mapId, ...(entry.expedition ? { expedition: entry.expedition } : {}) });
     }
     if (lines.length === 0) return;
     const granted = await (await gameDatabase()).recordMatch(matchId, lines);
@@ -435,7 +468,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.state.arrows.clear(); this.state.inkClouds.clear(); this.state.tethers.clear(); this.tetherZips = []; this.arrowOrigins.clear(); this.damage.clear();
     if (!this.fixedMap) this.loadMap(this.votedMap(), this.simulationNowMs);
     else for (const hazard of this.state.hazards.values()) resetBoulderHazard(hazard, this.simulationNowMs);
-    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; player.relicCarrier = false; respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; }
+    for (const player of this.state.players.values()) { player.kills = 0; player.deaths = 0; player.assists = 0; player.relicCarrier = false; player.downed = false; player.slowMs = 0; respawnPlayer(player, chooseSpawnFor(this.state.mode, this.map, player.team, this.state.players.values(), player)); player.spawnProtectMs = 0; }
     this.mapVotes.clear();
   }
 
@@ -505,6 +538,13 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private checkFalls(): void {
     for (const [id, player] of this.state.players) {
       if (!player.alive || !isOutOfWorld(this.map, player.y)) continue;
+      if (this.expedition) {
+        // An Expedition fall costs health and puts the player back at camp.
+        const spawn = this.map.spawns.sun[0]!;
+        player.x = spawn.pos[0]; player.y = spawn.pos[1]; player.z = spawn.pos[2]; player.vx = 0; player.vy = 0; player.vz = 0;
+        this.expedition.hurt(id, EXPEDITION_FALL_DAMAGE);
+        continue;
+      }
       const credited = fallCreditFor(this.damage.get(id)?.values() ?? [], this.simulationNowMs);
       const attacker = credited ? this.state.players.get(credited) : undefined;
       if (credited && attacker && attacker.team !== player.team) {
@@ -516,6 +556,69 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
   }
 
+
+  private checkpointAsked = false;
+
+  /** A checkpoint start: the run begins after the highest checkpoint the first joining account has reached. */
+  private loadCheckpoint(token: string): void {
+    this.checkpointAsked = true;
+    void gameDatabase().then(async (db) => {
+      const accountId = await db.authenticate(token);
+      if (accountId && this.state.phase === "warmup") this.startWave = checkpointFor(await db.expeditionBest(accountId));
+    }).catch(() => undefined);
+  }
+
+  private expeditionHost(): ExpeditionHost {
+    const room = this;
+    return {
+      get state() { return room.state; },
+      get map() { return room.map; },
+      now: () => this.simulationNowMs,
+      humanStats: (id) => this.humanStats.get(id),
+      broadcastWave: (message) => this.broadcast("wave", message),
+      broadcastDown: (message) => this.broadcast("creatureDown", message),
+      broadcastDowned: (message) => this.broadcast("downed", message),
+      sendCreatureHit: (playerId, message) => this.clientById(playerId)?.send("creatureHit", message),
+      addSpit: (arrow) => this.state.arrows.set(`spit-${this.arrowSerial += 1}`, arrow),
+      runOver: () => {
+        this.state.phase = "end"; this.state.phaseEndsAtMs = this.simulationNowMs + END_SCREEN_MS;
+        this.sendMatchEnd();
+      },
+    };
+  }
+
+  /** Bots in an Expedition fight creatures: each creature is shown to them as an enemy player. */
+  private creatureTargets(): Iterable<readonly [string, PlayerSim]> {
+    for (const id of this.creatureEnemies.keys()) if (!this.state.creatures.has(id)) this.creatureEnemies.delete(id);
+    for (const [id, creature] of this.state.creatures) {
+      let enemy = this.creatureEnemies.get(id);
+      if (!enemy) {
+        enemy = createPlayerSim(); enemy.team = CREATURE_TEAM; this.creatureEnemies.set(id, enemy);
+        // Bots aim at the middle of the body, or at the gem where there is one.
+        const stats = creatureTuning(creature.kind);
+        AIM_HEIGHTS.set(enemy, "gemHeightM" in stats ? stats.gemHeightM : stats.height * 0.5);
+      }
+      enemy.x = creature.x; enemy.y = creature.y; enemy.z = creature.z; enemy.vx = creature.vx; enemy.vy = creature.vy; enemy.vz = creature.vz;
+      enemy.height = Math.max(1, creatureTuning(creature.kind).height); enemy.alive = true;
+    }
+    return [...this.state.players, ...this.creatureEnemies];
+  }
+
+  /** A creature's ink projectile: it hits players, never other creatures. Returns true when it is used up. */
+  private spitStep(id: string, arrow: ArrowState, fromX: number, fromY: number, fromZ: number, worldHit: boolean): boolean {
+    this.arrowFrom.x = fromX; this.arrowFrom.y = fromY; this.arrowFrom.z = fromZ;
+    this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
+    for (const [playerId, player] of this.state.players) {
+      if (!player.alive || player.downed) continue;
+      this.hitTarget.x = player.x; this.hitTarget.y = player.y; this.hitTarget.z = player.z; this.hitTarget.height = player.height; this.hitTarget.crouched = player.crouched;
+      if (!sweepArrowVsTarget(this.arrowFrom, this.arrowTo, this.hitTarget)) continue;
+      this.expedition?.spitHit(playerId);
+      this.removeArrows.push(id);
+      return true;
+    }
+    if (worldHit || this.simulationNowMs - arrow.bornMs >= ARROW_LIFETIME_MS) { this.removeArrows.push(id); return true; }
+    return false;
+  }
 
   /** What bots know about the relic in Relic Run. */
   private relicView(): RelicView | undefined {
@@ -572,12 +675,16 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const id = `bot-${this.botSerial += 1}`; const spawn = chooseSpawnFor(this.state.mode, this.map, team, this.state.players.values());
     const player = source ?? new PlayerState(); player.name = `Doodle ${this.botSerial}`; player.team = team; player.isBot = true;
     if (!source) respawnPlayer(player, spawn);
-    else { player.bowSkin = DEFAULT_LOADOUT.bow; player.arrowTrail = DEFAULT_LOADOUT.trail; player.outfit = DEFAULT_LOADOUT.outfit; player.killEffect = DEFAULT_LOADOUT.effect; }
+    else { player.look.bowSkin = DEFAULT_LOADOUT.bow; player.look.arrowTrail = DEFAULT_LOADOUT.trail; player.look.outfit = DEFAULT_LOADOUT.outfit; player.look.killEffect = DEFAULT_LOADOUT.effect; }
     this.state.players.set(id, player); this.bots.set(id, new BotController(id, this.botSeedBase + this.botSerial, this.botDifficulty));
   }
 
   private fillBots(): void {
     const rules = modeRules(this.state.mode);
+    if (this.expedition) {
+      while (this.bots.size < this.expeditionBots) this.addBot(0);
+      return;
+    }
     if (!rules.teams) {
       while (this.state.players.size < rules.maxPlayers) this.addBot(freeTeam([...this.state.players.values()].map((player) => player.team)));
       return;
@@ -605,7 +712,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       const loadout = await (await gameDatabase()).loadout(accountId);
       const player = this.state.players.get(sessionId);
       if (!player || player.isBot) return;
-      player.bowSkin = loadout.bow; player.arrowTrail = loadout.trail; player.outfit = loadout.outfit; player.killEffect = loadout.effect;
+      player.look.bowSkin = loadout.bow; player.look.arrowTrail = loadout.trail; player.look.outfit = loadout.outfit; player.look.killEffect = loadout.effect;
     } catch (error) {
       console.error(JSON.stringify({ event: "loadoutError", message: error instanceof Error ? error.message : String(error) }));
     }
@@ -651,6 +758,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     for (const player of this.state.players.values()) if (!player.isBot) player.team === 0 ? sun += 1 : moon += 1;
     let team = sun <= moon ? 0 : 1;
     const teams = modeRules(this.state.mode).teams;
+    if (this.expedition) { team = 0; if (options?.checkpoint && options.token && !this.checkpointAsked) this.loadCheckpoint(options.token); }
     // Free for All: take over a bot's team number, or the lowest free one.
     if (!teams) {
       const bot = [...this.state.players.values()].find((player) => player.isBot);
@@ -696,7 +804,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   onLeave(client: GameClient): void {
     const player = this.state.players.get(client.sessionId); this.state.players.delete(client.sessionId); this.accounts.delete(client.sessionId); this.humanStats.delete(client.sessionId); this.skills.delete(client.sessionId);
     this.updateBotDifficulty();
-    if (player && !this.testMode) this.addBot(player.team, player);
+    if (player && !this.testMode && !this.expedition) this.addBot(player.team, player);
     this.reportPlayers();
   }
 

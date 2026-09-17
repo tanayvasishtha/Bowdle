@@ -141,10 +141,10 @@ describe("loadouts in a match", () => {
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
     await room.loadoutsApplied;
     const player = room.state.players.get(client.sessionId)!;
-    expect([player.bowSkin, player.arrowTrail, player.outfit, player.killEffect]).toEqual(["bow.obsidian", "trail.default", "outfit.default", "effect.default"]);
+    expect([player.look.bowSkin, player.look.arrowTrail, player.look.outfit, player.look.killEffect]).toEqual(["bow.obsidian", "trail.default", "outfit.default", "effect.default"]);
     room.replacePlayerWithBot(client.sessionId);
     const bot = [...room.state.players.values()].find((entry) => entry.isBot && entry.name.startsWith("Doodle"));
-    expect(bot?.bowSkin).toBe("bow.default");
+    expect(bot?.look.bowSkin).toBe("bow.default");
     await client.leave();
   });
 });

@@ -14,7 +14,7 @@ test("the menu offers Free for All and Relic Run, and a party leader picks the m
   await expect(page.getByRole("button", { name: "Relic Run" })).toBeVisible();
   await page.screenshot({ path: "test-results/qa/g8/menu.png" });
   await page.getByRole("button", { name: "Play with friends" }).click();
-  await expect(page.locator(".bowdle-party select[data-field=mode] option")).toHaveText(["Quick Play", "Free for All", "Relic Run"]);
+  await expect(page.locator(".bowdle-party select[data-field=mode] option")).toHaveText(["Quick Play", "Free for All", "Relic Run", "Expedition"]);
   await page.locator(".bowdle-party select[data-field=mode]").selectOption("relic");
   await page.locator(".bowdle-party [data-action=start]").click();
   await page.waitForURL(/scene=online&party=[A-Z0-9]+&mode=relic/);

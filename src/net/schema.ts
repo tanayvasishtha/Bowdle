@@ -1,6 +1,14 @@
 import { schema, t, type SchemaType } from "@colyseus/schema";
 import { COYOTE_MS, MAX_HP, QUIVER, STAND_HEIGHT, VINE_HOP } from "../shared/constants.ts";
 
+/**
+ * What a player wears. A schema holds at most 64 fields, so cosmetics live in their own schema under PlayerState.look.
+ */
+export const LookState = schema({
+  bowSkin: t.string().default("bow.default"), arrowTrail: t.string().default("trail.default"), outfit: t.string().default("outfit.default"), killEffect: t.string().default("effect.default"),
+}, "LookState");
+export type LookState = SchemaType<typeof LookState>;
+
 export const PlayerState = schema({
   name: t.string().default("Player"),
   team: t.uint8().default(0),
@@ -14,10 +22,10 @@ export const PlayerState = schema({
   prevButtons: t.uint16().default(0), lastDamageAtMs: t.number().default(0), spawnProtectMs: t.number().default(0), respawnAtMs: t.number().default(0),
   grappleCooldownMs: t.number().default(0), grappleActive: t.boolean().default(false), grappleX: t.number().default(0), grappleY: t.number().default(0), grappleZ: t.number().default(0), grappleMs: t.number().default(0), inkCooldownMs: t.number().default(0),
   grappleLen: t.number().default(0), grappleBlockedMs: t.number().default(0), grappleReeling: t.boolean().default(false),
-  relicCarrier: t.boolean().default(false), arrowSlot: t.uint8().default(0), scatterCharges: t.uint8().default(QUIVER.scatter.charges), scatterRechargeMs: t.number().default(0), tetherCooldownMs: t.number().default(0),
+  relicCarrier: t.boolean().default(false), downed: t.boolean().default(false), slowMs: t.number().default(0), downedMs: t.number().default(0), reviveMs: t.number().default(0), arrowSlot: t.uint8().default(0), scatterCharges: t.uint8().default(QUIVER.scatter.charges), scatterRechargeMs: t.number().default(0), tetherCooldownMs: t.number().default(0),
   zipId: t.string().default(""), zipT: t.number().default(0),
   kills: t.uint16().default(0), deaths: t.uint16().default(0), assists: t.uint16().default(0),
-  bowSkin: t.string().default("bow.default"), arrowTrail: t.string().default("trail.default"), outfit: t.string().default("outfit.default"), killEffect: t.string().default("effect.default"),
+  look: LookState,
   // Movement 2.0: synced so client prediction replays air jumps, wall jumps, mantles and dodges exactly.
   airJumps: t.uint8().default(VINE_HOP.perAirtime), wallJumps: t.uint8().default(0), wallJumpCooldownMs: t.number().default(0),
   wallTouchMs: t.number().default(10_000), wallNormalX: t.number().default(0), wallNormalZ: t.number().default(0),
@@ -29,7 +37,7 @@ export const ArrowState = schema({
   x: t.number().default(0), y: t.number().default(0), z: t.number().default(0),
   vx: t.number().default(0), vy: t.number().default(0), vz: t.number().default(0),
   owner: t.string().default(""), team: t.uint8().default(0), bornMs: t.number().default(0),
-  kind: t.string<"arrow" | "scatter" | "tether" | "grapple" | "ink">().default("arrow"), damage: t.number().default(0),
+  kind: t.string<"arrow" | "scatter" | "tether" | "grapple" | "ink" | "spit">().default("arrow"), damage: t.number().default(0),
   ageMs: t.number().noSync().default(0), stuck: t.boolean().noSync().default(false),
   prevX: t.number().noSync().default(0), prevY: t.number().noSync().default(0), prevZ: t.number().noSync().default(0),
 }, "ArrowState");
@@ -49,6 +57,26 @@ export const RelicState = schema({
 }, "RelicState");
 export type RelicState = SchemaType<typeof RelicState>;
 
+/** An Expedition creature; the room steps it with the shared creature simulation. */
+export const CreatureState = schema({
+  kind: t.string().default("beetle"), x: t.number().default(0), y: t.number().default(0), z: t.number().default(0),
+  vx: t.number().noSync().default(0), vy: t.number().noSync().default(0), vz: t.number().noSync().default(0), yaw: t.number().default(0),
+  hp: t.number().default(0), maxHp: t.number().default(0), action: t.string().default("move"), actionMs: t.number().default(0),
+  cooldownMs: t.number().noSync().default(0), summoned: t.boolean().noSync().default(false), grounded: t.boolean().noSync().default(false),
+}, "CreatureState");
+export type CreatureState = SchemaType<typeof CreatureState>;
+
+export const HerbState = schema({ x: t.number().default(0), y: t.number().default(0), z: t.number().default(0) }, "HerbState");
+export type HerbState = SchemaType<typeof HerbState>;
+
+/** The Expedition run: the wave, whether creatures are coming or it is a break, the modifier, solo lives. */
+export const ExpeditionState = schema({
+  wave: t.uint16().default(0), phase: t.string<"break" | "fight" | "over">().default("break"), phaseEndsAtMs: t.number().default(0),
+  left: t.uint16().default(0), modifier: t.string().default("none"), lives: t.uint8().default(0), cleared: t.uint16().default(0), bosses: t.uint8().default(0),
+  startWave: t.uint16().default(0),
+}, "ExpeditionState");
+export type ExpeditionState = SchemaType<typeof ExpeditionState>;
+
 export const InkCloudState = schema({
   x: t.number().default(0), y: t.number().default(0), z: t.number().default(0),
   radius: t.number().default(0), expiresAtMs: t.number().default(0),
@@ -66,6 +94,9 @@ export const MatchState = schema({
   /** tdm, ffa or relic. */
   mode: t.string().default("tdm"),
   relic: RelicState,
+  expedition: ExpeditionState,
+  creatures: t.map(CreatureState),
+  herbs: t.map(HerbState),
   mapId: t.string().default("sun-temple"),
   phase: t.string<"warmup" | "live" | "end">().default("warmup"),
   phaseEndsAtMs: t.number().default(0),

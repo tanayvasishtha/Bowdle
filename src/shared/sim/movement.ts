@@ -1,6 +1,8 @@
 import {
   QUIVER,
   RELIC,
+  CREATURE_TUNING,
+  EXPEDITION,
   ABSOLUTE_SPEED_CAP,
   AIM_SPEED_MULT,
   AIR_ACCEL,
@@ -61,16 +63,18 @@ export type PlayerSim = {
   arrowSlot: number; scatterCharges: number; scatterRechargeMs: number; tetherCooldownMs: number;
   /** Relic Run: the carrier is slower and cannot grapple, vine hop or shoot a tether. */
   relicCarrier: boolean;
+  /** Expedition: a downed player crawls and cannot shoot, jump or use abilities; slowMs is the ink slow left. */
+  downed: boolean;
+  slowMs: number;
   zipId: string; zipT: number;
-  kills: number; deaths: number; assists: number;
-  bowSkin: string; arrowTrail: string; outfit: string; killEffect: string;
+  kills: number; deaths: number; assists: number;
   /** Movement 2.0 state. `slideMs` now counts time a slide has spent airborne. */
   airJumps: number; wallJumps: number; wallJumpCooldownMs: number; wallTouchMs: number; wallNormalX: number; wallNormalZ: number;
   mantleCooldownMs: number; dodgeCooldownMs: number; landingGraceMs: number;
 };
 
 /** zipLines are the zip lines that exist only for part of a match, such as tethers. */
-export type StepContext = { nowMs: number; zipLines?: readonly ZipLine[] };
+export type StepContext = { nowMs: number; zipLines?: readonly ZipLine[]; gravityMult?: number };
 export type PlayerEvent = CombatEvent | AbilityEvent;
 
 const wish: Vec3 = { x: 0, y: 0, z: 0 };
@@ -85,9 +89,9 @@ export function createPlayerSim(x = 0, y = 0, z = 0): PlayerSim {
     hp: MAX_HP, alive: true, drawMs: 0, releaseCooldownMs: 0, meleeCooldownMs: 0, prevButtons: 0, lastDamageAtMs: 0, spawnProtectMs: 0, respawnAtMs: 0,
     grappleCooldownMs: 0, grappleActive: false, grappleX: 0, grappleY: 0, grappleZ: 0, grappleMs: 0, inkCooldownMs: 0,
     grappleLen: 0, grappleBlockedMs: 0, grappleReeling: false,
-    arrowSlot: 0, scatterCharges: QUIVER.scatter.charges, scatterRechargeMs: 0, tetherCooldownMs: 0, relicCarrier: false,
+    arrowSlot: 0, scatterCharges: QUIVER.scatter.charges, scatterRechargeMs: 0, tetherCooldownMs: 0, relicCarrier: false, downed: false, slowMs: 0,
     zipId: "", zipT: 0,
-    kills: 0, deaths: 0, assists: 0, bowSkin: "bow.default", arrowTrail: "trail.default", outfit: "outfit.default", killEffect: "effect.default",
+    kills: 0, deaths: 0, assists: 0,
     airJumps: VINE_HOP.perAirtime, wallJumps: 0, wallJumpCooldownMs: 0, wallTouchMs: WALL_TOUCH_IDLE_MS, wallNormalX: 0, wallNormalZ: 0,
     mantleCooldownMs: 0, dodgeCooldownMs: 0, landingGraceMs: 0,
   };
@@ -199,7 +203,17 @@ function tryMantle(state: PlayerSim, input: PlayerInputFrame, map: MapData): voi
   state.mantleCooldownMs = MANTLE.cooldownMs;
 }
 
-export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapData, ctx: StepContext): PlayerEvent[] {
+const crawl: PlayerInputFrame = { moveX: 0, moveZ: 0, yaw: 0, pitch: 0, buttons: 0 };
+function downedInput(input: PlayerInputFrame): PlayerInputFrame {
+  crawl.moveX = input.moveX; crawl.moveZ = input.moveZ; crawl.yaw = input.yaw; crawl.pitch = input.pitch; crawl.buttons = 0;
+  return crawl;
+}
+
+export function stepPlayer(state: PlayerSim, rawInput: PlayerInputFrame, map: MapData, ctx: StepContext): PlayerEvent[] {
+  const gravityMult = ctx.gravityMult ?? 1;
+  state.slowMs = Math.max(0, state.slowMs - 1000 / TICK_HZ);
+  // A downed player only crawls: no jumps, shots, stabs or abilities.
+  const input = state.downed ? downedInput(rawInput) : rawInput;
   const dt = 1 / (TICK_HZ * SUBSTEPS);
   const dtMs = dt * 1000;
   const jumpPressed = pressed(input, state.prevButtons, BTN.JUMP);
@@ -256,6 +270,8 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     let speed = state.crouched && !state.sliding ? CROUCH_SPEED : RUN_SPEED;
     if (water) speed *= WATER_SPEED_MULT;
     if (state.relicCarrier) speed *= RELIC.carrierSpeedMult;
+    if (state.slowMs > 0) speed *= CREATURE_TUNING.spitter.slowMult;
+    if (state.downed) speed *= EXPEDITION.downedSpeedMult;
     if (held(input.buttons, BTN.AIM)) speed *= AIM_SPEED_MULT;
     if (inputMagnitude > 0) {
       if (state.sliding) accelerate(state, wish, speed * inputMagnitude, SLIDE_STEER_ACCEL, dt);
@@ -281,7 +297,7 @@ export function stepPlayer(state: PlayerSim, input: PlayerInputFrame, map: MapDa
     }
     if (substep === 0 && dodgePressed && state.dodgeCooldownMs <= 0 && !state.zipId) dodge(state, inputMagnitude);
 
-    state.vy -= GRAVITY * dt;
+    state.vy -= GRAVITY * gravityMult * dt;
     stepGrappleForces(state, dt, dtMs, inputMagnitude > 0 ? wish.x : 0, inputMagnitude > 0 ? wish.z : 0);
     const wasGrounded = state.grounded;
     const landingSpeed = Math.hypot(state.vx, state.vz);

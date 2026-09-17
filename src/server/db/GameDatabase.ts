@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { levelProgress, matchReward, seasonId, type LevelProgress, type MatchReward } from "../../shared/progression.ts";
+import { levelProgress, expeditionMatchReward, matchReward, seasonId, type LevelProgress, type MatchReward } from "../../shared/progression.ts";
 import { nameError } from "../../shared/name.ts";
 import { migrate } from "./migrations.ts";
 import { openSql, type SqlClient, type SqlQuery } from "./sql.ts";
@@ -11,7 +11,9 @@ import { DAILY_POOL, WEEKLY_POOL, challengeReward, dailyChallenges, weeklyChalle
 import { PLAY_STREAK, UTC_DAY_MS, ONBOARDING } from "../../shared/constants.ts";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
-export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean; stats?: MatchStats; medals?: readonly string[]; mapId?: string };
+/** expedition is set for Expedition runs: they pay by waves and bosses and are stored for personal bests and the weekly board. */
+export type MatchResultLine = { accountId: string; kills: number; assists: number; won: boolean; stats?: MatchStats; medals?: readonly string[]; mapId?: string; expedition?: { waves: number; bosses: number; reachedWave: number } };
+export type ExpeditionRow = { name: string; wave: number };
 export type GrantedReward = MatchReward & { accountId: string; before: LevelProgress; after: LevelProgress; challenges: ChallengeChange[]; streakDays: number; unlocked: string[] };
 
 type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null; streak_days: number; last_play_day: string; first_win_day: string; reroll_day: string; total_matches: number; total_wins: number; total_kills: number; total_headshots: number; best_streak: number; longest_shot_m: number; tutorial_done: boolean };
@@ -115,6 +117,7 @@ export class GameDatabase {
       career: { matches: account.total_matches, wins: account.total_wins, kills: account.total_kills, headshots: account.total_headshots, bestStreak: account.best_streak, longestShotM: account.longest_shot_m },
       nextUnlock: nextUnlock(levelProgress(account.xp).level),
       tutorialDone: account.tutorial_done,
+      expeditionBest: await this.expeditionBest(account.id),
     };
   }
 
@@ -132,7 +135,7 @@ export class GameDatabase {
       for (const line of lines) {
         const account = (await query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR UPDATE", [line.accountId]))[0];
         if (!account) continue;
-        const reward = matchReward(line.stats ?? line, line.medals);
+        const reward = line.expedition ? expeditionMatchReward(line.expedition.waves, line.expedition.bosses) : matchReward(line.stats ?? line, line.medals);
         const inserted = await query<{ account_id: string }>(
           `INSERT INTO match_rewards (match_id, account_id, xp, ink)
            SELECT $1, id, $3, $4 FROM accounts WHERE id = $2
@@ -140,6 +143,10 @@ export class GameDatabase {
           [matchId, line.accountId, reward.xp, reward.ink],
         );
         if (inserted.length === 0) continue;
+        if (line.expedition) {
+          await query("INSERT INTO expedition_runs (match_id, account_id, wave, bosses, week) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
+            [matchId, line.accountId, line.expedition.reachedWave, line.expedition.bosses, periodKeys(now).weekly]);
+        }
         const changes: ChallengeChange[] = [];
         const stats = { ...(line.stats ?? { ...createMatchStats(), kills: line.kills, assists: line.assists, won: line.won }), medals: line.medals };
         const firstWinDay = stats.won ? day : account.first_win_day;
@@ -209,6 +216,22 @@ export class GameDatabase {
       row.challenge_id = replacement.id; row.progress = 0; row.done = false; row.maps = "";
       return challengeView(rows, now, day);
     });
+  }
+
+  /** The highest wave an account has reached in any Expedition run. */
+  async expeditionBest(accountId: string): Promise<number> {
+    const rows = await this.sql.query<{ best: number | null }>("SELECT MAX(wave) AS best FROM expedition_runs WHERE account_id = $1", [accountId]);
+    return Number(rows[0]?.best ?? 0);
+  }
+
+  /** This week's best Expedition wave per account, highest first. */
+  async expeditionLeaderboard(limit = 20): Promise<ExpeditionRow[]> {
+    const rows = await this.sql.query<{ name: string; wave: number }>(
+      `SELECT accounts.name AS name, MAX(expedition_runs.wave) AS wave FROM expedition_runs JOIN accounts ON accounts.id = expedition_runs.account_id
+       WHERE expedition_runs.week = $1 GROUP BY accounts.id, accounts.name ORDER BY wave DESC, accounts.name LIMIT $2`,
+      [periodKeys(this.now()).weekly, limit],
+    );
+    return rows.map((row) => ({ name: row.name, wave: Number(row.wave) }));
   }
 
   async leaderboard(season = seasonId(this.now()), limit = 50): Promise<LeaderboardRow[]> {

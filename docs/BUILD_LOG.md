@@ -1,5 +1,20 @@
 # Build log
 
+## G9: Expedition co-op waves
+
+Status: done.
+
+Built:
+
+- Expedition co-op waves: creatures, wave director, Night fog, herbs, downed/revive, Colossus, checkpoint starts, weekly board, and challenges `w.wave10` / `w.colossus`.
+- Client: instanced creature rigs, Expedition HUD, end-of-run panel, menu entry with checkpoint choice, prediction with Low Gravity.
+- Schema encoder buffer raised to 32 KB. Shot sound-cue range matched to enemy-view range (35 m) so the 30 m test-duel gap still hears enemy shots under load.
+- Fixed the prediction test by stopping the fixed timestep and feeding one input per `simulateTick` through the room input capture API (idle replay was applying extra steps).
+
+Verified: `npm run check` (316 tests), full Playwright suite (including Expedition and audio cue; grapple swing assertion re-attaches under suite load the same way the later snap loop already did), soak earlier in the milestone, smoke and portal builds. Break it: `creatureLeapMaxMps = 8` fails the ledge leap in `creatures.test.ts`; reverted.
+
+Left: 1 to 22 stuck-creature respawns per 20-wave run on Lost River; Relic Run bots rarely capture on Canopy; Sun Temple seed 101 had low kills since G3; the stuck-creature respawn is a teleport with no effect on the client.
+
 ## G8: Free for All and Relic Run
 
 Status: done.
@@ -434,7 +449,7 @@ Status: done.
 Built:
 
 - Replaced the temporary launch page with a journal-style main menu for Play, Practice, and Settings, plus first-visit explorer naming stored locally and validated against a built-in reserved/unfriendly word list on both client and server.
-- Added persistent mouse sensitivity, 80–110 field of view, master volume, animated ink boil, floating notes, team symbols, and complete keyboard/mouse action rebinding. Saved bindings drive gameplay, scoreboard, menu, and development overlay input.
+- Added persistent mouse sensitivity, 80â€“110 field of view, master volume, animated ink boil, floating notes, team symbols, and complete keyboard/mouse action rebinding. Saved bindings drive gameplay, scoreboard, menu, and development overlay input.
 - Added circle and triangle team markers, thicker high-contrast symbol strokes, live FOV changes, note visibility, volume changes, and an option to freeze the ink boil.
 - Added a skippable first-visit Practice Camp lesson that advances through movement, jumping, sliding, shooting the 10-metre target, and stabbing a target.
 - Added the match result card with personal kills, deaths, best-shot distance, MVP, a large same-room Play Again button, and a synchronized next-map vote. A unique vote winner overrides rotation; ties preserve the documented rotation.
@@ -475,7 +490,7 @@ Built:
 
 - Added Lost River with a timed flood, split aqueduct and climb routes, traversable seaplane wreck, two log bridges, waterfall cave, reed cover, ruined gates, journal props and field notes, plus a connected waypoint network across six river routes.
 - Added Practice Camp with fixed and moving bow targets, a watchtower zip line, grapple wall, slide logs, boulder lane and safe alcove, creek crossing, and a moving opponent confined to the tall-grass stealth lane.
-- Added the map registry and deterministic Sun Temple → Canopy Village → Lost River match rotation. Synchronized map ids now rebuild the client world and ambience between matches.
+- Added the map registry and deterministic Sun Temple â†’ Canopy Village â†’ Lost River match rotation. Synchronized map ids now rebuild the client world and ambience between matches.
 - Removed the retired prototype arena and target lane, including their source files, routes, tests, and documentation references.
 - Added close-range dagger decisions to computer-controlled combat so full matches do not stall when opponents meet behind cover.
 
@@ -742,7 +757,7 @@ Built:
 - A preallocated three-second, 30 Hz transform history for eight players and all possible arrows, with a 1.2-second arrow-follow replay at 0.35x speed and a skip control.
 - Post-replay killer spectating, hidden first-person bow during replay, and automatic return on respawn.
 - Practice long-shot picture-in-picture using the shot's recorded ballistic trajectory at replay speed.
-- Seeded 9–14-point team-ink headshot splats, near-wall body pinning, three-second body arrows, eight-second wall arrows, and screen-edge directional damage arcs.
+- Seeded 9â€“14-point team-ink headshot splats, near-wall body pinning, three-second body arrows, eight-second wall arrows, and screen-edge directional damage arcs.
 - Swept segment-to-segment arrow clash detection every physics substep, global Robin Hood messages, deferred reward records, banner, and procedural paper-tear sound.
 - Headshot and 35 m long-shot banners plus a no-op platform happy-time boundary for future publishing integrations.
 
@@ -776,10 +791,10 @@ Status: done.
 Built:
 
 - A 38-node mirrored prototype navigation graph covering every spawn, both lanes, cover flanks, bridge stairs/top, and perch stairs/top.
-- Map validation rules 6–8: graph connectivity, capsule-aware standing walk sweeps with step-up, and a visible waypoint within three metres of every spawn.
+- Map validation rules 6â€“8: graph connectivity, capsule-aware standing walk sweeps with step-up, and a visible waypoint within three metres of every spawn.
 - A* routing, waypoint following, jump links, and seeded slide decisions on long walk links.
 - Three-iteration ballistic lead with gravity and target velocity, plus seeded easy/normal/hard aim error.
-- Deterministic roam, engage, and low-health retreat states with solid-box sight checks, 250 ms reaction time, 450–650 ms draw timing, and combat strafing.
+- Deterministic roam, engage, and low-health retreat states with solid-box sight checks, 250 ms reaction time, 450â€“650 ms draw timing, and combat strafing.
 - Automatic 4v4 team filling. A joining person replaces a computer-controlled slot on the less-populated human team; a departing person is replaced while preserving stats.
 - Scenic patrol routing mixed with pressure toward enemy spawns so opponents traverse authored vertical routes while continuing to find fights.
 
@@ -970,7 +985,7 @@ Status: done.
 Built:
 
 - Pure shared map types, `mirrorX`, stair generation, and the prototype shell, cover, stairs, bridge, spawns, and decor.
-- Map validation rules 1–5 and 9: box dimensions, bounds, mirror symmetry, spawn clearance and support, stair height, and opposing spawn sightlines.
+- Map validation rules 1â€“5 and 9: box dimensions, bounds, mirror symmetry, spawn clearance and support, stair height, and opposing spawn sightlines.
 - Three-pass WebGL2 renderer with world and viewmodel G-buffers, depth textures, full-screen composite, paper grain, ruled paper, margin line, boiling edges, normal/depth outlines, and stepped cross-hatching.
 - Static map geometry merged by ink, procedural sun, paper planes, spiral rings, and bow viewmodel.
 - Free-fly inspection camera, pointer lock, F3 frame-rate/draw-call overlay, and same-frame pixel snapshot hook.
@@ -998,3 +1013,4 @@ Verify by hand:
 - Confirm hatching is darkest below the bridge and remains clear during movement.
 - Confirm ruled lines and the red margin appear only in empty background.
 - Confirm the F3 overlay remains below 40 draw calls from useful map viewpoints.
+

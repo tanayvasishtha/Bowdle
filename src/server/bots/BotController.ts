@@ -88,6 +88,16 @@ function sightBlocked(bounds: Float64Array, ax: number, ay: number, az: number, 
 }
 
 /** What a bot knows about the relic: where it is, who carries it and their team (-1 when nobody does). */
+/**
+ * Targets that are not player shaped (Expedition creatures) register the height above their feet a bot should aim at;
+ * everything else is aimed at the top of the head.
+ */
+export const AIM_HEIGHTS = new WeakMap<PlayerSim, number>();
+function aimY(target: PlayerSim): number {
+  const height = AIM_HEIGHTS.get(target);
+  return height === undefined ? headCenterY(target) + HEAD_RADIUS : target.y + height;
+}
+
 export type RelicView = { x: number; y: number; z: number; carrier: string; carrierTeam: number };
 
 export class BotController {
@@ -203,7 +213,7 @@ export class BotController {
     for (const entry of players) {
       const [id, candidate] = entry; if (id === this.id || !candidate.alive || candidate.team === player.team) continue;
       if (isHiddenInTallGrass(map, candidate.x, candidate.y, candidate.z, candidate.height, candidate.crouched)) continue;
-      this.targetPose.x = candidate.x; this.targetPose.y = headCenterY(candidate) + HEAD_RADIUS; this.targetPose.z = candidate.z;
+      this.targetPose.x = candidate.x; this.targetPose.y = aimY(candidate); this.targetPose.z = candidate.z;
       let blocked = sightBlocked(solids, this.origin.x, this.origin.y, this.origin.z, this.targetPose.x, this.targetPose.y, this.targetPose.z);
       if (!blocked) for (const cloud of clouds) if (sphereBlocksSight(this.origin, this.targetPose, cloud)) { blocked = true; break; }
       const candidateDistance = Math.hypot(candidate.x - player.x, candidate.z - player.z);
@@ -239,7 +249,7 @@ export class BotController {
   private engage(player: PlayerSim, target: PlayerSim, targetId: string, nowMs: number): void {
     if (this.targetId !== targetId) { this.targetId = targetId; this.sightedAtMs = nowMs; this.releaseAtMs = 0; }
     this.origin.x = player.x; this.origin.y = player.y + (player.crouched ? EYE_CROUCH : EYE_STAND); this.origin.z = player.z;
-    this.targetPose.x = target.x; this.targetPose.y = headCenterY(target) + HEAD_RADIUS; this.targetPose.z = target.z; this.targetPose.vx = target.vx; this.targetPose.vy = target.vy; this.targetPose.vz = target.vz;
+    this.targetPose.x = target.x; this.targetPose.y = aimY(target); this.targetPose.z = target.z; this.targetPose.vx = target.vx; this.targetPose.vy = target.vy; this.targetPose.vz = target.vz;
     solveProjectileLead(this.origin, this.targetPose, ARROW_SPEED_MAX, this.aim);
     this.input.yaw = this.aim.yaw + this.aimYawError; this.input.pitch = this.aim.pitch + this.aimPitchError;
     const strafe = (Math.floor(nowMs / BOT_STRAFE_MS) % 2 === 0) !== this.strafeFlip ? -1 : 1;

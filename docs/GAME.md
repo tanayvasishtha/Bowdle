@@ -20,13 +20,33 @@ A fast team shooter drawn in blue ballpoint on notebook paper. Everyone has a bo
 | Team Deathmatch | M4 | 4v4, bots fill empty slots, first team to 25 kills or most kills after 7 minutes |
 | Free for All | G8 | 8 players, bots fill, every player on their own; first to 20 kills or most kills after 7 minutes |
 | Relic Run | G8 | 4v4, carry the relic from the map center to your camp; first to 3 captures or most after 8 minutes |
+| Expedition | G9 | Co-op PvE for 1 to 4 players: waves of ink creatures on Sun Temple or Lost River until everyone is down |
 | Kill Confirmed | later | Not planned |
 
-The menu lists Play (team deathmatch), Free for All and Relic Run. Each public mode is its own room name (`tdm`, `ffa`, `relic`), because matchmaking only filters on options a joiner sends; a party picks its mode when the leader starts it. `MatchState.mode` holds the mode and `src/shared/sim/modes.ts` holds the per-mode rules (scoring, spawns, end conditions).
+The menu lists Play (team deathmatch), Free for All, Relic Run and Expedition. Each public mode is its own room name (`tdm`, `ffa`, `relic`, `expedition`), because matchmaking only filters on options a joiner sends; a party picks its mode when the leader starts it. `MatchState.mode` holds the mode and `src/shared/sim/modes.ts` holds the per-mode rules (scoring, spawns, end conditions).
 
 **Free for All:** each player gets a team number of their own, so every existing "other team" check (damage, arrows, ropes, tethers, swats) means "anyone else". Players wear a neutral outfit and a colored name ring, the first-person sleeve is neutral, the scoreboard is one list by kills, and the score reads YOU and BEST. Spawns pick the point farthest from every living player. The winner is the player with the most kills.
 
 **Relic Run:** the relic rests at `MapData.relic` (the altar top on Sun Temple, the low ring deck on Canopy Village, the river crossing on Lost River) and each team has a camp (`MapData.camps`) around its spawns. Touching the relic at home picks it up. The carrier runs at 85 % speed and cannot grapple, vine hop or shoot a tether; a gold halo marks them for everyone. Reaching their own camp scores a capture and sends the relic home. A dying carrier drops it; it goes home after 15 s on the ground, at once when a player of the other team than the dropper touches it in their own half, or when it falls out of the world. Anyone else touching it picks it up. Kills do not score. A marker shows the relic on screen. Bots split into runners (always play the relic), escorts (follow a carrying teammate) and chasers (hunt an enemy carrier); bots with a relic objective only fight enemies within 14 m.
+
+**Expedition:** every player is on the sun team and the enemies are creatures, simulated in `src/shared/sim/creatures.ts` and run by the wave director in `src/server/rooms/expedition.ts`. Creatures enter at `MapData.creatureSpawns` and follow the bot waypoint graph toward the nearest standing player.
+
+| Creature | HP | Behavior | From wave |
+|---|---|---|---|
+| Scribble Beetle | 40 | Rushes at 7.5 m/s, 15 damage bite | 1 |
+| Blot Spitter | 60 | Keeps 15 to 25 m away and lobs ink: 20 damage and 30 % slow for 1.5 s | 2 |
+| Stone Guardian | 150 | A front shield blocks arrows within its 110 degree arc; hit it from behind or on the head gem | 4 |
+| Vine Wisp | 30 | Hovers 3.5 m up, circles and dives for 10 damage | 6 |
+| Temple Colossus | 800, +200 per extra player | Body takes half damage, the gem double; stomps (35 damage within 9 m, jump to dodge) and calls 4 beetles at half health | every 5th wave |
+
+- A wave holds `6 + 2n` creatures, times 1.3 for each extra player, with at most `min(18, 4 + n)` alive. A boss wave spawns the Colossus with half the usual count.
+- Every 3rd wave draws a modifier: Swarm (+35 % count, -30 % HP), Heavy (+25 % HP), Night (a dark tint and a shorter view) or Low Gravity (gravity x 0.7 for players and creatures).
+- 8 s breaks between waves (3 s before the first). Two herbs (heal 40) grow at `MapData.herbSpawns`, the ink cloud recharges and players who were out come back at camp.
+- At zero health a player goes down: they crawl at 25 % speed for 15 s and cannot shoot or use abilities. A teammate holding Use within 2 m for 2 s revives them at 50 HP. The run ends when nobody is standing. A solo player earns a spare life every 5 waves, used instead of going down. Falling out of the world costs 25 health and returns the player to camp.
+- Checkpoints every 5 waves: the menu offers a start after the highest checkpoint the account has reached. Expedition rooms are split by the `checkpoint` join option, so every Expedition join sends it.
+- Rewards: 5 XP per cleared wave, 40 XP per Colossus, 2 Ink per cleared wave up to 30 Ink per run. Runs are stored in `expedition_runs` for the personal best (on the profile) and the weekly board (`GET /api/expedition/leaderboard`).
+- The HUD shows the wave, creatures left, the modifier and spare lives, a health bar for the Colossus, a downed screen with the bleed-out timer and a revive prompt. The end screen shows the wave reached, the best and the rewards.
+- Creatures are drawn as instanced ink rigs, two draw calls per kind (body and gold accents), so a full wave stays well inside the 150 draw call budget.
 
 ## Teams and colors
 

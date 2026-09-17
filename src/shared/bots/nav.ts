@@ -25,7 +25,8 @@ export function nearestWaypoint(map: MapData, x: number, y: number, z: number, r
   return best;
 }
 
-export function findPath(map: MapData, startId: string, goalId: string): Waypoint[] {
+/** allow limits the links a path may use, for walkers that cannot zip or grapple. */
+export function findPath(map: MapData, startId: string, goalId: string, allow?: (link: WaypointLink) => boolean): Waypoint[] {
   const byId = new Map(map.waypoints.map((point) => [point.id, point]));
   const start = byId.get(startId), goal = byId.get(goalId); if (!start || !goal) return [];
   const open = new Set([startId]); const came = new Map<string, string>(); const score = new Map<string, number>([[startId, 0]]); const estimate = new Map<string, number>([[startId, distance(start, goal)]]);
@@ -37,6 +38,7 @@ export function findPath(map: MapData, startId: string, goalId: string): Waypoin
     }
     open.delete(current); const point = byId.get(current)!;
     for (const link of point.links) {
+      if (allow && !allow(link)) continue;
       const next = byId.get(link.to); if (!next) continue;
       const candidate = (score.get(current) ?? Number.POSITIVE_INFINITY) + distance(point, next);
       if (candidate >= (score.get(next.id) ?? Number.POSITIVE_INFINITY)) continue;

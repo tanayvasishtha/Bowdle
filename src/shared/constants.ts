@@ -10,6 +10,25 @@ export const FUNNEL_EVENTS = ["menuOpened", "tutorialDone", "firstMatch", "secon
 export const MODE_TUNING = { ffaKillLimit: 20, ffaTimeLimitS: 420, ffaPlayers: 8, relicCaptureLimit: 3, relicTimeLimitS: 480 } as const;
 /** The relic: touch reach, how long it waits on the ground, and what carrying it costs. */
 export const RELIC = { touchM: 1.3, touchHeightM: 2.2, returnMs: 15_000, carrierSpeedMult: 0.85 } as const;
+/**
+ * Expedition creatures (v2). hp and damage from the design; speeds in m/s; radius and height size the hit capsule.
+ * fromWave is the first wave a creature can appear in.
+ */
+export const CREATURE_TUNING = {
+  beetle: { hp: 40, speed: 7.5, radius: 0.55, height: 0.7, damage: 15, reachM: 1.4, cooldownMs: 900, fromWave: 1 },
+  spitter: { hp: 60, speed: 4.5, radius: 0.55, height: 1.4, damage: 20, keepMinM: 15, keepMaxM: 25, cooldownMs: 2600, projectileSpeed: 18, slowMult: 0.7, slowMs: 1500, fromWave: 2 },
+  guardian: { hp: 150, speed: 3.2, radius: 0.8, height: 1.9, damage: 25, reachM: 1.8, cooldownMs: 1400, shieldArcDeg: 110, gemHeightM: 1.7, gemRadiusM: 0.25, fromWave: 4 },
+  wisp: { hp: 30, speed: 8.5, radius: 0.4, height: 0.6, damage: 10, hoverM: 3.5, diveSpeed: 14, reachM: 1.2, cooldownMs: 2200, fromWave: 6 },
+  colossus: { hp: 800, hpPerExtraPlayer: 200, speed: 2.4, radius: 1.8, height: 6, stompDamage: 35, stompRadiusM: 9, stompWindupMs: 900, stompCooldownMs: 6000, summonAtFraction: 0.5, summons: 4, gemHeightM: 5.2, gemRadiusM: 0.6, bodyDamageMult: 0.5, gemDamageMult: 2, fromWave: 5 },
+} as const;
+/** Expedition waves and the run around them. */
+export const EXPEDITION = {
+  maxPlayers: 4, baseCount: 6, countPerWave: 2, extraPlayerMult: 1.3, maxAlive: 18, aliveBase: 4,
+  bossEvery: 5, modifierEvery: 3, swarmCountMult: 1.35, swarmHpMult: 0.7, heavyHpMult: 1.25, lowGravityMult: 0.7,
+  breakMs: 8000, spawnGapMs: 450, herbs: 2, herbHeal: 40, herbTouchM: 1.2,
+  downedMs: 15_000, reviveMs: 2000, reviveRangeM: 2, downedSpeedMult: 0.25, soloLifeEvery: 5, checkpointEvery: 5,
+  xpPerWave: 5, xpPerBoss: 40, inkPerWave: 2, inkCap: 30, pathRefreshMs: 1500, directChaseM: 8, stuckMs: 6000, stuckMoveM: 3, creatureHopMult: 1.05, creatureLeapMaxMps: 13, leapClearanceM: 0.6,
+} as const;
 export const MEDAL_LIMITS = { mvp: 5, unstoppable: 6, onARoll: 3, headhunter: 3, eagleEye: 45, teamPlayer: 4, untouchable: 3 } as const;
 export const XP_PER_LEVEL_STEP = 500;
 export const MAX_LEVEL = 100;
@@ -21,7 +40,7 @@ export const DAYS_PER_WEEK = 7;
 export const ISO_THURSDAY = 4;
 export const WEEK_SEED_MULTIPLIER = 100;
 export const DAILY_TARGETS = { kills: 12, headshots: 4, wins: 2, matches: 3, longshots: 2, dagger: 2, assists: 5, zip: 1, streak: 1, scatter: 3, relic: 1 } as const;
-export const WEEKLY_TARGETS = { kills: 80, headshots: 25, wins: 10, longshots: 12, robin: 1, boulder: 1, maps: 3, medals: 15, tether: 10 } as const;
+export const WEEKLY_TARGETS = { kills: 80, headshots: 25, wins: 10, longshots: 12, robin: 1, boulder: 1, maps: 3, medals: 15, tether: 10, wave10: 1, colossus: 1 } as const;
 export const CHALLENGE_REWARDS = { daily: { ink: 30, xp: 150 }, weekly: { ink: 120, xp: 600 } } as const;
 export const PLAY_STREAK = { inkPerDay: 5, capDays: 7, firstWinXp: 100, firstWinInk: 20 } as const;
 export const LEVEL_ITEM_LEVELS = { chalk: 3, explorer: 5, dust: 7, cartographer: 10, fern: 15, carved: 20, goldrush: 30, veteran: 50 } as const;

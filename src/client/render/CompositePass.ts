@@ -62,6 +62,7 @@ export class CompositePass {
         cameraYaw: { value: 0 },
         hurt: { value: 0 },
         streaks: { value: 0 },
+        night: { value: 0 },
         sunWash: { value: new Color() },
         moonWash: { value: new Color() },
         sunInk: { value: new Color() },
@@ -92,6 +93,9 @@ export class CompositePass {
     this.material.uniforms.hurt!.value = hurt;
     this.material.uniforms.streaks!.value = streaks;
   }
+
+  /** Expedition Night modifier, 0 to 1: a dark tint and a shorter view. */
+  setNight(amount: number): void { this.material.uniforms.night!.value = amount; }
 
   setView(pitch: number, yaw: number, fovDegrees: number): void {
     const halfFov = (fovDegrees * Math.PI) / 360;

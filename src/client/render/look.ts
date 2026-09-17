@@ -46,7 +46,7 @@ export const CAMERA_FEEL = {
 } as const;
 
 /** Screen-space shapes for the hurt vignette and speed streaks. */
-export const COMPOSITE_FEEL = { streakRays: 48, streakWidth: 0.08, streakDensity: 0.55, streakFlickerHz: 6, streakInner: 0.38, streakOuter: 0.75, hurtInner: 0.32, hurtOuter: 0.85 } as const;
+export const COMPOSITE_FEEL = { nightViewScale: 0.3, nightTint: 0.55, streakRays: 48, streakWidth: 0.08, streakDensity: 0.55, streakFlickerHz: 6, streakInner: 0.38, streakOuter: 0.75, hurtInner: 0.32, hurtOuter: 0.85 } as const;
 
 /** Grapple rope: sag while swinging, straight while reeling, and the two pieces that fall after a cut. */
 export const ROPE_LOOK = { radius: 0.025, points: 13, wobble: 0.07, swingSag: 0.3, slackSagPerM: 0.5, maxSag: 1.4, snapMs: 550, snapFall: 9, cutHideMs: 300, handOffset: [0.3, -0.32, -0.55] } as const;
@@ -56,12 +56,21 @@ export const AUDIO_MIX = {
   busRampS: 0.05, crossfadeS: 1.5, exploreIntensity: 0.4, combatAfterDamageMs: 4000, padFloor: 0.35,
   bpm: 92, padGain: 0.05, kickGain: 0.22, shakerGain: 0.05, melodyGain: 0.06, melodyChance: 0.55,
   footstepRangeM: 18, footstepMinSpeed: 1, footstepRunSpeed: 6, footstepWalkGain: 0.45, walkStrideM: 2, runStrideM: 2.8,
-  enemyViewM: 35, shotCueRangeM: 30, cueMs: 900, cueRadius: 0.38,
+  enemyViewM: 35, shotCueRangeM: 35, cueMs: 900, cueRadius: 0.38,
   defaultMusic: 0.5, defaultEffects: 1, defaultAmbience: 1,
 } as const;
 
 /** Relic Run: the relic's size and spin, and the gold halo around its carrier. Free for All name rings. */
 export const RELIC_LOOK = { size: 0.45, spinPerS: 1.6, bobM: 0.12, groundLiftM: 0.9, haloRadius: 0.55, haloTube: 0.05, haloHeight: 1.0 } as const;
 export const FFA_RING_COLORS = ["#d2531f", "#3346b8", "#e3b23c", "#3f8f8c", "#7a4b2a", "#c9463d", "#5e8c3a", "#8a5a12"] as const;
+
+/** Expedition creatures: instance capacity, walk and hover motion, the stomp windup, herbs. */
+export const CREATURE_LOOK = {
+  capacity: 24, bossCapacity: 2, herbCapacity: 4,
+  walkHz: { beetle: 3.2, spitter: 1.4, guardian: 1.1, wisp: 0, colossus: 0.45 }, walkBobM: { beetle: 0.05, spitter: 0.08, guardian: 0.06, wisp: 0, colossus: 0.18 }, walkRoll: 0.05,
+  wispBobHz: 0.9, wispBobM: 0.25, wispRoll: 0.35, wispDivePitch: 0.7, windupSquash: 0.12, windupPitch: 0.25,
+  herbBobHz: 0.6, herbBobM: 0.08, herbLiftM: 0.1, herbSpinPerS: 0.8,
+  bossBursts: 4, nightFadeMs: 1500,
+} as const;
 
 export const HIT_FEEL = { damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;

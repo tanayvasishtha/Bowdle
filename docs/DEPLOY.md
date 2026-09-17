@@ -97,3 +97,8 @@ VITE_REGIONS='[{"id":"eu","url":"https://eu.bowdle.example"},{"id":"us","url":"h
 
 3. On boot the client probes `/health` on every entry, picks the lowest ping, shows that ping in the HUD, and lets players override the region in Settings.
 4. Ranked queue and public matches stay on the chosen region endpoint (`VITE_SERVER_URL` is only the fallback when `VITE_REGIONS` is empty).
+
+
+## Ranked seasons
+
+When a new season id first appears, the ranked queue soft-resets ratings from the previous season via `softResetSeasonRatings` (RD opens back up; rating drifts toward the mean). You can also run it manually from a server shell if you need to force a soft reset.

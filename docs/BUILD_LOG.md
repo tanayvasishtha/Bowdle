@@ -1,6 +1,31 @@
-## G14: Balance pass, release QA, v2.0.0
+## F1: Ranked, reports and pings
+
+Built:
+- Ranked mode is taken only from the `ranked` room name; casual `tdm` joins can no longer opt into rating writes.
+- Ranked `onAuth` requires a signed-in, linked, level-10 account.
+- Queue rejects client-supplied ratings and honour `test` only under NODE_ENV=test or ALLOW_TEST_JOINS=1; options validated with zod.
+- `applyRankedResults` is idempotent per match id, scores only against other teams, and accepts a real draw flag.
+- Soft season reset runs from the ranked queue when a season has no rating rows yet; documented in DEPLOY.md.
+- Public profile returns tier (and placement) only, not rating/rd.
+- Reports go through a room `report` message (session -> account on the server) with unique (reporter, target, reason), optional same-match check, and an API rate limit; client uses `apiBase()`.
+- Pings tick while alive; classifyPing marks enemies under the crosshair; mutePing validates the target and caps the set; FFA pings go lobby-wide.
+
+Verified:
+- npm run typecheck
+- npm run check — 353 vitest + build + size (pass)
+- npm run soak — 3 seeds (pass)
+- npm run smoke — pass
+- npm run build:portals — pass
+- npm run e2e — 55 passed, 1 skipped, 1 failed (gamepad menu order still expects Relic Run before Ranked; F4)
+- tests/server/f1-security.test.ts (4 passed)
+- Break-it: set RANKED.minLevel to 5, confirmed the level-gate test fails, restored minLevel 10
+
+Left:
+- Playwright e2e that a living player ping appears for a teammate and not an enemy (covered at room/unit level in social.test.ts; full browser e2e stays with F4 gate cleanup)
 
 Status: done.
+
+## G14: Balance pass, release QA, v2.0.0
 
 Built:
 - `scripts/balance-report.ts` — N bot matches per PvP mode×map (tdm/ffa/relic × matchMaps; skips expedition). CLI `node scripts/balance-report.ts [seeds]` (default 20). Prints kills by weapon and arrow kind, average TTK, headshot rate, movement verb samples (grapple/swing/zip/tether) plus zip/tether ride starts, and relic capture carry/match times. Flags weapons >45% of kills and team wins >60% of seeds (FFA reports kill-leader share instead).

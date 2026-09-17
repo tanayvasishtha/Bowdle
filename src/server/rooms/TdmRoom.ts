@@ -39,8 +39,9 @@ import type { MapData } from "../../shared/maps/types.ts";
 import { defaultMatchMap, mapById, matchMaps, nextMatchMap } from "../../shared/maps/registry.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState, TetherState } from "../../net/schema.ts";
-import { MapVoteMessage, SetNameMessage, PingMessage, MutePingMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RelicMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage, type PingEventMessage, type AfkPromptMessage, type AfkRemovedMessage, type PlayOfTheMatchMessage } from "../../net/messages.ts";
+import { MapVoteMessage, SetNameMessage, PingMessage, MutePingMessage, ReportMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RelicMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage, type PingEventMessage, type AfkPromptMessage, type AfkRemovedMessage, type PlayOfTheMatchMessage } from "../../net/messages.ts";
 import { gameDatabase, type MatchResultLine } from "../db/GameDatabase.ts";
+import { canQueueRanked } from "../../shared/rating.ts";
 import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
 import { botDifficultyFor, type BotDifficulty, type HumanSkill } from "../../shared/bots/difficulty.ts";
 import { isPartyCode } from "../../shared/party.ts";
@@ -165,7 +166,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   skillsLoaded: Promise<void> = Promise.resolve();
 
   onCreate(options: JoinOptions): void {
-    this.rankedMode = options.ranked === true || this.roomName === "ranked";
+    this.rankedMode = this.roomName === "ranked";
     this.partyCode = isPartyCode(options.party) ? options.party : "";
     // Public rooms are named after their mode; a party room takes the mode its leader picked.
     const named = isGameMode(this.roomName) ? this.roomName : undefined;
@@ -196,10 +197,13 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.onMessage("mapVote", MapVoteMessage, (client, message) => this.voteMap(client.sessionId, message.mapId));
     this.onMessage("ping", PingMessage, (client, message) => this.handlePing(client, message));
     this.onMessage("mutePing", MutePingMessage, (client, message) => {
+      if (!this.state.players.has(message.targetId)) return;
       let set = this.mutedPings.get(client.sessionId);
       if (!set) { set = new Set(); this.mutedPings.set(client.sessionId, set); }
+      if (set.size >= 32 && !set.has(message.targetId)) return;
       set.add(message.targetId);
     });
+    this.onMessage("report", ReportMessage, (client, message) => { void this.handleReport(client, message); });
     this.setFixedTimestep((context) => this.simulateTick(context, this.clock.elapsedTime), TICK_HZ, { subSteps: SUBSTEPS });
   }
 
@@ -507,6 +511,18 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   private clientById(sessionId: string): GameClient | undefined { return this.clients.find((client) => client.sessionId === sessionId); }
 
+  private async handleReport(client: GameClient, message: ReportMessage): Promise<void> {
+    const reporterPending = this.accounts.get(client.sessionId);
+    const targetPlayer = this.state.players.get(message.targetId);
+    if (!reporterPending || !targetPlayer || targetPlayer.isBot) return;
+    const targetPending = this.accounts.get(message.targetId);
+    if (!targetPending) return;
+    const [reporterId, targetId] = await Promise.all([reporterPending, targetPending]);
+    if (!reporterId || !targetId || reporterId === targetId) return;
+    const db = await gameDatabase();
+    await db.fileReport(reporterId, targetId, message.reason, { matchId: `${this.roomId}:${this.matchSerial}` });
+  }
+
   private handlePing(client: GameClient, message: PingMessage): void {
     const player = this.state.players.get(client.sessionId);
     if (!player || player.isBot) return;
@@ -519,7 +535,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     };
     for (const other of this.clients) {
       const mate = this.state.players.get(other.sessionId);
-      if (!mate || mate.isBot || mate.team !== player.team) continue;
+      if (!mate || mate.isBot) continue;
+      // FFA gives every player a unique team, so lobby-wide pings are required there.
+      if (this.state.mode !== "ffa" && mate.team !== player.team) continue;
       if (this.mutedPings.get(other.sessionId)?.has(client.sessionId)) continue;
       other.send("pingEvent", event);
     }
@@ -601,11 +619,14 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const db = await gameDatabase();
     const granted = await db.recordMatch(matchId, lines);
     if (this.rankedMode) {
-      const rankedLines = lines.filter((line) => line.accountId).map((line) => ({
-        accountId: line.accountId!,
-        won: !!line.won,
-      }));
-      if (rankedLines.length > 0) await db.applyRankedResults(rankedLines);
+      const rankedLines: { accountId: string; won: boolean; drew: boolean; team: number }[] = [];
+      for (const line of lines) {
+        if (!line.accountId) continue;
+        const sessionId = sessionsByAccount.get(line.accountId);
+        const player = sessionId ? this.state.players.get(sessionId) : undefined;
+        rankedLines.push({ accountId: line.accountId, won: !!line.won, drew: winner === "draw", team: player?.team ?? 0 });
+      }
+      if (rankedLines.length > 0) await db.applyRankedResults(rankedLines, matchId);
     }
     for (const reward of granted) {
       // Account ids only: logs never carry names or tokens.
@@ -957,11 +978,25 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }
   }
 
-  /** Party rooms need a well-formed code; public rooms never take one. */
-  onAuth(_client: GameClient, options?: JoinOptions): boolean {
+  /** Party rooms need a well-formed code; public rooms never take one. Ranked joins need a linked level-10 account. */
+  async onAuth(_client: GameClient, options?: JoinOptions): Promise<boolean> {
     const partyRoom = this.roomName === PARTY_ROOM;
     if (partyRoom && !isPartyCode(options?.party)) throw new ServerError(400, "invalid party code");
     if (!partyRoom && options?.party !== undefined) throw new ServerError(400, "party codes join the party room");
+    if (this.roomName === "ranked") {
+      const token = options?.token;
+      if (!token) throw new ServerError(401, "sign_in_required");
+      if (options?.test && process.env.ALLOW_TEST_JOINS !== "1" && process.env.NODE_ENV !== "test") {
+        throw new ServerError(403, "test_joins_disabled");
+      }
+      const db = await gameDatabase();
+      const accountId = await db.authenticate(token);
+      if (!accountId) throw new ServerError(401, "sign_in_required");
+      const profile = await db.profile(accountId);
+      if (!profile || !canQueueRanked(profile.progress.level, profile.linked.length > 0)) {
+        throw new ServerError(403, "ranked_locked");
+      }
+    }
     return true;
   }
 

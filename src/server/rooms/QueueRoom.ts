@@ -1,7 +1,9 @@
-﻿import { Room, matchMaker, type Client } from "colyseus";
+import { z } from "zod";
+import { Room, matchMaker, type Client } from "colyseus";
 import { canQueueRanked, defaultRating, pairQueue, queueOffersUnranked, type QueueSeat } from "../../shared/rating.ts";
 import { gameDatabase } from "../db/GameDatabase.ts";
-type QueueOptions = { name?: string; token?: string; test?: boolean; rating?: number };
+const QueueOptionsSchema = z.object({ name: z.string().trim().min(1).max(24).optional(), token: z.string().min(1).max(512).optional(), test: z.boolean().optional() });
+type QueueOptions = z.infer<typeof QueueOptionsSchema>;
 type Seat = QueueSeat & { client: Client; token?: string; name: string };
 
 /** Ranked matchmaking lobby: widen by rating, then seat both into a ranked TDM room with no bots. */
@@ -15,10 +17,31 @@ export class QueueRoom extends Room {
   onCreate(): void {
     this.timer = setInterval(() => this.pulse(), 1000);
     this.onMessage("acceptUnranked", (client: Client) => { void this.sendUnranked(client); });
+    void this.ensureSeasonSoftReset();
+  }
+
+  /** When a season has no rating rows yet, soft-reset from the previous season once. */
+  private async ensureSeasonSoftReset(): Promise<void> {
+    try {
+      const db = await gameDatabase();
+      const season = db.currentSeason();
+      if (await db.seasonHasRatings(season)) return;
+      const parts = season.match(/^(.*S)(\d+)$/);
+      if (!parts) return;
+      const prev = `${parts[1]}${Math.max(1, Number(parts[2]) - 1)}`;
+      if (prev === season) return;
+      await db.softResetSeasonRatings(prev, season);
+    } catch {
+      // Queue still works if the soft reset fails; ratings start at defaults.
+    }
   }
 
   async onAuth(_client: Client, options: QueueOptions): Promise<boolean> {
-    if (options?.test) return true;
+    options = QueueOptionsSchema.parse(options ?? {});
+    if (options.test && process.env.NODE_ENV !== "test" && process.env.ALLOW_TEST_JOINS !== "1") {
+      throw new Error("test_joins_disabled");
+    }
+    if (options.test && (process.env.NODE_ENV === "test" || process.env.ALLOW_TEST_JOINS === "1")) return true;
     const token = options?.token;
     if (!token) throw new Error("sign_in_required");
     const db = await gameDatabase();
@@ -35,7 +58,7 @@ export class QueueRoom extends Room {
   async onJoin(client: Client, options: QueueOptions): Promise<void> {
     const db = await gameDatabase();
     let accountId = `guest-${client.sessionId}`;
-    let rating = Number.isFinite(options?.rating) ? Number(options!.rating) : defaultRating().rating;
+    let rating = defaultRating().rating;
     let name = options?.name?.trim() || "Explorer";
     if (options?.token) {
       const id = await db.authenticate(options.token);
@@ -45,6 +68,8 @@ export class QueueRoom extends Room {
         const profile = await db.profile(id);
         if (profile) name = profile.name;
       }
+    } else if (!(options?.test && (process.env.NODE_ENV === "test" || process.env.ALLOW_TEST_JOINS === "1"))) {
+      throw new Error("sign_in_required");
     }
     const now = this.nowMs();
     this.seats.set(client.sessionId, { id: accountId, rating, joinedAtMs: now, client, token: options?.token, name });

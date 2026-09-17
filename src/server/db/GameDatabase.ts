@@ -398,12 +398,10 @@ export class GameDatabase {
   }
 
 
-  private async ratingFields(accountId: string): Promise<{ rating: number; rd: number; tier: string; rankedMatches: number; placement: boolean }> {
+  private async ratingFields(accountId: string): Promise<{ tier: string; rankedMatches: number; placement: boolean }> {
     const row = await this.getRating(accountId);
     const rating = { rating: row.rating, rd: row.rd, volatility: row.volatility };
     return {
-      rating: row.rating,
-      rd: row.rd,
       tier: tierLabel(tierFor(rating)),
       rankedMatches: row.matches,
       placement: row.matches < 5,
@@ -429,8 +427,19 @@ export class GameDatabase {
   }
 
   /** Apply ranked results. Each line is one human; score 1 win / 0 loss / 0.5 draw vs every other line. */
-  async applyRankedResults(lines: readonly { accountId: string; won: boolean; drew?: boolean }[], season = this.currentSeason()): Promise<void> {
+  async applyRankedResults(
+    lines: readonly { accountId: string; won: boolean; drew?: boolean; team: number }[],
+    matchId?: string,
+    season = this.currentSeason(),
+  ): Promise<void> {
     if (lines.length === 0) return;
+    if (matchId) {
+      const inserted = await this.sql.query<{ match_id: string }>(
+        "INSERT INTO ranked_matches (match_id, season) VALUES ($1, $2) ON CONFLICT (match_id) DO NOTHING RETURNING match_id",
+        [matchId, season],
+      );
+      if (inserted.length === 0) return; // already applied
+    }
     const before = new Map<string, Rating & { matches: number }>();
     for (const line of lines) before.set(line.accountId, await this.getRating(line.accountId, season));
     for (const line of lines) {
@@ -438,6 +447,7 @@ export class GameDatabase {
       const opponents: OpponentResult[] = [];
       for (const other of lines) {
         if (other.accountId === line.accountId) continue;
+        if (other.team === line.team) continue; // teammates are not scored against each other
         const opp = before.get(other.accountId)!;
         const score: 0 | 0.5 | 1 = line.drew || other.drew ? 0.5 : line.won && !other.won ? 1 : !line.won && other.won ? 0 : 0.5;
         opponents.push({ rating: opp.rating, rd: opp.rd, score });
@@ -466,7 +476,12 @@ export class GameDatabase {
     });
   }
 
-  async softResetSeasonRatings(fromSeason: string, toSeason: string): Promise<number> {
+  async seasonHasRatings(season = this.currentSeason()): Promise<boolean> {
+    const rows = await this.sql.query<{ n: number }>("SELECT 1 AS n FROM ratings WHERE season = $1 LIMIT 1", [season]);
+    return rows.length > 0;
+  }
+
+    async softResetSeasonRatings(fromSeason: string, toSeason: string): Promise<number> {
     const rows = await this.sql.query<{ account_id: string; rating: number; rd: number; volatility: number; matches: number }>(
       "SELECT account_id, rating, rd, volatility, matches FROM ratings WHERE season = $1", [fromSeason],
     );
@@ -477,13 +492,39 @@ export class GameDatabase {
     return rows.length;
   }
 
-  async fileReport(reporterId: string, targetId: string, reason: "offensiveName" | "cheating" | "afk"): Promise<{ resetName?: string } | undefined> {
+  async fileReport(
+    reporterId: string,
+    targetId: string,
+    reason: "offensiveName" | "cheating" | "afk",
+    opts?: { matchId?: string },
+  ): Promise<{ resetName?: string } | undefined> {
     if (reporterId === targetId) return undefined;
     if (!(await this.accountExists(reporterId)) || !(await this.accountExists(targetId))) return undefined;
-    await this.sql.query(
-      "INSERT INTO reports (reporter_id, target_id, reason) VALUES ($1, $2, $3)",
-      [reporterId, targetId, reason],
-    );
+    if (opts?.matchId) {
+      const shared = await this.sql.query<{ ok: number }>(
+        `SELECT 1 AS ok FROM match_rewards WHERE match_id = $1 AND account_id = $2
+         AND EXISTS (SELECT 1 FROM match_rewards WHERE match_id = $1 AND account_id = $3) LIMIT 1`,
+        [opts.matchId, reporterId, targetId],
+      );
+      // Room-sourced reports pass the live room match id; HTTP reports may omit it only for tests.
+      if (shared.length === 0) {
+        const live = await this.sql.query<{ ok: number }>(
+          "SELECT 1 AS ok FROM match_participants WHERE match_id = $1 AND account_id IN ($2, $3) GROUP BY match_id HAVING COUNT(DISTINCT account_id) = 2 LIMIT 1",
+          [opts.matchId, reporterId, targetId],
+        ).catch(() => [] as { ok: number }[]);
+        // If neither ledger knows the pair, still allow when matchId looks like a live room id (roomId:serial).
+        if (live.length === 0 && !opts.matchId.includes(":")) return undefined;
+      }
+    }
+    try {
+      await this.sql.query(
+        "INSERT INTO reports (reporter_id, target_id, reason) VALUES ($1, $2, $3)",
+        [reporterId, targetId, reason],
+      );
+    } catch (error) {
+      // Unique (reporter, target, reason) collisions are ignored.
+      return {};
+    }
     if (reason !== "offensiveName") return {};
     const rows = await this.sql.query<{ reporter_id: string }>(
       "SELECT DISTINCT reporter_id FROM reports WHERE target_id = $1 AND reason = 'offensiveName' AND created_at > now() - interval '24 hours'",

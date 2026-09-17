@@ -43,7 +43,8 @@ export function apiRouter(options: ApiOptions): Router {
   const xsolla = options.xsolla ?? new Xsolla(process.env);
   const now = options.now ?? Date.now;
   const guestsByIp = new Map<string, { count: number; resetAt: number }>();
-  const tutorialCalls = new Map<string, Window>();
+  const reportCalls = new Map<string, { count: number; resetAt: number }>();
+const tutorialCalls = new Map<string, Window>();
   const funnelCalls = new Map<string, Window>();
   // The webhook signature covers the exact bytes, so this route reads the raw body before JSON parsing is installed.
   router.post("/xsolla/webhook", express.raw({ type: () => true, limit: "256kb" }), async (request, response) => {
@@ -223,6 +224,7 @@ export function apiRouter(options: ApiOptions): Router {
   
   router.post("/report", async (request, response) => {
     const auth = await signedIn(request, response); if (!auth) return;
+    if (!allow(reportCalls, auth.accountId, 5, 60_000, Date.now())) { response.status(429).json({ error: "slow_down" }); return; }
     const body = z.object({
       targetId: z.string().min(1).max(64),
       reason: z.enum(["offensiveName", "cheating", "afk"]),

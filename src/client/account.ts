@@ -3,7 +3,7 @@ import type { Loadout } from "../shared/cosmetics.ts";
 
 const TOKEN_KEY = "bowdle.token";
 
-function apiBase(): string { return `${import.meta.env.VITE_SERVER_URL || location.origin}/api`; }
+export function apiBase(): string { return `${import.meta.env.VITE_SERVER_URL || location.origin}/api`; }
 
 export function loadToken(): string | undefined {
   try { return localStorage.getItem(TOKEN_KEY) ?? undefined; } catch { return undefined; }

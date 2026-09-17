@@ -21,7 +21,7 @@ export const server = defineServer({
     // Expedition runs are co-op; a checkpoint start opens a room of its own.
     expedition: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom", "checkpoint"]),
     party: defineRoom(TdmRoom).filterBy(["party"]),
-    ranked: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom", "ranked"]),
+    ranked: defineRoom(TdmRoom).filterBy(["test", "testMapId", "testRoom"]),
     queue: defineRoom(QueueRoom),
   },
   express: (app) => {

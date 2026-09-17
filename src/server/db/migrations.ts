@@ -118,6 +118,14 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX ratings_season_rating ON ratings (season, rating DESC)
   `
+,
+  `CREATE TABLE IF NOT EXISTS ranked_matches (
+    match_id TEXT PRIMARY KEY,
+    season TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS reports_reporter_target_reason ON reports (reporter_id, target_id, reason);
+  `
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

@@ -23,6 +23,7 @@ import type { CreaturePose } from "../render/creatures.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { happyTime } from "../platform/web.ts";
 import { fetchProfile, loadToken } from "../account.ts";
+import { apiBase } from "../account.ts";
 import { setAudioSuspended } from "../audio/bus.ts";
 import { portalPolicy } from "../platform/platform.ts";
 import { platform } from "../platform/sdk.ts";
@@ -362,10 +363,10 @@ export class OnlineSession {
     this.crosshair.update(drawn);
     this.sampler.setAimSlowdown(this.enemyUnderCrosshair);
     this.renderer.setMeleeSwing(stabProgress(this.me.state.meleeCooldownMs));
-    if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs);
-    this.tickPings(timeMs); }
+    if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
     else if (!this.wasAlive) { this.renderer.setViewmodelVisible(true); this.replay.stop(); this.hud.setReplay(false); }
     this.wasAlive = this.me.state.alive;
+    this.tickPings(timeMs);
     this.renderer.setGrappleHighlights(this.me.state.grappleCooldownMs <= 0 && !this.me.state.grappleActive);
     let hazardPhase: "idle" | "telegraph" | "roll" | "despawn" = "idle";
     for (const hazard of this.room.state.hazards.values()) if (hazard.phase === "roll" || hazard.phase === "telegraph") { hazardPhase = hazard.phase; break; }
@@ -758,8 +759,10 @@ export class OnlineSession {
   private sendPing(kind?: PingEvent["kind"], callout?: CalloutId): void {
     const me = this.me.state;
     const dist = 12;
+    // Classify from what the local player is looking at: an enemy under the crosshair, else a location mark.
+    const auto = classifyPing(this.enemyUnderCrosshair ? { enemy: true } : undefined);
     const payload = {
-      kind: kind ?? ("location" as const),
+      kind: kind ?? auto,
       x: me.x + Math.sin(me.yaw) * dist,
       y: me.y + 1,
       z: me.z + Math.cos(me.yaw) * dist,
@@ -775,8 +778,13 @@ export class OnlineSession {
   }
 
   async reportPlayer(targetId: string, reason: "offensiveName" | "cheating" | "afk"): Promise<void> {
+    // Room message lets the server map session -> account and enforce same-match.
+    if (this.room.connection.isOpen) {
+      this.room.send("report", { targetId, reason });
+      return;
+    }
     const token = loadToken();
-    await fetch("/api/report", {
+    await fetch(`${apiBase()}/report`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

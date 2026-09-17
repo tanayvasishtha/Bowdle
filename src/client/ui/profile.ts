@@ -46,7 +46,7 @@ export async function showProfile(container: HTMLElement, onClose: () => void): 
   section.innerHTML = `<h2>${escapeHtml(profile.name)}</h2>
     ${progressBar(profile)}
     <p class="bowdle-ink" data-testid="ink">${profile.ink} Ink</p>
-    <p class="bowdle-small" data-testid="tier">${profile.tier ? `Ranked: ${escapeHtml(profile.tier)}${profile.placement ? " (placement)" : ""} - ${Math.round(profile.rating ?? 0)}` : "Ranked: unranked"}</p>
+    <p class="bowdle-small" data-testid="tier">${profile.tier ? `Ranked: ${escapeHtml(profile.tier)}${profile.placement ? " (placement)" : ""}` : "Ranked: unranked"}</p>
     <p class="bowdle-small">Season ${escapeHtml(profile.season)}: ${profile.seasonKills} kills, ${profile.seasonWins} wins in ${profile.seasonMatches} matches</p>
     <p data-testid="play-streak">Play streak: ${profile.streakDays} days. Tomorrow's bonus: ${PLAY_STREAK.inkPerDay * Math.min(profile.streakDays + 1, PLAY_STREAK.capDays)} Ink</p>
     <p data-testid="career">Career: ${profile.career.matches} matches Â· ${profile.career.wins} wins Â· ${profile.career.kills} kills Â· ${profile.career.headshots} headshots Â· best streak ${profile.career.bestStreak} Â· longest shot ${Math.round(profile.career.longestShotM)} m</p>

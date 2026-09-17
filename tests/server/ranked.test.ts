@@ -29,8 +29,8 @@ describe("G12 ranked database", () => {
     const a = await db.createGuest("RankedAna");
     const b = await db.createGuest("RankedBen");
     await db.applyRankedResults([
-      { accountId: a.profile.id, won: true },
-      { accountId: b.profile.id, won: false },
+      { accountId: a.profile.id, won: true, team: 0 },
+      { accountId: b.profile.id, won: false, team: 1 },
     ]);
     const ana = await db.getRating(a.profile.id);
     const ben = await db.getRating(b.profile.id);

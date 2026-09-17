@@ -288,3 +288,8 @@ Both follow the art density and scenery rules (WORLD.md, W7, W8) and join the ro
 - The retention fairness rules in RETENTION.md.
 - Server authority for every gameplay outcome, including swats, rope cuts, pickups, relics and creature hits.
 - No art or audio files. Generated build outputs (`og.png`, icons) are the only images, and they are produced by scripts in the repo.
+
+
+### Pings in FFA and Expedition
+
+In FFA every player has a unique team, so pings are shown to the whole lobby. In Expedition the party shares a team, so pings stay party-wide.

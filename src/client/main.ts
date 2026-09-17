@@ -181,3 +181,8 @@ else if (params.get("scene") === "online") {
   showMainMenu(app);
 }
 
+
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { void navigator.serviceWorker.register("/sw.js"); });
+}

@@ -22,6 +22,7 @@ export const compositeFragmentShader = /* glsl */ `
   uniform float hurt;
   uniform float streaks;
   uniform float night;
+  uniform float hatchStrength;
   uniform vec3 sunWash;
   uniform vec3 moonWash;
   uniform vec3 sunInk;
@@ -148,7 +149,7 @@ export const compositeFragmentShader = /* glsl */ `
     if (mode > 0.5 && center.b < ${L.hatchLightTone}) hatch = stroke(hp.x + hp.y, ${L.hatchCssPx * 1.414}, 0.7);
     if (mode > 1.5 && center.b < ${L.hatchFullTone}) hatch = max(hatch, stroke(hp.x - hp.y, ${L.hatchCssPx * 1.414}, 0.7));
     if (id > 6.5 && id < 7.5) hatch = max(hatch, stroke(hp.x + sin(hp.y * 0.03) * 3.0 + time * ${L.waterDriftCssPxPerSecond}.0, ${L.waterStrokeCssPx}.0, 0.8) * ${L.waterStrokeOpacity});
-    color = mix(color, ink, hatch * ${L.hatchOpacity});
+    color = mix(color, ink, hatch * ${L.hatchOpacity} * hatchStrength);
     color = mix(color, background, smoothstep(${L.fadeNearM}.0 * viewScale(), ${L.fadeFarM}.0 * viewScale(), depth));
     return vec4(color, 1.0);
   }

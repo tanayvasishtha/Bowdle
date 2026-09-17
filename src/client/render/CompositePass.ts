@@ -63,6 +63,7 @@ export class CompositePass {
         hurt: { value: 0 },
         streaks: { value: 0 },
         night: { value: 0 },
+        hatchStrength: { value: 1 },
         sunWash: { value: new Color() },
         moonWash: { value: new Color() },
         sunInk: { value: new Color() },
@@ -86,6 +87,7 @@ export class CompositePass {
   setSunShafts(enabled: boolean): void { this.material.uniforms.sunShafts!.value = enabled ? 1 : 0; }
   setStainSeed(seed: number): void { this.material.uniforms.stainSeed!.value = seed; }
   setBoil(enabled: boolean): void { this.boil = enabled; }
+  setHatch(enabled: boolean): void { this.material.uniforms.hatchStrength!.value = enabled ? 1 : 0; }
 
   /** Places the horizon band: screen height of the true horizon for this pitch, as a fraction from the bottom. */
   /** Hurt vignette and speed streak strengths, 0 to 1. */

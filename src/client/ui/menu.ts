@@ -10,6 +10,7 @@ import { showLeaderboard, showProfile } from "./profile.ts";
 import { platform } from "../platform/sdk.ts";
 import { showPartyPanel } from "./party.ts";
 import { configuredRegions, formatPingMs, probeRegions } from "../regions.ts";
+import { FPS_CAPS, GRAPHICS_PRESETS } from "../../shared/graphics.ts";
 
 const LABELS: Record<Action, string> = ACTION_LABELS;
 const codeLabel = keyLabel;
@@ -57,6 +58,9 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     <label>Crosshair size <input data-setting="crosshairSize" type="range" min="${CROSSHAIR_SIZE.min}" max="${CROSSHAIR_SIZE.max}" step="2" value="${settings.crosshairSize}"></label>
     <label>Crosshair color ${choice("crosshairColor", CROSSHAIR_COLORS, settings.crosshairColor, { sepia: "Ink brown", sunInk: "Sun orange", gold: "Gold", moonInk: "Moon blue", parchment: "Paper" })}</label>
     <label>Team colors ${choice("teamPalette", TEAM_PALETTE_NAMES, settings.teamPalette, { default: "Standard", deuteranopia: "Deuteranopia", protanopia: "Protanopia", tritanopia: "Tritanopia" })}</label>
+    <h3>Graphics</h3>
+    <label>Quality <select data-setting="graphicsPreset">${GRAPHICS_PRESETS.map((preset) => `<option value="${preset}"${settings.graphicsPreset === preset ? " selected" : ""}>${preset[0]!.toUpperCase()}${preset.slice(1)}</option>`).join("")}</select></label>
+    <label>FPS cap <select data-setting="fpsCap">${FPS_CAPS.map((cap) => `<option value="${cap}"${settings.fpsCap === cap ? " selected" : ""}>${cap === 0 ? "Unlimited" : String(cap)}</option>`).join("")}</select></label>
         <h3>Region</h3>
     <label>Server region <select data-setting="preferredRegion"><option value="">Auto (lowest ping)</option></select></label>
     <p class="bowdle-small" data-testid="region-pings">Probing regions...</p>
@@ -81,7 +85,7 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     const number = (name: string): number => Number(panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.value);
     const checked = (name: string): boolean => panel.querySelector<HTMLInputElement>(`[data-setting=${name}]`)!.checked;
     const picked = <T extends string>(name: string): T => panel.querySelector<HTMLSelectElement>(`[data-setting=${name}]`)!.value as T;
-    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), musicVolume: number("musicVolume"), effectsVolume: number("effectsVolume"), ambienceVolume: number("ambienceVolume"), music: checked("music"), soundIndicators: checked("soundIndicators"), invertY: checked("invertY"), aimSensitivity: number("aimSensitivity"), gamepadSensitivity: number("gamepadSensitivity"), trackpadMode: checked("trackpadMode"), crosshairStyle: picked("crosshairStyle"), crosshairSize: number("crosshairSize"), crosshairColor: picked("crosshairColor"), teamPalette: picked("teamPalette"), preferredRegion: picked("preferredRegion"), boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
+    settings = { ...settings, sensitivity: number("sensitivity"), fov: number("fov"), masterVolume: number("masterVolume"), musicVolume: number("musicVolume"), effectsVolume: number("effectsVolume"), ambienceVolume: number("ambienceVolume"), music: checked("music"), soundIndicators: checked("soundIndicators"), invertY: checked("invertY"), aimSensitivity: number("aimSensitivity"), gamepadSensitivity: number("gamepadSensitivity"), trackpadMode: checked("trackpadMode"), crosshairStyle: picked("crosshairStyle"), crosshairSize: number("crosshairSize"), crosshairColor: picked("crosshairColor"), teamPalette: picked("teamPalette"), preferredRegion: picked("preferredRegion"), graphicsPreset: picked("graphicsPreset"), fpsCap: Number(picked("fpsCap")) as typeof settings.fpsCap, graphicsBenchmarked: true, boil: checked("boil"), floatingNotes: checked("floatingNotes"), colorblindSymbols: checked("colorblindSymbols"), reduceMotion: checked("reduceMotion"), damageNumbers: checked("damageNumbers"), tips: checked("tips") };
     panel.querySelector("output")!.textContent = String(settings.fov); saveSettings(settings);
   };
   panel.addEventListener("input", update);
@@ -146,7 +150,7 @@ export function showMainMenu(container: HTMLElement): void {
       container.append(card);
     })();
   };
-  const play = (): void => withName((name) => { void enter(name); });
+  const play = (): void => withName((name) => { reportFunnel("modePicked"); void enter(name); });
   menu.querySelector("[data-action=play]")!.addEventListener("click", play);
   menu.querySelector("[data-action=ranked]")!.addEventListener("click", () => withName((name) => {
     void (async () => {
@@ -159,11 +163,11 @@ export function showMainMenu(container: HTMLElement): void {
         container.append(toast); setTimeout(() => toast.remove(), 4000);
         return;
       }
-      location.search = onlineSearch("tdm") + "&ranked=1";
+      reportFunnel("modePicked"); location.search = onlineSearch("tdm") + "&ranked=1";
     })();
   }));
   menu.querySelector("[data-action=expedition]")!.addEventListener("click", () => withName(expedition));
-  for (const mode of ["ffa", "relic"] as const) menu.querySelector(`[data-action=${mode}]`)!.addEventListener("click", () => withName((name) => { void enter(name, undefined, mode); }));
+  for (const mode of ["ffa", "relic"] as const) menu.querySelector(`[data-action=${mode}]`)!.addEventListener("click", () => withName((name) => { reportFunnel("modePicked"); void enter(name, undefined, mode); }));
 menu.querySelector("[data-action=party]")!.addEventListener("click", () => withName((name) => showPartyPanel(container, (code, mode) => { void enter(name, code, mode); })));
   menu.querySelector("[data-action=practice]")!.addEventListener("click", () => navigate("camp"));
   menu.querySelector("[data-action=course]")!.addEventListener("click", () => { location.search = "?scene=camp&course"; });

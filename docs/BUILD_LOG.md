@@ -1,3 +1,16 @@
+## G13: Performance presets, attract mode, sharing, install
+
+Status: done.
+
+Built:
+- Graphics presets (Low/Medium/High) with render scale, prop distance, boil/hatch, FPS cap, and settings UI.
+- App-shell service worker, web manifest, generated icons and og.png; Open Graph / Twitter meta on index.html.
+- Funnel event modePicked; unit tests for presets, SW policy, and og size.
+
+Verified: npm run check.
+
+Left: attract-mode orbit polish and Playwright Low-preset draw-call capture if budgets need a nudge; G14 balance/release.
+
 # Build log
 
 ## G12: Ranked and regions

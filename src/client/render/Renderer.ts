@@ -40,6 +40,7 @@ import { PropsRenderer } from "./props/PropsRenderer.ts";
 import { MapKitView } from "./MapKitView.ts";
 import { Ambience } from "../audio/ambience.ts";
 import { loadSettings, type GameSettings } from "../settings.ts";
+import { GRAPHICS_QUALITY } from "../../shared/graphics.ts";
 import { DynamicResolution } from "./dynamicResolution.ts";
 import { CharacterRig, characterLookKey, type CharacterLook, type CharacterKind } from "./characters/CharacterRig.ts";
 import type { CharacterMotion } from "./characters/pose.ts";
@@ -207,6 +208,8 @@ export class Renderer {
   private cameraOverride: { x: number; y: number; z: number; lookX: number; lookY: number; lookZ: number } | null = null;
   private settings = loadSettings();
   private readonly dynamicResolution = new DynamicResolution();
+  private minFrameMs = 0;
+  private lastPresentedMs = 0;
 
   constructor(container: HTMLElement, debug: boolean, map: MapData = defaultMatchMap, practice: readonly CampTarget[] = []) {
     this.container = container;
@@ -240,7 +243,17 @@ export class Renderer {
   }
 
   private applySettings(settings: GameSettings): void {
-    this.settings = settings; this.camera.fov = settings.fov; this.camera.updateProjectionMatrix(); this.composite.setBoil(settings.boil); this.composite.setTeamPalette(TEAM_PALETTES[settings.teamPalette]);
+    this.settings = settings;
+    this.camera.fov = settings.fov;
+    this.camera.updateProjectionMatrix();
+    const quality = GRAPHICS_QUALITY[settings.graphicsPreset];
+    this.composite.setBoil(settings.boil && quality.boil);
+    this.composite.setHatch(quality.hatch);
+    this.composite.setTeamPalette(TEAM_PALETTES[settings.teamPalette]);
+    this.dynamicResolution.setCeiling(quality.renderScale);
+    this.props.hideDistance = quality.propHideDistance;
+    this.minFrameMs = settings.fpsCap > 0 ? 1000 / settings.fpsCap : 0;
+    this.resize();
     for (const symbol of this.playerSymbols.values()) symbol.element.style.display = settings.colorblindSymbols ? "block" : "none";
   }
 
@@ -633,6 +646,8 @@ export class Renderer {
   unpinPlayer(id: string): void { const player = this.players.get(id); if (player) player.rotation.z = 0; }
 
   render(timeMs = performance.now()): void {
+    if (this.minFrameMs > 0 && timeMs - this.lastPresentedMs < this.minFrameMs) return;
+    this.lastPresentedMs = timeMs;
     const frameMs = Math.max(0, timeMs - this.previousTime);
     this.previousTime = timeMs;
     if (this.dynamicResolution.sample(frameMs)) this.resize();

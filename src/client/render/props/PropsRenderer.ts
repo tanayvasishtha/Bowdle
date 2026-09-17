@@ -10,6 +10,8 @@ type Batch = { kind: PropKind; mesh: InstancedMesh; matrices: readonly Matrix4[]
 const position = new Vector3(); const scale = new Vector3(); const rotation = new Quaternion(); const matrix = new Matrix4(); const up = new Vector3(0, 1, 0);
 
 export class PropsRenderer extends Group {
+  /** Max camera distance for props; Low preset tightens this (G13). */
+  hideDistance = PROP_HIDE_DISTANCE;
   private readonly batches: Batch[] = [];
 
   constructor(props: readonly Prop[]) {
@@ -33,7 +35,7 @@ export class PropsRenderer extends Group {
       let visible = 0;
       for (let index = 0; index < batch.matrices.length; index += 1) {
         const base = batch.matrices[index]!, values = base.elements;
-        if (Math.hypot(values[12]! - camera.position.x, values[13]! - camera.position.y, values[14]! - camera.position.z) > PROP_HIDE_DISTANCE) continue;
+        if (Math.hypot(values[12]! - camera.position.x, values[13]! - camera.position.y, values[14]! - camera.position.z) > this.hideDistance) continue;
         matrix.copy(base);
         const animated = matrix.elements;
         if (batch.kind === "torch" || batch.kind === "brazier" || batch.kind === "lantern") animated[5] *= 0.94 + Math.sin(timeMs * 0.012 + index) * 0.06;

@@ -1,4 +1,5 @@
 import { DEFAULT_FOV, MASTER_VOLUME, MAX_FOV, MIN_FOV, MOUSE_SENSITIVITY } from "../shared/constants.ts";
+import { FPS_CAPS, GRAPHICS_PRESETS, type FpsCap, type GraphicsPreset } from "../shared/graphics.ts";
 import { AUDIO_MIX } from "./render/look.ts";
 export { nameError } from "../shared/name.ts";
 
@@ -66,6 +67,10 @@ export type GameSettings = {
   keys: KeyBindings;
   /** Empty string means auto-pick the lowest ping. */
   preferredRegion: string;
+  graphicsPreset: GraphicsPreset;
+  fpsCap: FpsCap;
+  /** True after the first-launch benchmark or a manual preset pick. */
+  graphicsBenchmarked: boolean;
 };
 
 export const DEFAULT_KEYS: KeyBindings = {
@@ -78,7 +83,7 @@ const STORAGE_KEY = "bowdle.settings.v1";
 const NAME_KEY = "bowdle.name";
 
 export function defaultSettings(): GameSettings {
-  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, invertY: false, aimSensitivity: 1, gamepadSensitivity: 1, trackpadMode: false, crosshairStyle: "circle", crosshairSize: CROSSHAIR_SIZE.default, crosshairColor: "sepia", teamPalette: "default", keys: { ...DEFAULT_KEYS }, preferredRegion: "" };
+  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, invertY: false, aimSensitivity: 1, gamepadSensitivity: 1, trackpadMode: false, crosshairStyle: "circle", crosshairSize: CROSSHAIR_SIZE.default, crosshairColor: "sepia", teamPalette: "default", keys: { ...DEFAULT_KEYS }, preferredRegion: "", graphicsPreset: "high", fpsCap: 60, graphicsBenchmarked: false };
 }
 
 function range(value: unknown, min: number, max: number, fallback: number): number {
@@ -116,6 +121,9 @@ export function loadSettings(): GameSettings {
       teamPalette: oneOf(parsed.teamPalette, TEAM_PALETTE_NAMES, defaults.teamPalette),
       keys: { ...DEFAULT_KEYS, ...parsed.keys },
       preferredRegion: typeof parsed.preferredRegion === "string" ? parsed.preferredRegion : defaults.preferredRegion,
+      graphicsPreset: (GRAPHICS_PRESETS as readonly string[]).includes(String(parsed.graphicsPreset)) ? parsed.graphicsPreset as GraphicsPreset : defaults.graphicsPreset,
+      fpsCap: (FPS_CAPS as readonly number[]).includes(Number(parsed.fpsCap)) ? Number(parsed.fpsCap) as FpsCap : defaults.fpsCap,
+      graphicsBenchmarked: parsed.graphicsBenchmarked === true,
     };
   } catch { return defaults; }
 }

@@ -1,4 +1,4 @@
-﻿import express, { type Request, type Response, type Router } from "express";
+import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
 import { DEV_GRANT_MAX, FUNNEL_EVENTS, MAX_NAME_LENGTH, ONBOARDING } from "../../shared/constants.ts";
 import { PROVIDERS, type GameDatabase, type Provider } from "../db/GameDatabase.ts";
@@ -83,7 +83,7 @@ export function apiRouter(options: ApiOptions): Router {
   /** Client funnel steps the server cannot see itself. Only known events are logged. */
   router.post("/funnel", (request, response) => {
     const body = z.object({ event: z.enum(FUNNEL_EVENTS) }).safeParse(request.body);
-    if (!body.success || body.data.event !== "menuOpened") { response.status(400).json({ error: "bad_event" }); return; }
+    if (!body.success || (body.data.event !== "menuOpened" && body.data.event !== "modePicked")) { response.status(400).json({ error: "bad_event" }); return; }
     if (!allow(funnelCalls, request.ip ?? "unknown", ONBOARDING.funnelPerHour, GUEST_WINDOW_MS, now())) { response.status(429).json({ error: "slow_down" }); return; }
     console.log(JSON.stringify({ event: body.data.event }));
     response.status(204).end();

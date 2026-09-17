@@ -22,7 +22,9 @@
     "start": "node src/server/main.ts",
     "smoke": "node scripts/prod-smoke.ts",
     "soak": "node scripts/bot-soak.ts",
-    "retention": "node scripts/retention-report.ts"
+    "retention": "node scripts/retention-report.ts",
+    "icons": "node scripts/generate-icons.mjs",
+    "og": "node scripts/generate-og.mjs"
   },
   "dependencies": {
     "@colyseus/better-call": "1.3.3",

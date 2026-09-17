@@ -12,7 +12,7 @@ export const ONBOARDING = { courseInk: 100, courseCallsPerMinute: 5, tipInterval
 
 } as const;
 
-export const FUNNEL_EVENTS = ["menuOpened", "tutorialDone", "firstMatch", "secondMatch"] as const;
+export const FUNNEL_EVENTS = ["menuOpened", "tutorialDone", "firstMatch", "secondMatch", "modePicked"] as const;
 
 /** Free for All and Relic Run (v2). */
 

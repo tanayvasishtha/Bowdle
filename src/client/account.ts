@@ -55,7 +55,7 @@ export async function completeTutorial(): Promise<{ granted: boolean; ink: numbe
 }
 
 /** A funnel step only the client sees. Failures are ignored. */
-export function reportFunnel(event: "menuOpened"): void {
+export function reportFunnel(event: (typeof import("../shared/constants.ts").FUNNEL_EVENTS)[number]): void {
   void fetch(`${apiBase()}/funnel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event }), keepalive: true }).catch(() => undefined);
 }
 

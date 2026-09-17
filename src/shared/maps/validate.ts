@@ -1,7 +1,7 @@
 import { BOULDER_RADIUS, BOULDER_SPAWN_CLEARANCE, CANOPY_SPIRAL_MAX_SLOPE_DEG, EYE_STAND, FLOOD_RISE, PLAYER_WIDTH, RAMP_MAX_SLOPE_DEG, STAND_HEIGHT, STEP_HEIGHT, WAYPOINT_SPAWN_MAX_DIST, WAYPOINT_SWEEP_STEP, ZIP_CLEARANCE } from "../constants.ts";
 import { mirrorX } from "./helpers.ts";
 import { rampHeightAt, rampSlopeDegrees } from "./ramps.ts";
-import type { Boulder, Box, MapData, Prop, Ramp, SpawnPoint, Vec3Tuple, Volume, ZipLine } from "./types.ts";
+import type { Boulder, Box, Breakable, Geyser, Herb, MapData, Prop, Ramp, SpawnPoint, SwingAnchor, Vec3Tuple, Volume, ZipLine } from "./types.ts";
 
 const EPSILON = 1e-6;
 
@@ -17,6 +17,16 @@ function sameRamp(a: Ramp, b: Ramp): boolean { return sameBox(a, b) && a.up === 
 function sameVolume(a: Volume, b: Volume): boolean { return sameTuple(a.min, b.min) && sameTuple(a.max, b.max) && a.kind === b.kind && a.flood === b.flood; }
 function sameZip(a: ZipLine, b: ZipLine): boolean { return sameTuple(a.from, b.from) && sameTuple(a.to, b.to); }
 function sameProp(a: Prop, b: Prop): boolean { return a.kind === b.kind && sameTuple(a.pos, b.pos) && Math.abs(a.yaw - b.yaw) <= EPSILON && a.scale === b.scale && a.seed === b.seed; }
+function sameAnchor(a: SwingAnchor, b: SwingAnchor): boolean {
+  return sameTuple(a.pos, b.pos) && a.sway.axis === b.sway.axis && Math.abs(a.sway.amplitude - b.sway.amplitude) <= EPSILON && Math.abs(a.sway.periodS - b.sway.periodS) <= EPSILON;
+}
+function sameGeyser(a: Geyser, b: Geyser): boolean {
+  return sameTuple(a.pos, b.pos) && Math.abs(a.radius - b.radius) <= EPSILON && Math.abs(a.launch - b.launch) <= EPSILON;
+}
+function sameBreakable(a: Breakable, b: Breakable): boolean {
+  return sameTuple(a.box.min, b.box.min) && sameTuple(a.box.max, b.box.max) && a.hp === b.hp;
+}
+function sameHerb(a: Herb, b: Herb): boolean { return sameTuple(a.pos, b.pos); }
 function sameBoulder(a: Boulder, b: Boulder): boolean {
   const samePath = (left: readonly Vec3Tuple[], right: readonly Vec3Tuple[]) => left.length === right.length && left.every((point, index) => sameTuple(point, right[index]!));
   return sameTuple(a.lever, b.lever) && (samePath(a.path, b.path) || samePath(a.path, [...b.path].reverse()))
@@ -116,6 +126,18 @@ function walkClear(map: MapData, from: Vec3Tuple, to: Vec3Tuple): boolean {
 export function validateMap(map: MapData): string[] {
   const errors: string[] = [];
   const solids = map.boxes.filter((box) => box.tags.includes("solid"));
+  for (const anchor of map.anchors ?? []) {
+    if (anchor.sway.periodS <= 0) errors.push(`anchor period: ${anchor.id}`);
+    if (anchor.sway.amplitude < 0) errors.push(`anchor amplitude: ${anchor.id}`);
+  }
+  for (const geyser of map.geysers ?? []) {
+    if (geyser.radius <= 0 || geyser.launch <= 0) errors.push(`geyser: ${geyser.id}`);
+  }
+  for (const breakable of map.breakables ?? []) {
+    if (breakable.hp <= 0) errors.push(`breakable hp: ${breakable.id}`);
+    if (breakable.box.min.some((value, axis) => value >= breakable.box.max[axis]!)) errors.push(`breakable box: ${breakable.id}`);
+  }
+  if ((map.herbs ?? []).length === 1) errors.push("herbs: expected a mirrored pair");
   for (const box of map.boxes) {
     if (box.min.some((value, axis) => value >= box.max[axis]!)) errors.push(`box dimensions: ${box.id}`);
     if (box.min.some((value, axis) => value < map.bounds.min[axis]! - EPSILON)
@@ -167,6 +189,10 @@ export function validateMap(map: MapData): string[] {
     for (const zip of map.zipLines) if (!map.zipLines.some((candidate) => sameZip(mirrorX(zip, "mirror"), candidate))) errors.push(`mirror symmetry: ${zip.id}`);
     for (const boulder of map.boulders) if (!map.boulders.some((candidate) => sameBoulder(mirrorX(boulder, "mirror"), candidate))) errors.push(`mirror symmetry: ${boulder.id}`);
     for (const prop of map.props) if (!map.props.some((candidate) => sameProp(mirrorX(prop), candidate))) errors.push(`mirror symmetry: prop ${prop.kind}`);
+    for (const anchor of map.anchors ?? []) if (!((map.anchors ?? []).some((candidate) => sameAnchor(mirrorX(anchor, "mirror"), candidate)))) errors.push(`mirror symmetry: ${anchor.id}`);
+    for (const geyser of map.geysers ?? []) if (!((map.geysers ?? []).some((candidate) => sameGeyser(mirrorX(geyser, "mirror"), candidate)))) errors.push(`mirror symmetry: ${geyser.id}`);
+    for (const breakable of map.breakables ?? []) if (!((map.breakables ?? []).some((candidate) => sameBreakable(mirrorX(breakable, "mirror"), candidate)))) errors.push(`mirror symmetry: ${breakable.id}`);
+    for (const herb of map.herbs ?? []) if (!((map.herbs ?? []).some((candidate) => sameHerb(mirrorX(herb, "mirror"), candidate)))) errors.push(`mirror symmetry: ${herb.id}`);
   }
   for (const spawn of [...map.spawns.sun, ...map.spawns.moon]) {
     if (solids.some((box) => overlapsSpawn(box, spawn))) errors.push(`spawn overlap: ${spawn.pos.join(",")}`);

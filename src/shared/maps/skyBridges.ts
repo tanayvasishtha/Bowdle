@@ -99,8 +99,8 @@ for (const [x, z] of [[-17.5, -2.8], [-12.5, 2.8], [-17.5, 13], [-17.5, -13]] as
 }
 
 const dressing = jungleDressing({
-  idPrefix: "canopy",
-  seed: 5501,
+  idPrefix: "sky-bridges",
+  seed: 6101,
   bounds: rect(-34, -24, 34, 24),
   blockers: { boxes, ramps, volumes, zipLines, spawns: [...sunSpawns, ...moonSpawns] },
   patchMaterials: ["fern", "canopy", "stone"],
@@ -111,13 +111,21 @@ const dressing = jungleDressing({
 props.push(...dressing.props);
 boxes.push(...dressing.patches);
 
-export const canopyMap: MapData = { relic: [0, 4.8, 5], camps: { sun: { min: [-34, -1.5, -9], max: [-25, 4, 9] }, moon: { min: [25, -1.5, -9], max: [34, 4, 9] } }, id: "canopy", name: "Canopy Village", bounds: { min: [-36,-2,-26], max: [36,17,26] }, boxes, ramps, volumes, zipLines, boulders: [], props, spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "high ground", pos: [0,10,4] }, { text: "zip line", pos: [-7,9,8] }], look: { sunShafts: true, stainSeed: 5501 }, landmark: [0, 15, 0],
+export const skyBridgesMap: MapData = { relic: [0, 4.8, 5], camps: { sun: { min: [-34, -1.5, -9], max: [-25, 4, 9] }, moon: { min: [25, -1.5, -9], max: [34, 4, 9] } }, id: "sky-bridges", name: "Sky Bridges", bounds: { min: [-36,-2,-26], max: [36,17,26] }, boxes, ramps, volumes, zipLines, boulders: [], props, spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, anchors: [
+    { id: "sun-anchor-n", pos: [-10, 10, 6], sway: { axis: "x", amplitude: 1.2, periodS: 4 } },
+    { id: "moon-anchor-n", pos: [10, 10, 6], sway: { axis: "x", amplitude: 1.2, periodS: 4 } },
+    { id: "sun-anchor-s", pos: [-10, 10, -6], sway: { axis: "z", amplitude: 1.0, periodS: 5 } },
+    { id: "moon-anchor-s", pos: [10, 10, -6], sway: { axis: "z", amplitude: 1.0, periodS: 5 } },
+    { id: "sun-anchor-mid", pos: [-6, 12, 0], sway: { axis: "y", amplitude: 0.8, periodS: 3.5 } },
+    { id: "moon-anchor-mid", pos: [6, 12, 0], sway: { axis: "y", amplitude: 0.8, periodS: 3.5 } },
+  ],
+  geysers: [
+    { id: "sun-geyser", pos: [-4, 0, 0], radius: 1.6, launch: 14 },
+    { id: "moon-geyser", pos: [4, 0, 0], radius: 1.6, launch: 14 },
+  ],
   herbs: [
-    { id: "sun-herb", pos: [-20, 0, 2] },
-    { id: "moon-herb", pos: [20, 0, 2] },
+    { id: "sun-herb", pos: [-22, 0, 3] },
+    { id: "moon-herb", pos: [22, 0, 3] },
   ],
-  anchors: [
-    { id: "sun-anchor", pos: [-8, 11, 0], sway: { axis: "x", amplitude: 1.0, periodS: 4 } },
-    { id: "moon-anchor", pos: [8, 11, 0], sway: { axis: "x", amplitude: 1.0, periodS: 4 } },
-  ],
-};
+  breakables: [],
+  decor: [], notes: [{ text: "rope bridges", pos: [0,10,4] }, { text: "hollow tree", pos: [-7,9,8] }], look: { sunShafts: true, stainSeed: 6101 }, landmark: [0, 16, 0] };

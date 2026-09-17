@@ -1,4 +1,4 @@
-﻿import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
+import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
 import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, CREATURE_TUNING, EXPEDITION, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
 import { defaultMatchMap, mapById, matchMaps } from "../../shared/maps/registry.ts";
@@ -253,6 +253,15 @@ export class OnlineSession {
     this.hearHazards();
     this.showObjective(timeMs);
     this.showExpedition(timeMs);
+    try {
+      const broken = new Map<string, boolean>();
+      const herbReady = new Map<string, boolean>();
+      this.room.state.breakables?.forEach((item, id) => { broken.set(String(id), !!item.broken); });
+      this.room.state.mapHerbs?.forEach((herb, id) => { herbReady.set(String(id), !!herb.ready); });
+      this.renderer.updateMapKit(timeMs, broken, herbReady);
+    } catch {
+      // Map-kit draw must never stop the match frame (shot cues, prediction, HUD).
+    }
     const camera = this.renderer.camera.position;
     this.sounds.setListener(camera.x, camera.y, camera.z, this.me.state.yaw);
     music().setIntensity(musicIntensity("match", this.enemyInView || this.creatureInView, performance.now() - this.lastDamageAtMs));
@@ -363,7 +372,14 @@ export class OnlineSession {
    */
   private hearShot(arrow: LocalArrow | ArrowState, at: { x: number; y: number; z: number }): boolean {
     const me = this.me.state;
-    if (arrow.owner === this.sessionId || arrow.team === me.team || (arrow.kind !== "arrow" && arrow.kind !== "scatter" && arrow.kind !== "tether")) return true;
+    // Wait until owner is on the player map. ArrowState defaults team to 0, so using
+    // arrow.team alone can mark a half-synced enemy shot as a teammate (no cue).
+    if (!arrow.owner) return false;
+    if (arrow.owner === this.sessionId) return true;
+    if (arrow.kind !== "arrow" && arrow.kind !== "scatter" && arrow.kind !== "tether") return true;
+    const owner = this.room.state.players.get(arrow.owner);
+    if (!owner) return false;
+    if (owner.team === me.team) return true;
     const distance = Math.hypot(at.x - me.x, at.z - me.z);
     if (distance > AUDIO_MIX.shotCueRangeM) return false;
     this.sounds.playAt("twang", at.x, at.y, at.z, 1 - distance / AUDIO_MIX.shotCueRangeM);

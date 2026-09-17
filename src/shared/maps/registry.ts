@@ -1,10 +1,12 @@
 import { canopyMap } from "./canopy.ts";
 import { campMap } from "./camp.ts";
 import { lostRiverMap } from "./lostRiver.ts";
+import { skyBridgesMap } from "./skyBridges.ts";
 import { sunTempleMap } from "./sunTemple.ts";
+import { sunkenRuinsMap } from "./sunkenRuins.ts";
 import type { MapData } from "./types.ts";
 
-export const matchMaps: readonly MapData[] = [sunTempleMap, canopyMap, lostRiverMap];
+export const matchMaps: readonly MapData[] = [sunTempleMap, canopyMap, lostRiverMap, skyBridgesMap, sunkenRuinsMap];
 export const defaultMatchMap = matchMaps[0]!;
 
 export function mapById(id: string): MapData | undefined {

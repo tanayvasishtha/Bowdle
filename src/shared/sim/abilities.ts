@@ -12,6 +12,7 @@ import {
   VINE_HOP,
 } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
+import { anchorPosAt } from "../maps/kit.ts";
 import type { MapData, Vec3Tuple } from "../maps/types.ts";
 import { movePlayer } from "./collision.ts";
 import type { PlayerSim } from "./movement.ts";
@@ -69,7 +70,7 @@ function rayBoxDistance(x: number, y: number, z: number, dx: number, dy: number,
   return near >= 0 && near <= length ? near : null;
 }
 
-export function tryAttachGrapple(state: PlayerSim, input: PlayerInputFrame, map: MapData): GrappleEvent | null {
+export function tryAttachGrapple(state: PlayerSim, input: PlayerInputFrame, map: MapData, matchTimeMs = 0): GrappleEvent | null {
   const cosPitch = Math.cos(input.pitch);
   const dx = -Math.sin(input.yaw) * cosPitch;
   const dy = Math.sin(input.pitch);
@@ -77,16 +78,29 @@ export function tryAttachGrapple(state: PlayerSim, input: PlayerInputFrame, map:
   const eyeY = state.y + (state.crouched ? EYE_CROUCH : EYE_STAND);
   let distance = Number.POSITIVE_INFINITY;
   let grappleHit = false;
+  let hitX = 0; let hitY = 0; let hitZ = 0;
   for (const box of map.boxes) {
     if (!box.tags.includes("solid")) continue;
     const hit = rayBoxDistance(state.x, eyeY, state.z, dx, dy, dz, box.min, box.max);
-    if (hit !== null && hit < distance) { distance = hit; grappleHit = box.tags.includes("grapple"); }
+    if (hit !== null && hit < distance) {
+      distance = hit; grappleHit = box.tags.includes("grapple");
+      hitX = state.x + dx * hit; hitY = eyeY + dy * hit; hitZ = state.z + dz * hit;
+    }
+  }
+  for (const anchor of map.anchors ?? []) {
+    const [ax, ay, az] = anchorPosAt(anchor, matchTimeMs);
+    const toX = ax - state.x; const toY = ay - eyeY; const toZ = az - state.z;
+    const along = toX * dx + toY * dy + toZ * dz;
+    if (along <= 0 || along > GRAPPLE_RANGE || along >= distance) continue;
+    const lat = Math.hypot(toX - dx * along, toY - dy * along, toZ - dz * along);
+    if (lat > GRAPPLE.anchorHitRadius) continue;
+    distance = along; grappleHit = true; hitX = ax; hitY = ay; hitZ = az;
   }
   if (!Number.isFinite(distance) || !grappleHit) return null;
   state.grappleActive = true;
-  state.grappleX = state.x + dx * distance;
-  state.grappleY = eyeY + dy * distance;
-  state.grappleZ = state.z + dz * distance;
+  state.grappleX = hitX;
+  state.grappleY = hitY;
+  state.grappleZ = hitZ;
   state.grappleMs = 0;
   state.grappleBlockedMs = 0;
   state.grappleReeling = true;
@@ -121,7 +135,7 @@ export function releaseGrapple(state: PlayerSim, launch: boolean): void {
   state.grounded = false;
 }
 
-export function stepAbilityInput(state: PlayerSim, input: PlayerInputFrame, map: MapData, tickMs: number): AbilityEvent[] {
+export function stepAbilityInput(state: PlayerSim, input: PlayerInputFrame, map: MapData, tickMs: number, matchTimeMs = 0): AbilityEvent[] {
   const events: AbilityEvent[] = [];
   if (!state.grappleActive) state.grappleCooldownMs = Math.max(0, state.grappleCooldownMs - tickMs);
   state.inkCooldownMs = Math.max(0, state.inkCooldownMs - tickMs);
@@ -133,7 +147,7 @@ export function stepAbilityInput(state: PlayerSim, input: PlayerInputFrame, map:
     if (pressed(input.buttons, state.prevButtons, BTN.JUMP)) releaseGrapple(state, true);
     else if (pressed(input.buttons, state.prevButtons, BTN.CROUCH)) releaseGrapple(state, false);
   } else if (grapplePressed && state.grappleCooldownMs <= 0 && !state.relicCarrier) {
-    const event = tryAttachGrapple(state, input, map);
+    const event = tryAttachGrapple(state, input, map, matchTimeMs);
     if (event) events.push(event);
     else state.grappleCooldownMs = GRAPPLE.missCooldownMs;
   }

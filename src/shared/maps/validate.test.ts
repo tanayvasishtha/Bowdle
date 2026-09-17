@@ -4,6 +4,8 @@ import { sunTempleMap } from "./sunTemple.ts";
 import { canopyMap } from "./canopy.ts";
 import { campMap } from "./camp.ts";
 import { lostRiverMap } from "./lostRiver.ts";
+import { skyBridgesMap } from "./skyBridges.ts";
+import { sunkenRuinsMap } from "./sunkenRuins.ts";
 import type { MapData } from "./types.ts";
 import { validateMap } from "./validate.ts";
 
@@ -16,6 +18,8 @@ describe("map validation", () => {
   it("accepts Sun Temple", () => expect(validateMap(sunTempleMap)).toEqual([]));
   it("accepts Canopy Village", () => expect(validateMap(canopyMap)).toEqual([]));
   it("accepts Lost River", () => expect(validateMap(lostRiverMap)).toEqual([]));
+  it("accepts Sky Bridges", () => expect(validateMap(skyBridgesMap)).toEqual([]));
+  it("accepts Sunken Ruins", () => expect(validateMap(sunkenRuinsMap)).toEqual([]));
   it("accepts Practice Camp", () => expect(validateMap(campMap)).toEqual([]));
 
   it("rejects a ramp over the slope limit", () => {
@@ -52,6 +56,11 @@ describe("map validation", () => {
   it("rejects a boulder path too close to a spawn", () => {
     const nearSpawn = { ...kitMap.boulders[0]!, path: [[-18, 1.51, 8], [-12, 1.51, 8]] as const };
     expect(validateMap({ ...kitMap, boulders: [nearSpawn] })).toContain("boulder spawn: center-boulder");
+  });
+
+  it("rejects a mirrored-pair miss on an anchor", () => {
+    const anchors = [{ id: "sun-only", pos: [-5, 8, 0] as const, sway: { axis: "x" as const, amplitude: 1, periodS: 4 } }];
+    expect(validateMap({ ...skyBridgesMap, anchors }).some((error) => error.startsWith("mirror symmetry"))).toBe(true);
   });
 
   it("checks mirror symmetry for every map-kit type", () => {

@@ -12,6 +12,8 @@ const views = [
   { map: "sun-temple", camera: [-29, 1.7, -6, 6, 3, 2] },
   { map: "canopy", camera: [-24, 1.7, -6, 0, 6, 0] },
   { map: "lost-river", camera: [-30, 1.7, 0, 0, 3, 6] },
+  { map: "sky-bridges", camera: [-24, 6, -6, 0, 10, 0] },
+  { map: "sunken-ruins", camera: [-30, 1.7, 0, 0, 3, 6] },
 ] as const;
 
 for (const view of views) {

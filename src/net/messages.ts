@@ -12,7 +12,7 @@ export const SwatMessage = z.object({ swatter: z.string(), shooter: z.string(), 
 /** In Free for All the winner is "player" and mvp names them. */
 export const MatchEndMessage = z.object({ winner: z.enum(["sun", "moon", "draw", "player"]), mvp: z.string() });
 export const RelicMessage = z.object({ event: z.enum(["pickup", "drop", "return", "capture"]), player: z.string(), team: z.number().int() });
-export const MapVoteMessage = z.object({ mapId: z.enum(["sun-temple", "canopy", "lost-river"]) });
+export const MapVoteMessage = z.object({ mapId: z.enum(["sun-temple", "canopy", "lost-river", "sky-bridges", "sunken-ruins"]) });
 
 export type SetNameMessage = z.infer<typeof SetNameMessage>;
 export type KillMessage = z.infer<typeof KillMessage>;

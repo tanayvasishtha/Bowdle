@@ -51,6 +51,8 @@ import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
 import { CREATURE_TEAM, ExpeditionDirector, type ExpeditionHost } from "./expedition.ts";
 import { checkpointFor } from "../../shared/sim/waves.ts";
 import { createPlayerSim, type PlayerSim } from "../../shared/sim/movement.ts";
+import { breakableHitBySegment, createBreakables, createHerbs, damageBreakable, solidBreakableBoxes, stepBreakables, tryGeyserLaunch, tryPickHerb, type BreakableRuntime, type HerbRuntime } from "../../shared/sim/mapFeatures.ts";
+import { BreakableState, MapHerbState } from "../../net/schema.ts";
 import { tuning as creatureTuning } from "../../shared/sim/creatures.ts";
 import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, WaveMessage } from "../../net/messages.ts";
 import { respawnPlayer, updateMatchPhase } from "../../shared/sim/match.ts";
@@ -89,6 +91,11 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   maxMessagesPerSecond = TICK_HZ;
   state = new MatchState();
   private map: MapData = defaultMatchMap;
+  /** Collision map with unbroken breakables merged into boxes. */
+  private playMap: MapData = defaultMatchMap;
+  private breakables: BreakableRuntime[] = [];
+  private mapHerbs: HerbRuntime[] = [];
+  private readonly geyserLaunches = new Map<string, number>();
   private fixedMap = false;
   inputs = this.defineInput(PlayerInput, {
     bufferMaxSize: 32,
@@ -195,19 +202,20 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         if (!player.alive) continue;
         player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
         this.tryLever(sessionId, player, frame, nowMs);
-        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(sessionId, beforeZip, player.zipId);
+        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.playMap, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(sessionId, beforeZip, player.zipId);
       }
     }
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
       player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
       const frame = controller.update(player, this.expedition ? this.creatureTargets() : this.state.players, this.map, nowMs, this.state.inkClouds.values(), this.state.hazards, this.relicView());
-      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.map, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(id, beforeZip, player.zipId);
+      const beforeZip = player.zipId; this.applyEvents(id, player, stepPlayer(player, frame, this.playMap, { nowMs, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(id, beforeZip, player.zipId);
     }
     this.checkFalls();
     this.stepRelic();
     this.updateHazards(nowMs, context.dt);
     this.stepArrows(context);
+    this.stepMapFeatures(nowMs);
     this.expedition?.step(context.dt, context.dtMs);
     for (const [id, cloud] of this.state.inkClouds) if (cloud.expiresAtMs <= nowMs) this.state.inkClouds.delete(id);
     let expired = false;
@@ -262,7 +270,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         const fromX = arrow.x, fromY = arrow.y, fromZ = arrow.z;
         arrow.prevX = fromX; arrow.prevY = fromY; arrow.prevZ = fromZ;
         const gravity = arrow.kind === "grapple" || arrow.kind === "spit" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined;
-        const world = stepArrow(arrow, this.map, context.subDt, gravity, this.simulationNowMs);
+        const world = stepArrow(arrow, this.playMap, context.subDt, gravity, this.simulationNowMs);
         let boulderBlocked = false;
         for (const hazard of this.state.hazards.values()) if (hazard.phase === "roll" && segmentHitsBoulder(fromX, fromY, fromZ, arrow.x, arrow.y, arrow.z, hazard, BOULDER_RADIUS + ARROW_RADIUS)) { boulderBlocked = true; break; }
         let targetId = "", headshot = false, earliest = Number.POSITIVE_INFINITY;
@@ -271,6 +279,16 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
           this.arrowFrom.x = fromX; this.arrowFrom.y = fromY; this.arrowFrom.z = fromZ;
           this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
           if (this.expedition.arrowStep(arrow.owner, arrow, this.arrowFrom, this.arrowTo)) { this.removeArrows.push(id); continue; }
+        }
+        if (this.breakables.length > 0 && isDamaging(arrow.kind) && !boulderBlocked) {
+          const hit = breakableHitBySegment(this.breakables, fromX, fromY, fromZ, arrow.x, arrow.y, arrow.z);
+          if (hit) {
+            const broke = damageBreakable(this.breakables, hit.id, arrow.damage || 25, this.simulationNowMs);
+            const state = this.state.breakables.get(hit.id);
+            if (state) { state.hp = hit.hp; state.broken = hit.broken; }
+            if (broke) this.rebuildPlayMap();
+            this.removeArrows.push(id); continue;
+          }
         }
         if (isDamaging(arrow.kind) && !boulderBlocked && this.swatArrow(id, arrow, fromX, fromY, fromZ)) continue;
         if (isDamaging(arrow.kind) && !boulderBlocked) {
@@ -486,12 +504,89 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private loadMap(map: MapData, nowMs: number): void {
     this.map = map;
     this.state.mapId = map.id;
+    this.breakables = createBreakables(map);
+    this.mapHerbs = createHerbs(map);
+    this.geyserLaunches.clear();
+    this.rebuildPlayMap();
+    this.syncBreakableState();
+    this.syncMapHerbState(nowMs);
     resetRelic(this.state.relic, map);
     for (const player of this.state.players.values()) player.relicCarrier = false;
     this.state.hazards.clear();
     for (const boulder of map.boulders) {
       const hazard = new BoulderHazardState(); resetBoulderHazard(hazard, nowMs);
       const start = boulder.path[0]!; hazard.x = start[0]; hazard.y = start[1]; hazard.z = start[2]; this.state.hazards.set(boulder.id, hazard);
+    }
+  }
+
+  private rebuildPlayMap(): void {
+    const extras = solidBreakableBoxes(this.breakables);
+    if (extras.length === 0) { this.playMap = this.map; return; }
+    this.playMap = {
+      ...this.map,
+      boxes: [
+        ...this.map.boxes,
+        ...extras.map((box, index) => ({
+          id: `breakable-solid-${index}`, min: box.min, max: box.max, material: "wood" as const, tags: ["solid"] as const,
+        })),
+      ],
+    };
+  }
+
+  private syncBreakableState(): void {
+    this.state.breakables.clear();
+    for (const item of this.breakables) {
+      const state = new BreakableState();
+      state.hp = item.hp; state.broken = item.broken;
+      this.state.breakables.set(item.id, state);
+    }
+  }
+
+  private syncMapHerbState(nowMs: number): void {
+    this.state.mapHerbs.clear();
+    for (const herb of this.mapHerbs) {
+      const state = new MapHerbState();
+      state.x = herb.pos[0]; state.y = herb.pos[1]; state.z = herb.pos[2];
+      state.ready = nowMs >= herb.readyAtMs;
+      this.state.mapHerbs.set(herb.id, state);
+    }
+  }
+
+  private stepMapFeatures(nowMs: number): void {
+    const hasGeysers = (this.map.geysers?.length ?? 0) > 0;
+    const hasHerbs = this.mapHerbs.length > 0;
+    const hasBreakables = this.breakables.length > 0;
+    if (!hasGeysers && !hasHerbs && !hasBreakables) return;
+    const players = this.state.players.values();
+    const before = hasBreakables ? this.breakables.map((item) => item.broken) : [];
+    if (hasBreakables) stepBreakables(this.breakables, players, nowMs);
+    if (hasBreakables) {
+      let solidsChanged = false;
+      for (let index = 0; index < this.breakables.length; index += 1) {
+        if (this.breakables[index]!.broken !== before[index]) solidsChanged = true;
+        const state = this.state.breakables.get(this.breakables[index]!.id);
+        if (state) { state.hp = this.breakables[index]!.hp; state.broken = this.breakables[index]!.broken; }
+      }
+      if (solidsChanged) this.rebuildPlayMap();
+    }
+    if (hasGeysers || hasHerbs) {
+      for (const [sessionId, player] of this.state.players) {
+        if (!player.alive) continue;
+        if (hasGeysers) tryGeyserLaunch(this.map.geysers ?? [], player, sessionId, this.geyserLaunches, nowMs);
+        if (hasHerbs) {
+          const picked = tryPickHerb(this.mapHerbs, player, nowMs);
+          if (picked) {
+            const state = this.state.mapHerbs.get(picked.id);
+            if (state) state.ready = false;
+          }
+        }
+      }
+      if (hasHerbs) {
+        for (const herb of this.mapHerbs) {
+          const state = this.state.mapHerbs.get(herb.id);
+          if (state) state.ready = nowMs >= herb.readyAtMs;
+        }
+      }
     }
   }
 

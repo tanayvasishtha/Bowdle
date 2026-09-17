@@ -14,11 +14,11 @@ describe("jungle map rotation", () => {
   beforeEach(async () => { await colyseus.cleanup(); });
   afterAll(async () => { await colyseus.shutdown(); });
 
-  it("rotates Sun Temple, Canopy Village and Lost River", async () => {
+  it("rotates through all five arena maps", async () => {
     const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Observer" }); await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
     expect(room.state.mapId).toBe("sun-temple");
-    for (const expected of ["canopy", "lost-river", "sun-temple"]) {
+    for (const expected of ["canopy", "lost-river", "sky-bridges", "sunken-ruins", "sun-temple"]) {
       room.state.phase = "end"; room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0);
       expect(room.state.mapId).toBe(expected);
     }
@@ -32,7 +32,7 @@ describe("jungle map rotation", () => {
     room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("lost-river");
     room.state.phase = "end"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
     room.voteMap(first.sessionId, "sun-temple"); room.voteMap(second.sessionId, "canopy");
-    room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("sun-temple");
+    room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("sky-bridges");
   });
 
   it("finishes an eight-player Lost River match", async () => {

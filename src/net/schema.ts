@@ -69,6 +69,18 @@ export type CreatureState = SchemaType<typeof CreatureState>;
 export const HerbState = schema({ x: t.number().default(0), y: t.number().default(0), z: t.number().default(0) }, "HerbState");
 export type HerbState = SchemaType<typeof HerbState>;
 
+/** Map-kit plank wall or crate (G10). */
+export const BreakableState = schema({
+  hp: t.number().default(60), broken: t.boolean().default(false),
+}, "BreakableState");
+export type BreakableState = SchemaType<typeof BreakableState>;
+
+/** Map-kit PvP herb; ready=false while respawning. */
+export const MapHerbState = schema({
+  x: t.number().default(0), y: t.number().default(0), z: t.number().default(0), ready: t.boolean().default(true),
+}, "MapHerbState");
+export type MapHerbState = SchemaType<typeof MapHerbState>;
+
 /** The Expedition run: the wave, whether creatures are coming or it is a break, the modifier, solo lives. */
 export const ExpeditionState = schema({
   wave: t.uint16().default(0), phase: t.string<"break" | "fight" | "over">().default("break"), phaseEndsAtMs: t.number().default(0),
@@ -97,6 +109,8 @@ export const MatchState = schema({
   expedition: ExpeditionState,
   creatures: t.map(CreatureState),
   herbs: t.map(HerbState),
+  breakables: t.map(BreakableState),
+  mapHerbs: t.map(MapHerbState),
   mapId: t.string().default("sun-temple"),
   phase: t.string<"warmup" | "live" | "end">().default("warmup"),
   phaseEndsAtMs: t.number().default(0),

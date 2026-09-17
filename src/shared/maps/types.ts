@@ -30,6 +30,21 @@ export type Decor =
 
 export type ZoneBox = { min: Vec3Tuple; max: Vec3Tuple };
 
+/** Swing anchor that moves on a sine from match time. Grapple targets sample this each tick. */
+export type SwingAnchor = {
+  id: string;
+  pos: Vec3Tuple;
+  sway: { axis: "x" | "y" | "z"; amplitude: number; periodS: number };
+};
+/** Upward launch pad. */
+export type Geyser = { id: string; pos: Vec3Tuple; radius: number; launch: number };
+/** Plank wall or crate the server tracks for HP and rebuild. */
+export type Breakable = { id: string; box: { min: Vec3Tuple; max: Vec3Tuple }; hp: number };
+/** PvP heal pickup. Distinct from Expedition herbSpawns. */
+export type Herb = { id: string; pos: Vec3Tuple };
+/** Optional flood timing for maps that override the global Lost River flood clock (Sunken Ruins tide). */
+export type FloodTiming = { periodMs: number; activeMs: number; rise: number };
+
 export type MapData = {
   /** Relic Run: where the relic rests, and each team's capture zone. */
   relic?: Vec3Tuple;
@@ -37,6 +52,12 @@ export type MapData = {
   /** Expedition: where creatures enter and where herbs grow between waves. */
   creatureSpawns?: readonly Vec3Tuple[];
   herbSpawns?: readonly Vec3Tuple[];
+  /** Map kit v3 (G10). Omit or use empty arrays when unused. */
+  anchors?: readonly SwingAnchor[];
+  geysers?: readonly Geyser[];
+  breakables?: readonly Breakable[];
+  herbs?: readonly Herb[];
+  flood?: FloodTiming;
   id: string;
   name: string;
   bounds: { min: Vec3Tuple; max: Vec3Tuple };

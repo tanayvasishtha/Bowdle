@@ -92,8 +92,8 @@ for (const chain of [
 for (let index = 0; index < waypoints.length; index += 1) waypoints[index] = { ...waypoints[index]!, links: links.get(waypoints[index]!.id) ?? [] };
 
 const dressing = jungleDressing({
-  idPrefix: "river",
-  seed: 6301,
+  idPrefix: "sunken-ruins",
+  seed: 7201,
   bounds: rect(-34, -26, 34, 26),
   blockers: { boxes, ramps, volumes, spawns: [...sunSpawns, ...moonSpawns] },
   patchMaterials: ["fern", "canopy", "earth"],
@@ -103,17 +103,24 @@ const dressing = jungleDressing({
 props.push(...dressing.props);
 boxes.push(...dressing.patches);
 
-export const lostRiverMap: MapData = {
+export const sunkenRuinsMap: MapData = {
   relic: [0, -1, 7],
   creatureSpawns: [[27, 0, 0], [20, 0, 10], [8, 0, 18], [8, 0, -18], [8, 0, -23], [30, 0, 6]], herbSpawns: [[-6, 0.2, -6], [6, 0.2, -6]], camps: { sun: { min: [-34, -1.5, -9], max: [-25, 4, 9] }, moon: { min: [25, -1.5, -9], max: [34, 4, 9] } },
-  id: "lost-river", name: "Lost River", bounds: { min: [-36, -2, -28], max: [36, 14, 28] }, boxes, ramps, volumes, zipLines: [], boulders: [], props,
-  spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "flood every two minutes", pos: [0, 3, 4] }, { text: "behind the falls", pos: [0, 3, -22] }], look: { sunShafts: true, stainSeed: 6301 }, landmark: [0, 6, 10],
-  herbs: [
-    { id: "sun-herb", pos: [-18, 0, 8] },
-    { id: "moon-herb", pos: [18, 0, 8] },
-  ],
+  id: "sunken-ruins", name: "Sunken Ruins", bounds: { min: [-36, -2, -28], max: [36, 14, 28] }, boxes, ramps, volumes, zipLines: [], boulders: [], props,
+  spawns: { sun: sunSpawns, moon: moonSpawns }, waypoints, decor: [], notes: [{ text: "tide courtyard", pos: [0, 3, 4] }, { text: "plank flanks", pos: [-14, 2, 0] }], look: { sunShafts: true, stainSeed: 7201 }, landmark: [0, 6, 10],
   geysers: [
-    { id: "sun-geyser", pos: [-6, -1, 0], radius: 1.5, launch: 14 },
-    { id: "moon-geyser", pos: [6, -1, 0], radius: 1.5, launch: 14 },
+    { id: "sun-geyser", pos: [-5, -1, 2], radius: 1.6, launch: 14 },
+    { id: "moon-geyser", pos: [5, -1, 2], radius: 1.6, launch: 14 },
   ],
+  herbs: [
+    { id: "sun-herb", pos: [-20, 0, 4] },
+    { id: "moon-herb", pos: [20, 0, 4] },
+  ],
+  breakables: [
+    { id: "sun-plank", box: { min: [-16, 0, -2], max: [-15, 3, 2] }, hp: 60 },
+    { id: "moon-plank", box: { min: [15, 0, -2], max: [16, 3, 2] }, hp: 60 },
+    { id: "sun-crate", box: { min: [-12, 0, 10], max: [-10, 1.5, 12] }, hp: 60 },
+    { id: "moon-crate", box: { min: [10, 0, 10], max: [12, 1.5, 12] }, hp: 60 },
+  ],
+  flood: { periodMs: 90000, activeMs: 25000, rise: 1.4 },
 };

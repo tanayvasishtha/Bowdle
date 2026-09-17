@@ -67,7 +67,8 @@ export type PlayerSim = {
   downed: boolean;
   slowMs: number;
   zipId: string; zipT: number;
-  kills: number; deaths: number; assists: number;
+  kills: number; deaths: number; assists: number;
+
   /** Movement 2.0 state. `slideMs` now counts time a slide has spent airborne. */
   airJumps: number; wallJumps: number; wallJumpCooldownMs: number; wallTouchMs: number; wallNormalX: number; wallNormalZ: number;
   mantleCooldownMs: number; dodgeCooldownMs: number; landingGraceMs: number;
@@ -226,7 +227,7 @@ export function stepPlayer(state: PlayerSim, rawInput: PlayerInputFrame, map: Ma
   state.pitch = input.pitch;
   stepZipInput(state, input, map, ctx.zipLines);
   const wasGrappling = state.grappleActive;
-  const abilityEvents = stepAbilityInput(state, input, map, 1000 / TICK_HZ);
+  const abilityEvents = stepAbilityInput(state, input, map, 1000 / TICK_HZ, ctx.nowMs);
   // A jump that launched off the rope is used up by the launch.
   const launched = wasGrappling && !state.grappleActive && jumpPressed;
 

@@ -1,4 +1,4 @@
-﻿import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { collectErrors, onlineUrl } from "./helpers.ts";
 
 type AudioApi = { audioState(): { musicBus: number; layers: { pad: number; percussion: number; melody: number }; cues: number }; sessionId: string };
@@ -25,7 +25,6 @@ test("M switches the music bus, and an enemy shot nearby shows a sound indicator
   await peer.goto(onlineUrl("map=sun-temple"));
   await peer.waitForFunction(() => "__bowdleTest" in window);
   await expect.poll(async () => page.locator(".bowdle-timer").textContent(), { timeout: 10_000 }).not.toContain("DRAW IN");
-  const before = (await audio(page)).cues;
   // The second player is on the other team; it shoots straight at the first player.
   const me = await page.evaluate(() => (window as unknown as { __bowdleTest: AudioApi }).__bowdleTest.sessionId);
   await peer.locator("#game-canvas").click();
@@ -33,6 +32,7 @@ test("M switches the music bus, and an enemy shot nearby shows a sound indicator
   await peer.mouse.down();
   // Hold until the draw is full; a loaded machine renders the second page slowly.
   await expect.poll(() => peer.evaluate(() => (window as unknown as { __bowdleTest: { drawMs(): number } }).__bowdleTest.drawMs()), { timeout: 10_000 }).toBeGreaterThanOrEqual(550);
+  const before = (await audio(page)).cues;
   await peer.mouse.up();
   await expect.poll(async () => (await audio(page)).cues, { timeout: 8_000 }).toBeGreaterThan(before);
   await expect(page.locator("[data-testid=sound-cues] [data-cue=shot]").first()).toBeAttached();

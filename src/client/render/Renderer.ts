@@ -37,6 +37,7 @@ import { InkMaterial } from "./InkMaterial.ts";
 import { MATERIAL_ID, PALETTE, TEAM_PALETTES } from "./palette.ts";
 import { rampHeightAt } from "../../shared/maps/ramps.ts";
 import { PropsRenderer } from "./props/PropsRenderer.ts";
+import { MapKitView } from "./MapKitView.ts";
 import { Ambience } from "../audio/ambience.ts";
 import { loadSettings, type GameSettings } from "../settings.ts";
 import { DynamicResolution } from "./dynamicResolution.ts";
@@ -194,6 +195,7 @@ export class Renderer {
   private readonly overlay: HTMLDivElement | null;
   private map: MapData;
   private props: PropsRenderer;
+  private mapKit: MapKitView;
   private ambience: Ambience;
   private previousTime = performance.now();
   private frames = 0;
@@ -217,6 +219,7 @@ export class Renderer {
     this.canvas.dataset.mapFeatures = String(map.ramps.length + map.volumes.length + map.zipLines.length + map.boulders.length);
     container.append(this.canvas);
     this.props = new PropsRenderer([]);
+    this.mapKit = new MapKitView(this.worldScene);
     this.ambience = new Ambience(map);
     this.applySettings(this.settings);
     this.buildMap(map);
@@ -247,7 +250,8 @@ export class Renderer {
     this.canvas.dataset.mapFeatures = String(map.ramps.length + map.volumes.length + map.zipLines.length + map.boulders.length);
     this.composite.setSunShafts(map.look.sunShafts); this.composite.setStainSeed(map.look.stainSeed);
     for (const mesh of mapMeshes(map)) this.mapGroup.add(mesh);
-    this.props = new PropsRenderer(map.props); this.mapGroup.add(this.props);
+    this.props = new PropsRenderer(map.props);
+    this.mapKit.setMap(map); this.mapGroup.add(this.props);
     for (const zip of map.zipLines) {
       const geometry = new BufferGeometry(); geometry.setAttribute("position", new BufferAttribute(new Float32Array([...zip.from, ...zip.to]), 3));
       this.mapGroup.add(new Line(geometry, new LineBasicMaterial({ color: PALETTE.rope })));
@@ -420,6 +424,10 @@ export class Renderer {
 
   creaturesDrawn(): Record<string, number> { return this.creatureView?.drawn() ?? {}; }
   herbsDrawn(): number { return this.creatureView?.herbsDrawn() ?? 0; }
+
+  updateMapKit(matchTimeMs: number, breakableBroken: ReadonlyMap<string, boolean>, herbReady: ReadonlyMap<string, boolean>): void {
+    this.mapKit.update(matchTimeMs, breakableBroken, herbReady);
+  }
 
   /** A burst of ink where a creature fell; the Colossus gets a bigger one. */
   creatureBurst(kind: string, x: number, y: number, z: number, seed: number, nowMs = performance.now()): void {

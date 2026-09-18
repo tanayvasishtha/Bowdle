@@ -650,6 +650,12 @@ export class Renderer {
 
   unpinPlayer(id: string): void { const player = this.players.get(id); if (player) player.rotation.z = 0; }
 
+  /** Compile every material once so the first real frame does not hitch. */
+  async warmShaders(): Promise<void> {
+    await this.renderer.compileAsync(this.worldScene, this.camera);
+    this.render(performance.now());
+  }
+
   render(timeMs = performance.now()): void {
     // 1ms slack so 60 Hz vsync jitter does not drop half the frames at a 60 fps cap.
     if (this.minFrameMs > 0 && timeMs - this.lastPresentedMs + 1 < this.minFrameMs) return;

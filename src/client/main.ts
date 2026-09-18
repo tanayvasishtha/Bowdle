@@ -11,10 +11,11 @@ import { propsGalleryMap } from "../shared/maps/fixtures/props.ts";
 import { sunTempleMap } from "../shared/maps/sunTemple.ts";
 import { canopyMap } from "../shared/maps/canopy.ts";
 import { defaultMatchMap, mapById } from "../shared/maps/registry.ts";
-import { loadName } from "./settings.ts";
+import { loadName, loadSettings, saveSettings } from "./settings.ts";
 import { platform } from "./platform/sdk.ts";
 import { fetchLocker } from "./account.ts";
 import { installMenuStyles, showMainMenu } from "./ui/menu.ts";
+import { runGraphicsBenchmark } from "./graphicsBenchmark.ts";
 import { wantsTouchControls, TouchControls, ensureTouchSettingDefault } from "./ui/touchControls.ts";
 import { loadRejoinTicket, showRejoinBanner, clearRejoinTicket } from "./ui/rejoin.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
@@ -79,16 +80,24 @@ ensureTouchSettingDefault();
 const enableTouch = wantsTouchControls();
 if (params.get("scene") === "online") {
   const loading = document.createElement("section"); loading.className = "bowdle-panel bowdle-loading";
-  loading.innerHTML = `<h2>Opening the field journal…</h2><p>Finding a match in the jungle.</p>`;
+  loading.dataset.testid = "match-loading";
+  loading.innerHTML = `<h2>Opening the field journal…</h2><p data-stage>Finding a match in the jungle.</p><progress data-progress max="100" value="8"></progress>`;
   app.append(loading);
+  const setLoad = (label: string, value: number): void => {
+    loading.querySelector("[data-stage]")!.textContent = label;
+    loading.querySelector<HTMLProgressElement>("[data-progress]")!.value = value;
+  };
   const requestedMapId = params.get("map") ?? undefined;
+  setLoad("Building the map…", 20);
   const renderer = new Renderer(app, params.has("debug"), requestedMapId ? mapById(requestedMapId) ?? defaultMatchMap : defaultMatchMap);
   const sampler = new InputSampler(renderer.canvas);
   if (enableTouch) sampler.attachTouch(new TouchControls(app));
   const requestedParty = normalizePartyCode(params.get("party") ?? "");
   const party = isPartyCode(requestedParty) ? requestedParty : undefined;
   if (party) loading.querySelector("p")!.textContent = `Joining party ${party}.`;
-  void (params.get("rejoin") === "1" && params.get("token")
+  void renderer.warmShaders().then(() => {
+    setLoad("Joining the match…", 70);
+    return (params.get("rejoin") === "1" && params.get("token")
     ? OnlineSession.reconnect(renderer, sampler, params.get("token")!)
     : OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm", params.has("checkpoint"), params.has("startWave") ? Number(params.get("startWave")) : undefined, params.has("ranked"), params.has("weekly"), (params.get("handicaps") ?? "").split(",").filter(Boolean), params.has("spectator"))
   ).then((session) => {
@@ -143,6 +152,7 @@ if (params.get("scene") === "online") {
     loading.innerHTML = `<h2>The trail went cold.</h2><p>${reason}</p><button>Retry</button>`;
     loading.querySelector("button")!.addEventListener("click", () => location.reload());
   });
+  });
 } else if (params.get("scene") === "map" || params.get("scene") === "camp" || params.get("scene") === "kit" || params.get("scene") === "props") {
   const isCamp = params.get("scene") === "camp";
   const mapId = params.get("map");
@@ -186,17 +196,36 @@ if (params.get("scene") === "online") {
     cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
   };
 } else {
-  const ticket = loadRejoinTicket();
-  if (ticket) {
-    showRejoinBanner(app, () => {
-      location.assign(`/?scene=online&rejoin=1&token=${encodeURIComponent(ticket.reconnectionToken)}&mode=${encodeURIComponent(ticket.mode)}`);
-    }, () => { clearRejoinTicket(); showMainMenu(app); });
+  const bootMenu = (): void => {
+    const ticket = loadRejoinTicket();
+    if (ticket) {
+      showRejoinBanner(app, () => {
+        location.assign(`/?scene=online&rejoin=1&token=${encodeURIComponent(ticket.reconnectionToken)}&mode=${encodeURIComponent(ticket.mode)}`);
+      }, () => { clearRejoinTicket(); showMainMenu(app); });
+    } else {
+      showMainMenu(app);
+    }
+  };
+  const settings = loadSettings();
+  if (!settings.graphicsBenchmarked) {
+    const banner = document.createElement("section");
+    banner.className = "bowdle-panel bowdle-loading";
+    banner.dataset.testid = "graphics-benchmark";
+    banner.innerHTML = `<h2>Tuning the look…</h2><p>Sampling a few seconds of frames for this device.</p>`;
+    app.append(banner);
+    void runGraphicsBenchmark(app).then((preset) => {
+      saveSettings({ ...loadSettings(), graphicsPreset: preset, graphicsBenchmarked: true });
+      banner.remove();
+      bootMenu();
+    }).catch(() => {
+      saveSettings({ ...loadSettings(), graphicsPreset: "medium", graphicsBenchmarked: true });
+      banner.remove();
+      bootMenu();
+    });
   } else {
-    showMainMenu(app);
+    bootMenu();
   }
 }
-
-
 
 const swPlatform = import.meta.env.VITE_PLATFORM ?? "web";
 if (import.meta.env.PROD && swPlatform === "web" && "serviceWorker" in navigator) {

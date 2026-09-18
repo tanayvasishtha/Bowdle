@@ -8,6 +8,7 @@ import { music } from "../audio/music.ts";
 import { musicIntensity } from "../audio/spatial.ts";
 import { ACTION_LABELS, ACTIONS, CROSSHAIR_COLORS, CROSSHAIR_SIZE, CROSSHAIR_STYLES, TEAM_PALETTE_NAMES, keyLabel, loadName, loadSettings, nameError, saveName, saveSettings, type Action, type GameSettings } from "../settings.ts";
 import { showLeaderboard, showProfile } from "./profile.ts";
+import { armAttractIdle } from "./attract.ts";
 import { platform } from "../platform/sdk.ts";
 import { showPartyPanel } from "./party.ts";
 import { configuredRegions, formatPingMs, probeRegions } from "../regions.ts";
@@ -200,6 +201,7 @@ menu.querySelector("[data-action=party]")!.addEventListener("click", () => withN
   menu.querySelector("[data-action=profile]")!.addEventListener("click", () => { void showProfile(container, () => undefined); });
   menu.querySelector("[data-action=leaderboard]")!.addEventListener("click", () => { void showLeaderboard(container, () => undefined); });
   menu.querySelector("[data-action=settings]")!.addEventListener("click", () => showSettings(container, () => undefined));
+  armAttractIdle(container, menu);
 }
 
 export function showDesktopOnly(container: HTMLElement): void {

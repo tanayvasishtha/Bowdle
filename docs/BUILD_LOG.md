@@ -1,5 +1,13 @@
 ## F4: Repo hygiene, encoding and zero browser fails
 
+## LEFT-F3 - Attract, benchmark, loading warm-up, share assets (2026-09-18)
+
+- Attract mode after 30 s idle on the main menu (orbit camera over a random match map).
+- First-launch graphics benchmark writes `graphicsPreset` via `presetFromFrameMs`.
+- Online loading progress stages + `Renderer.warmShaders()` before join.
+- Real `npm run og` / `npm run icons` generators for parchment share/install art.
+
+
 Built:
 - Cleared root scratch `tmp-*` / `tmp_*` files; `.gitignore` now ignores `tmp-*`, `tmp_*`, and `.devmode.json`.
 - Fixed double-encoded ellipsis and middle dots in client copy (`…`, `·`); stripped BOMs from touched sources.

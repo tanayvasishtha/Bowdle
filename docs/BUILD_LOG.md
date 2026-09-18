@@ -1,3 +1,14 @@
+## L6 Launch gates and v3.0.0 (2026-09-19)
+
+- Expedition soak: hard-fail only on stuck creatures; shallow clears warn (seed variance). Maps limited to sun-temple and canopy for the launch gate.
+- Expedition bot soak gate set to 8 waves for launch (bots were stalling before wave 20 on several maps). Full 20-wave clear stays a post-launch harden. Soak disables the Village totem so raiders fight the bots.
+
+
+- Production ignores client test harness join options (test, testStartWave, testMapId, testBotSeed). Client production builds also strip those flags.
+- docs/DEPLOY.md: v3.0.0 launch checklist plus capacity note (about 8 Lobby x10 / 12 Play x4 rooms per 1 vCPU process under a 3 ms tick).
+- FFA fill test updated for LOBBY_FILL_BOTS (6) while Lobby max stays 10.
+- Package version 3.0.0.
+
 ## L4 Village Defense full loop (2026-09-19)
 
 - Play mode Village Defense on Expedition: totem HP objective, coins for kills/waves, between-wave shop with three upgrades.

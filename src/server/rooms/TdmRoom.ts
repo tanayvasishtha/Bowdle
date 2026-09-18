@@ -177,6 +177,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   skillsLoaded: Promise<void> = Promise.resolve();
 
   onCreate(options: JoinOptions): void {
+    // Launch safety: never honor client test harness options in production.
+    if (process.env.NODE_ENV === "production") {
+      options = { ...options, test: false, testStartWave: undefined, testMapId: undefined, testBotSeed: undefined };
+    }
     this.rankedMode = this.roomName === "ranked";
     this.partyCode = isPartyCode(options.party) ? options.party : "";
     // Public rooms are named after their mode; a party room takes the mode its leader picked.

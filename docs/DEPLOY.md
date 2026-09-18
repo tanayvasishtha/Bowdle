@@ -102,3 +102,25 @@ VITE_REGIONS='[{"id":"eu","url":"https://eu.bowdle.example"},{"id":"us","url":"h
 ## Ranked seasons
 
 When a new season id first appears, the ranked queue soft-resets ratings from the previous season via `softResetSeasonRatings` (RD opens back up; rating drifts toward the mean). You can also run it manually from a server shell if you need to force a soft reset.
+
+## Launch checklist (v3.0.0)
+
+1. `npm run check` green on the release commit.
+2. `npm run smoke` green against a production build.
+3. `npm run soak` green (Lobby bots and Village Defense / Expedition waves).
+4. Environment: `NODE_ENV=production`, `DATABASE_URL` (or durable PGlite dir), `TRUST_PROXY=1` behind a load balancer.
+5. Run migrations once against production, then confirm `GET /health` returns ready with a durable `database` mode.
+6. Domain and HTTPS up; WebSocket joins work from two networks.
+7. Ten-minute playtest of Training, Play (Village Defense), and Lobby with two people on the production URL.
+8. Error logging visible (service logs); guest and report rate limits engaged.
+9. Rollback: redeploy the previous known-good image or tag; do not force-push release tags.
+
+## Capacity note (L6)
+
+One Bowdle Node process is sized for launch traffic as:
+
+- Lobby rooms of 10: about **8** concurrent rooms under a 3 ms tick budget on a 1 vCPU / 1 GB instance (measure with `npm run soak` and watch `averageTickMs` in `serverMetrics`).
+- Play / Village Defense rooms of 4: about **12** concurrent rooms on the same box.
+
+If `averageTickMs` stays under 3 with your target room count, keep a single process. To scale further, run several identical processes behind the load balancer (sticky sessions or Colyseus presence when you outgrow one node). Do not add a presence driver until measured load requires it.
+

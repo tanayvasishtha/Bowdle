@@ -239,6 +239,9 @@ export class OnlineSession {
   }
 
 static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false, weekly = false, handicaps: readonly string[] = [], spectator = false): Promise<OnlineSession> {
+    const allowTest = !import.meta.env.PROD;
+    testing = allowTest && testing;
+    if (!allowTest) { testMapId = undefined; testRoom = undefined; testStartWave = undefined; }
     const probes = await probeRegions();
     const chosen = chooseRegion(probes);
     const endpoint = regionEndpoint(chosen);

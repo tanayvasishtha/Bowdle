@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import type { PlayerState } from "../../src/net/schema.ts";
-import { MAX_HP, MODE_TUNING, RELIC } from "../../src/shared/constants.ts";
+import { LOBBY_FILL_BOTS, MAX_HP, MODE_TUNING, RELIC } from "../../src/shared/constants.ts";
 import type { MatchStats } from "../../src/shared/matchStats.ts";
 
 const step = { dt: 1 / 30, dtMs: 1000 / 30, tick: 1, subSteps: 2, subDt: 1 / 60, subDtMs: 1000 / 60 };
@@ -19,13 +19,13 @@ describe("Free for All and Relic Run rooms", () => {
   beforeEach(async () => { await colyseus.cleanup(); });
   afterAll(async () => { await colyseus.shutdown(); });
 
-  it("fills Free for All with eight players on their own teams and ends at 20 kills", async () => {
+  it("fills Free for All to the bot floor with unique teams and ends at 20 kills", async () => {
     const client = await colyseus.sdk.joinOrCreate("ffa", { name: "Loner" });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
     expect(room.state.mode).toBe("ffa");
-    expect(room.state.players.size).toBe(MODE_TUNING.ffaPlayers);
-    expect(new Set([...room.state.players.values()].map((player) => player.team)).size).toBe(MODE_TUNING.ffaPlayers);
+    expect(room.state.players.size).toBe(LOBBY_FILL_BOTS);
+    expect(new Set([...room.state.players.values()].map((player) => player.team)).size).toBe(LOBBY_FILL_BOTS);
     const tdm = await colyseus.sdk.joinOrCreate("tdm", { name: "Teamer" });
     expect(tdm.roomId).not.toBe(client.roomId);
     expect(colyseus.getRoomById<TdmRoom>(tdm.roomId).state.mode).toBe("tdm");

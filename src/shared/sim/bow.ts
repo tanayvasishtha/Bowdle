@@ -9,6 +9,7 @@ import {
   QUIVER,
   RELEASE_COOLDOWN_MS,
 } from "../constants.ts";
+import { featureEnabled } from "../features.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import { clamp } from "../math/angles.ts";
 import type { PlayerSim } from "./movement.ts";
@@ -23,6 +24,8 @@ export type FireEvent = {
   x: number; y: number; z: number;
   yaw: number; pitch: number;
   fraction: number; speed: number; damage: number;
+  /** Meters along the look ray to converge on. Defaults to 200. */
+  aimRange?: number;
 };
 
 export type MeleeEvent = { type: "melee"; x: number; y: number; z: number; yaw: number; pitch: number };
@@ -43,9 +46,16 @@ export function stepQuiver(state: PlayerSim, buttons: number, previous: number, 
     state.scatterRechargeMs -= tickMs;
     if (state.scatterRechargeMs <= 0) { state.scatterCharges += 1; state.scatterRechargeMs = state.scatterCharges < QUIVER.scatter.charges ? QUIVER.scatter.rechargeMs : 0; }
   }
-  for (let slot = 0; slot < SLOT_BUTTONS.length; slot += 1) if (isPressed(buttons, previous, SLOT_BUTTONS[slot]!)) state.arrowSlot = slot;
-  if (isPressed(buttons, previous, BTN.SLOT_NEXT)) state.arrowSlot = (state.arrowSlot + 1) % ARROW_SLOTS.length;
-  if (isPressed(buttons, previous, BTN.SLOT_PREV)) state.arrowSlot = (state.arrowSlot + ARROW_SLOTS.length - 1) % ARROW_SLOTS.length;
+  for (let slot = 0; slot < SLOT_BUTTONS.length; slot += 1) {
+    if (!isPressed(buttons, previous, SLOT_BUTTONS[slot]!)) continue;
+    if (!featureEnabled("extraArrows") && slot !== 0) continue;
+    state.arrowSlot = slot;
+  }
+  if (!featureEnabled("extraArrows")) state.arrowSlot = 0;
+  if (featureEnabled("extraArrows")) {
+    if (isPressed(buttons, previous, BTN.SLOT_NEXT)) state.arrowSlot = (state.arrowSlot + 1) % ARROW_SLOTS.length;
+    if (isPressed(buttons, previous, BTN.SLOT_PREV)) state.arrowSlot = (state.arrowSlot + ARROW_SLOTS.length - 1) % ARROW_SLOTS.length;
+  }
 }
 
 /**
@@ -105,7 +115,7 @@ export function stepCombat(state: PlayerSim, input: PlayerInputFrame, tickMs: nu
     }
     state.drawMs = 0;
   }
-  if (isPressed(input.buttons, state.prevButtons, BTN.MELEE) && state.meleeCooldownMs <= 0) {
+  if (featureEnabled("melee") && isPressed(input.buttons, state.prevButtons, BTN.MELEE) && state.meleeCooldownMs <= 0) {
     state.drawMs = 0;
     state.meleeCooldownMs = MELEE_COOLDOWN_MS;
     events.push({ type: "melee", x: state.x, y: state.y, z: state.z, yaw: state.yaw, pitch: state.pitch });

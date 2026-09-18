@@ -22,7 +22,8 @@ describe("game server", () => {
     process.env.REGION = "test-region";
     try {
       const response = await colyseus.http.get("/health");
-      expect(response.data).toEqual({ ok: true, region: "test-region" });
+      expect(response.data).toMatchObject({ ok: true, region: "test-region" });
+      expect(response.data).toHaveProperty("database");
     } finally {
       if (previous === undefined) delete process.env.REGION;
       else process.env.REGION = previous;

@@ -16,22 +16,61 @@ const to: Vec3 = { x: 0, y: 0, z: 0 };
 /** Every arrow one release shoots: three spread by the scatter angle for a scatter volley, otherwise one. */
 export function spawnVolley(event: FireEvent, crouched = false): Array<ArrowSim & { kind: ArrowKind }> {
   if (event.kind !== "scatter") return [{ ...spawnArrow(event, crouched), kind: event.kind }];
+  const base = spawnArrow(event, crouched);
   const spread = QUIVER.scatter.spreadDeg * Math.PI / 180;
-  return [-spread, 0, spread].map((offset) => ({ ...spawnArrow({ ...event, yaw: event.yaw + offset }, crouched), kind: "scatter" as const }));
+  return [-spread, 0, spread].map((offset) => {
+    const cos = Math.cos(offset);
+    const sin = Math.sin(offset);
+    const vx = base.vx * cos + base.vz * sin;
+    const vz = -base.vx * sin + base.vz * cos;
+    return { ...base, vx, vz, kind: "scatter" as const };
+  });
 }
 
 export function headMultiplier(kind: string): number { return kind === "scatter" ? QUIVER.scatter.headMult : HEAD_MULT; }
 
-export function spawnArrow(event: Omit<FireEvent, "kind">, crouched = false): ArrowSim {
-  const cosPitch = Math.cos(event.pitch);
-  const dx = -Math.sin(event.yaw) * cosPitch;
-  const dy = Math.sin(event.pitch);
-  const dz = -Math.cos(event.yaw) * cosPitch;
+/** Point on the look ray at range meters (crosshair convergence target). */
+export function aimPointFromLook(
+  x: number, y: number, z: number,
+  yaw: number, pitch: number,
+  crouched = false,
+  range = 200,
+): { x: number; y: number; z: number } {
   const eye = crouched ? EYE_CROUCH : EYE_STAND;
+  const lookX = -Math.sin(yaw) * Math.cos(pitch);
+  const lookY = Math.sin(pitch);
+  const lookZ = -Math.cos(yaw) * Math.cos(pitch);
   return {
-    x: event.x + dx * ARROW_SPAWN_FORWARD,
-    y: event.y + eye + dy * ARROW_SPAWN_FORWARD,
-    z: event.z + dz * ARROW_SPAWN_FORWARD,
+    x: x + lookX * range,
+    y: y + eye + lookY * range,
+    z: z + lookZ * range,
+  };
+}
+
+export function spawnArrow(event: Omit<FireEvent, "kind">, crouched = false): ArrowSim {
+  const eye = crouched ? EYE_CROUCH : EYE_STAND;
+  const handY = eye - 0.22;
+  const right = 0.22;
+  const forward = 0.12;
+  const sinYaw = Math.sin(event.yaw);
+  const cosYaw = Math.cos(event.yaw);
+  const hx = event.x + cosYaw * right - sinYaw * forward;
+  const hy = event.y + handY;
+  const hz = event.z - sinYaw * right - cosYaw * forward;
+  const range = event.aimRange ?? 200;
+  const aim = aimPointFromLook(event.x, event.y, event.z, event.yaw, event.pitch, crouched, range);
+  let dx = aim.x - hx;
+  let dy = aim.y - hy;
+  let dz = aim.z - hz;
+  const horiz = Math.hypot(dx, dz) || 1;
+  const flight = horiz / Math.max(1, event.speed);
+  dy += 0.5 * ARROW_GRAVITY * flight * flight;
+  const len = Math.hypot(dx, dy, dz) || 1;
+  dx /= len; dy /= len; dz /= len;
+  return {
+    x: hx + dx * ARROW_SPAWN_FORWARD,
+    y: hy + dy * ARROW_SPAWN_FORWARD,
+    z: hz + dz * ARROW_SPAWN_FORWARD,
     vx: dx * event.speed,
     vy: dy * event.speed,
     vz: dz * event.speed,

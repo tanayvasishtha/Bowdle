@@ -21,6 +21,8 @@ import {
   RESPAWN_MS,
   RECONNECT_WINDOW_S,
   STAND_HEIGHT,
+  EYE_STAND,
+  EYE_CROUCH,
   SUBSTEPS,
   TEAM_SIZE,
   TEAM_COUNT,
@@ -343,8 +345,31 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     } else this.auditMovement.zipRides += 1;
   }
 
+  private aimRangeAlongLook(owner: string, event: FireEvent): number {
+    const crouched = this.state.players.get(owner)?.crouched ?? false;
+    const eye = crouched ? EYE_CROUCH : EYE_STAND;
+    const lookX = -Math.sin(event.yaw) * Math.cos(event.pitch);
+    const lookY = Math.sin(event.pitch);
+    const lookZ = -Math.cos(event.yaw) * Math.cos(event.pitch);
+    const from = { x: event.x, y: event.y + eye, z: event.z };
+    const to = { x: event.x + lookX * 200, y: event.y + eye + lookY * 200, z: event.z + lookZ * 200 };
+    let best = 200;
+    for (const [id, target] of this.state.players) {
+      if (id === owner || !target.alive) continue;
+      this.hitTarget.x = target.x;
+      this.hitTarget.y = target.y;
+      this.hitTarget.z = target.z;
+      this.hitTarget.height = target.height;
+      this.hitTarget.crouched = this.hitTarget.height < STAND_HEIGHT;
+      const hit = sweepArrowVsTarget(from, to, this.hitTarget, "arrow");
+      if (hit && hit.t * 200 < best) best = Math.max(2, hit.t * 200);
+    }
+    return best;
+  }
+
   private createArrow(owner: string, team: number, event: FireEvent): void {
-    for (const sim of spawnVolley(event, this.state.players.get(owner)?.crouched)) {
+    const aimed = { ...event, aimRange: event.aimRange ?? this.aimRangeAlongLook(owner, event) };
+    for (const sim of spawnVolley(aimed, this.state.players.get(owner)?.crouched)) {
       const arrow = new ArrowState(); Object.assign(arrow, sim);
       arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
       arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs;

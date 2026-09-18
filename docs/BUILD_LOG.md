@@ -1,11 +1,11 @@
-## F4: Repo hygiene, encoding and zero browser fails
+﻿## F4: Repo hygiene, encoding and zero browser fails
 
 ## P1 Persistence (2026-09-18)
 
 - `/health` now reports `database`: `postgres` | `pglite` | `memory`.
 - `.env.example` documents `DATABASE_URL` and `PGLITE_DIR`.
 - `npm run persist-smoke` proves a guest account survives reopening a `PGLITE_DIR`.
-- Added `docs/LAUNCH-READY.md` and `docs/RUNBOOK-LAUNCH.md` (P2–P4 still TODO).
+- Added `docs/LAUNCH-READY.md` and `docs/RUNBOOK-LAUNCH.md` (P2â€“P4 still TODO).
 - Does **not** claim million-user scale; this is durable accounts on one node.
 
 
@@ -19,22 +19,22 @@
 
 ## Controls / POV feel (2026-09-18)
 
-- FOV range widened from 80–110 to **70–120** (Settings slider).
-- Added **Vertical look** sensitivity (0.5–2) for mouse, gamepad, and touch.
+- FOV range widened from 80â€“110 to **70â€“120** (Settings slider).
+- Added **Vertical look** sensitivity (0.5â€“2) for mouse, gamepad, and touch.
 - Mouse sensitivity slider max raised to **0.012**.
-- Pitch look was already near full (±89°); left as-is.
+- Pitch look was already near full (Â±89Â°); left as-is.
 
 ## Playability audit (2026-09-18)
 
 - `npm run build` + `npm run smoke` green: `/health`, guest auth, profile, WebSocket TDM join.
-- Playwright play-path: practice headshot, two-player shared movement + HEADSHOT kill, solo online match, grapple/ink online, journal render â€” passed.
+- Playwright play-path: practice headshot, two-player shared movement + HEADSHOT kill, solo online match, grapple/ink online, journal render Ã¢â‚¬â€ passed.
 - Flake found: LEFT-F3 first-launch graphics benchmark hid the menu `h1` for ~5s and failed smoke/menu e2e. Fixed by seeding `graphicsBenchmarked` in e2e helpers and skipping the sample when `?test` is present.
 - Without `DATABASE_URL` the server uses in-memory DB (accounts reset on restart); still playable locally.
 
 
 ## Hotfix - spectator stub, WebGL dispose, join UX (2026-09-18)
 
-- Spectator local state stub now includes the player fields the session reads (alive, draw, grapple, look, â€¦).
+- Spectator local state stub now includes the player fields the session reads (alive, draw, grapple, look, Ã¢â‚¬Â¦).
 - `Renderer.dispose()` added; attract + first-launch benchmark release their WebGL contexts.
 - Canvas ids are unique so attract/benchmark do not collide with `#game-canvas`.
 - Rejoin ticket cleared only after a successful reconnect session is built.
@@ -52,7 +52,7 @@
 
 Built:
 - Cleared root scratch `tmp-*` / `tmp_*` files; `.gitignore` now ignores `tmp-*`, `tmp_*`, and `.devmode.json`.
-- Fixed double-encoded ellipsis and middle dots in client copy (`â€¦`, `Â·`); stripped BOMs from touched sources.
+- Fixed double-encoded ellipsis and middle dots in client copy (`Ã¢â‚¬Â¦`, `Ã‚Â·`); stripped BOMs from touched sources.
 - Added `scripts/check-mojibake.mjs` and wired it into `npm run check`.
 - Gamepad menu focus order expects Play, Ranked, Free for All (matches the live main menu).
 - Restored `shotCueRangeM` to 30; audio e2e calls `placeNear(12)` before the enemy shot.
@@ -176,11 +176,11 @@ Status: done.
 ## G14: Balance pass, release QA, v2.0.0
 
 Built:
-- `scripts/balance-report.ts`  -  N bot matches per PvP modeÃ—map (tdm/ffa/relic Ã— matchMaps; skips expedition). CLI `node scripts/balance-report.ts [seeds]` (default 20). Prints kills by weapon and arrow kind, average TTK, headshot rate, movement verb samples (grapple/swing/zip/tether) plus zip/tether ride starts, and relic capture carry/match times. Flags weapons >45% of kills and team wins >60% of seeds (FFA reports kill-leader share instead).
+- `scripts/balance-report.ts`  -  N bot matches per PvP modeÃƒâ€”map (tdm/ffa/relic Ãƒâ€” matchMaps; skips expedition). CLI `node scripts/balance-report.ts [seeds]` (default 20). Prints kills by weapon and arrow kind, average TTK, headshot rate, movement verb samples (grapple/swing/zip/tether) plus zip/tether ride starts, and relic capture carry/match times. Flags weapons >45% of kills and team wins >60% of seeds (FFA reports kill-leader share instead).
 - Public room audit ledger on `TdmRoom` (`auditKills`, `auditCaptures`, `auditMovement`, `clearBalanceAudit`) filled from the dealDamage/kill and relic capture paths without changing network messages; arrow kind comes from the existing kill path argument.
 - `npm run balance`, package version **2.0.0**.
 - Docs marked v2.0.0 / G1 - G14 shipped: GAME.md, JUNGLE-MAPS.md, ECONOMY.md, RETENTION.md, README, DEPLOY.md.
-- Optional Playwright screenshots: `G14_SHOTS=1 npx playwright test tests/e2e/g14-qa.spec.ts` â†’ `test-results/qa/g14/` (not committed).
+- Optional Playwright screenshots: `G14_SHOTS=1 npx playwright test tests/e2e/g14-qa.spec.ts` Ã¢â€ â€™ `test-results/qa/g14/` (not committed).
 
 Constant changes: **none.** Release balance (`seeds=20`, wall ~6.4 min) flagged arrow at ~96% of kills (expected primary weapon) and a mild Moon win skew on several mirrored TDM maps (65 - 70%). Across X-mirrored arenas that skew is attributed to bot fill/seed ordering in the soak harness, not map or damage constants  -  no shared-constant tweak without a clear gameplay problem. Scatter stayed well under 45% of kills (~13 - 27% depending on cell).
 
@@ -1163,7 +1163,7 @@ Built:
 
 - Replaced the temporary launch page with a journal-style main menu for Play, Practice, and Settings, plus first-visit explorer naming stored locally and validated against a built-in reserved/unfriendly word list on both client and server.
 
-- Added persistent mouse sensitivity, 80Ã¢â‚¬â€œ110 field of view, master volume, animated ink boil, floating notes, team symbols, and complete keyboard/mouse action rebinding. Saved bindings drive gameplay, scoreboard, menu, and development overlay input.
+- Added persistent mouse sensitivity, 80ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“110 field of view, master volume, animated ink boil, floating notes, team symbols, and complete keyboard/mouse action rebinding. Saved bindings drive gameplay, scoreboard, menu, and development overlay input.
 
 - Added circle and triangle team markers, thicker high-contrast symbol strokes, live FOV changes, note visibility, volume changes, and an option to freeze the ink boil.
 
@@ -1245,7 +1245,7 @@ Built:
 
 - Added Practice Camp with fixed and moving bow targets, a watchtower zip line, grapple wall, slide logs, boulder lane and safe alcove, creek crossing, and a moving opponent confined to the tall-grass stealth lane.
 
-- Added the map registry and deterministic Sun Temple Ã¢â€ â€™ Canopy Village Ã¢â€ â€™ Lost River match rotation. Synchronized map ids now rebuild the client world and ambience between matches.
+- Added the map registry and deterministic Sun Temple ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Canopy Village ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Lost River match rotation. Synchronized map ids now rebuild the client world and ambience between matches.
 
 - Removed the retired prototype arena and target lane, including their source files, routes, tests, and documentation references.
 
@@ -1779,7 +1779,7 @@ Built:
 
 - Practice long-shot picture-in-picture using the shot's recorded ballistic trajectory at replay speed.
 
-- Seeded 9Ã¢â‚¬â€œ14-point team-ink headshot splats, near-wall body pinning, three-second body arrows, eight-second wall arrows, and screen-edge directional damage arcs.
+- Seeded 9ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“14-point team-ink headshot splats, near-wall body pinning, three-second body arrows, eight-second wall arrows, and screen-edge directional damage arcs.
 
 - Swept segment-to-segment arrow clash detection every physics substep, global Robin Hood messages, deferred reward records, banner, and procedural paper-tear sound.
 
@@ -1847,13 +1847,13 @@ Built:
 
 - A 38-node mirrored prototype navigation graph covering every spawn, both lanes, cover flanks, bridge stairs/top, and perch stairs/top.
 
-- Map validation rules 6Ã¢â‚¬â€œ8: graph connectivity, capsule-aware standing walk sweeps with step-up, and a visible waypoint within three metres of every spawn.
+- Map validation rules 6ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“8: graph connectivity, capsule-aware standing walk sweeps with step-up, and a visible waypoint within three metres of every spawn.
 
 - A* routing, waypoint following, jump links, and seeded slide decisions on long walk links.
 
 - Three-iteration ballistic lead with gravity and target velocity, plus seeded easy/normal/hard aim error.
 
-- Deterministic roam, engage, and low-health retreat states with solid-box sight checks, 250 ms reaction time, 450Ã¢â‚¬â€œ650 ms draw timing, and combat strafing.
+- Deterministic roam, engage, and low-health retreat states with solid-box sight checks, 250 ms reaction time, 450ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“650 ms draw timing, and combat strafing.
 
 - Automatic 4v4 team filling. A joining person replaces a computer-controlled slot on the less-populated human team; a departing person is replaced while preserving stats.
 
@@ -2235,7 +2235,7 @@ Built:
 
 - Pure shared map types, `mirrorX`, stair generation, and the prototype shell, cover, stairs, bridge, spawns, and decor.
 
-- Map validation rules 1Ã¢â‚¬â€œ5 and 9: box dimensions, bounds, mirror symmetry, spawn clearance and support, stair height, and opposing spawn sightlines.
+- Map validation rules 1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“5 and 9: box dimensions, bounds, mirror symmetry, spawn clearance and support, stair height, and opposing spawn sightlines.
 
 - Three-pass WebGL2 renderer with world and viewmodel G-buffers, depth textures, full-screen composite, paper grain, ruled paper, margin line, boiling edges, normal/depth outlines, and stepped cross-hatching.
 
@@ -2291,5 +2291,15 @@ Verify by hand:
 
 - Confirm the F3 overlay remains below 40 draw calls from useful map viewpoints.
 
+
+
+
+## L1 â€” Shooting that feels right (2026-09-19 00:18 IST)
+
+- Aim convergence: arrows spawn from the bow hand toward the look-ray aim point (aimRange from look-ray player hit, default 200 m), with gravity compensation so 10 / 25 / 40 m land within a head radius.
+- Draw 80 to 400 ms, arrow speed 70 to 140 m/s, gravity 4.5, head/body radii +15%.
+- Feature flags in `src/shared/features.ts`: extraArrows and melee off at launch; quiver UI and wheel hide scatter/tether.
+- Tests: aimConvergence, fireLaunch; combat headshot pitch tuned for flatter arrows; vitest clears PGLITE_DIR so shop/accounts do not share the durable game DB.
+- Gates: `npm run check`, `npm run smoke` green.
 
 

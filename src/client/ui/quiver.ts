@@ -1,4 +1,5 @@
 import { QUIVER } from "../../shared/constants.ts";
+import { featureEnabled } from "../../shared/features.ts";
 import { ARROW_SLOTS } from "../../shared/sim/bow.ts";
 
 type QuiverSource = { arrowSlot: number; scatterCharges: number; scatterRechargeMs: number; tetherCooldownMs: number };
@@ -22,7 +23,8 @@ export class QuiverStrip {
   }
 
   update(source: QuiverSource): void {
-    const cards = ARROW_SLOTS.map((kind, slot) => {
+    const slots = featureEnabled("extraArrows") ? ARROW_SLOTS : ARROW_SLOTS.slice(0, 1);
+    const cards = slots.map((kind, slot) => {
       let detail = "any time";
       if (kind === "scatter") {
         const pips = "●".repeat(source.scatterCharges) + "○".repeat(QUIVER.scatter.charges - source.scatterCharges);

@@ -1,3 +1,4 @@
+import { setFeatureOverride } from "../../src/shared/features.ts";
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
@@ -8,6 +9,8 @@ import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
 import { PlayerState } from "../../src/net/schema.ts";
 
 describe("movement 2.0 online", () => {
+  beforeAll(() => setFeatureOverride("extraArrows", true));
+  afterAll(() => setFeatureOverride("extraArrows", undefined));
   let colyseus: ColyseusTestServer<typeof server>;
   beforeAll(async () => { colyseus = await boot(server); });
   beforeEach(async () => { await colyseus.cleanup(); });

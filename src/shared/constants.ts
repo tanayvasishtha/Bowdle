@@ -196,17 +196,17 @@ export const SLIDE_COOLDOWN_MS = 500;
 
 export const SLIDE_JUMP_MULT = 1.06;
 
-export const DRAW_MIN_MS = 120;
+export const DRAW_MIN_MS = 80;
 
-export const DRAW_FULL_MS = 550;
+export const DRAW_FULL_MS = 400;
 
 export const RELEASE_COOLDOWN_MS = 200;
 
-export const ARROW_SPEED_MIN = 45;
+export const ARROW_SPEED_MIN = 70;
 
-export const ARROW_SPEED_MAX = 95;
+export const ARROW_SPEED_MAX = 140;
 
-export const ARROW_GRAVITY = 9;
+export const ARROW_GRAVITY = 4.5;
 
 export const ARROW_RADIUS = 0.07;
 
@@ -242,9 +242,9 @@ export const QUIVER = {
 
 export const SWAT = { rangeM: 1.8, arcDeg: 70, windowMs: 180, minArrowAgeMs: 60 } as const;
 
-export const HEAD_RADIUS = 0.25;
+export const HEAD_RADIUS = 0.2875;
 
-export const BODY_RADIUS = 0.38;
+export const BODY_RADIUS = 0.437;
 
 export const MELEE_DAMAGE = 55;
 

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { setFeatureOverride } from "../features.ts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DRAW_FULL_MS, MODE_TUNING, RELIC, RUN_SPEED, SCORE_LIMIT } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import { matchMaps } from "../maps/registry.ts";
@@ -107,7 +108,9 @@ describe("relic", () => {
 });
 
 describe("relic carrier", () => {
-  const flat: MapData = { ...matchMaps[0]!, boxes: [{ id: "floor", min: [-50, -1, -50], max: [50, 0, 50], material: "earth", tags: ["solid"] }, { id: "hook", min: [-1, 0, -12], max: [1, 5, -10], material: "wood", tags: ["solid", "grapple"] }], ramps: [], volumes: [], zipLines: [], boulders: [] };
+  beforeEach(() => setFeatureOverride("extraArrows", true));
+  afterEach(() => setFeatureOverride("extraArrows", undefined));
+    const flat: MapData = { ...matchMaps[0]!, boxes: [{ id: "floor", min: [-50, -1, -50], max: [50, 0, 50], material: "earth", tags: ["solid"] }, { id: "hook", min: [-1, 0, -12], max: [1, 5, -10], material: "wood", tags: ["solid", "grapple"] }], ramps: [], volumes: [], zipLines: [], boulders: [] };
   const forward: PlayerInputFrame = { moveX: 0, moveZ: 1, yaw: 0, pitch: 0, buttons: 0 };
 
   it("runs slower", () => {

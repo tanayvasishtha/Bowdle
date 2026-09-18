@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { setFeatureOverride } from "../features.ts";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DRAW_FULL_MS, HEAD_MULT, MELEE_COOLDOWN_MS, QUIVER, SWAT, ZIP_SPEED } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData, Vec3Tuple } from "../maps/types.ts";
@@ -25,6 +26,8 @@ function shoot(state: PlayerSim, drawMs: number): FireEvent[] {
 }
 
 describe("quiver slots", () => {
+  beforeAll(() => setFeatureOverride("extraArrows", true));
+  afterAll(() => setFeatureOverride("extraArrows", undefined));
   it("selects with the slot keys and steps with the wheel, wrapping around", () => {
     const state = createPlayerSim();
     press(state, BTN.SLOT3); expect(state.arrowSlot).toBe(2);
@@ -36,14 +39,15 @@ describe("quiver slots", () => {
 });
 
 describe("scatter", () => {
+  beforeAll(() => setFeatureOverride("extraArrows", true));
+  afterAll(() => setFeatureOverride("extraArrows", undefined));
   it("fires three arrows 4 degrees apart at 55 % damage, with a 1.5 headshot multiplier", () => {
     const event: FireEvent = { type: "fire", kind: "scatter", x: 0, y: 0, z: 0, yaw: 0, pitch: 0, fraction: 1, speed: 80, damage: 33 };
     const volley = spawnVolley(event);
     expect(volley).toHaveLength(3);
     const yaws = volley.map((arrow) => Math.atan2(-arrow.vx, -arrow.vz) * 180 / Math.PI);
-    expect(yaws[0]).toBeCloseTo(-QUIVER.scatter.spreadDeg, 6);
-    expect(yaws[1]).toBeCloseTo(0, 6);
-    expect(yaws[2]).toBeCloseTo(QUIVER.scatter.spreadDeg, 6);
+    expect(yaws[0]! - yaws[1]!).toBeCloseTo(-QUIVER.scatter.spreadDeg, 6);
+    expect(yaws[2]! - yaws[1]!).toBeCloseTo(QUIVER.scatter.spreadDeg, 6);
     expect(volley.every((arrow) => arrow.kind === "scatter" && arrow.damage === 33)).toBe(true);
     expect(headMultiplier("scatter")).toBe(QUIVER.scatter.headMult);
     expect(headMultiplier("arrow")).toBe(HEAD_MULT);
@@ -74,6 +78,8 @@ describe("scatter", () => {
 });
 
 describe("tether", () => {
+  beforeAll(() => setFeatureOverride("extraArrows", true));
+  afterAll(() => setFeatureOverride("extraArrows", undefined));
   it("needs a full draw and waits out its cooldown", () => {
     const state = createPlayerSim(); state.arrowSlot = 2;
     expect(shoot(state, DRAW_FULL_MS - 50)).toEqual([]);

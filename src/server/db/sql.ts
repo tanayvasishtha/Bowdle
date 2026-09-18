@@ -16,7 +16,7 @@ export type DatabaseMode = "postgres" | "pglite" | "memory";
 /** How accounts are stored for this process. `memory` vanishes on restart. */
 export function databaseMode(env: NodeJS.ProcessEnv = process.env): DatabaseMode {
   if (env.DATABASE_URL) return "postgres";
-  if (env.PGLITE_DIR) return "pglite";
+  if (env.PGLITE_DIR?.trim()) return "pglite";
   return "memory";
 }
 

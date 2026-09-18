@@ -54,6 +54,8 @@ export type GameSettings = {
   /** Screen-edge marks for footsteps, shots and boulders. */
   soundIndicators: boolean;
   invertY: boolean;
+  /** Vertical look multiplier (1 = same as horizontal). */
+  verticalSensitivity: number;
   /** Look speed multiplier while aiming, for mouse and pad. */
   aimSensitivity: number;
   /** Stick look speed multiplier. */
@@ -83,7 +85,7 @@ const STORAGE_KEY = "bowdle.settings.v1";
 const NAME_KEY = "bowdle.name";
 
 export function defaultSettings(): GameSettings {
-  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, invertY: false, aimSensitivity: 1, gamepadSensitivity: 1, trackpadMode: false, crosshairStyle: "circle", crosshairSize: CROSSHAIR_SIZE.default, crosshairColor: "sepia", teamPalette: "default", keys: { ...DEFAULT_KEYS }, preferredRegion: "", graphicsPreset: "high", fpsCap: 60, graphicsBenchmarked: false };
+  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, invertY: false, verticalSensitivity: 1, aimSensitivity: 1, gamepadSensitivity: 1, trackpadMode: false, crosshairStyle: "circle", crosshairSize: CROSSHAIR_SIZE.default, crosshairColor: "sepia", teamPalette: "default", keys: { ...DEFAULT_KEYS }, preferredRegion: "", graphicsPreset: "high", fpsCap: 60, graphicsBenchmarked: false };
 }
 
 function range(value: unknown, min: number, max: number, fallback: number): number {
@@ -97,7 +99,7 @@ export function loadSettings(): GameSettings {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as Partial<GameSettings> | null;
     if (!parsed) return defaults;
     return {
-      sensitivity: typeof parsed.sensitivity === "number" ? Math.max(0.0005, Math.min(0.008, parsed.sensitivity)) : defaults.sensitivity,
+      sensitivity: typeof parsed.sensitivity === "number" ? Math.max(0.0005, Math.min(0.012, parsed.sensitivity)) : defaults.sensitivity,
       fov: typeof parsed.fov === "number" ? Math.max(MIN_FOV, Math.min(MAX_FOV, parsed.fov)) : defaults.fov,
       masterVolume: typeof parsed.masterVolume === "number" ? Math.max(0, Math.min(1, parsed.masterVolume)) : defaults.masterVolume,
       boil: parsed.boil ?? defaults.boil,
@@ -112,6 +114,7 @@ export function loadSettings(): GameSettings {
       music: parsed.music ?? defaults.music,
       soundIndicators: parsed.soundIndicators ?? defaults.soundIndicators,
       invertY: parsed.invertY ?? defaults.invertY,
+      verticalSensitivity: range(parsed.verticalSensitivity, 0.5, 2, defaults.verticalSensitivity),
       aimSensitivity: range(parsed.aimSensitivity, 0.3, 1.5, defaults.aimSensitivity),
       gamepadSensitivity: range(parsed.gamepadSensitivity, 0.3, 2, defaults.gamepadSensitivity),
       trackpadMode: parsed.trackpadMode ?? defaults.trackpadMode,

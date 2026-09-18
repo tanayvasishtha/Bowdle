@@ -33,7 +33,7 @@ export class InputSampler {
     window.addEventListener("mousemove", (event) => {
       if (document.pointerLockElement !== this.canvas) return;
       const scale = this.settings.sensitivity * (this.aiming() ? this.settings.aimSensitivity : 1);
-      this.turn(-event.movementX * scale, -event.movementY * scale);
+      this.turn(-event.movementX * scale, -event.movementY * scale * this.settings.verticalSensitivity);
     });
     window.addEventListener("contextmenu", (event) => event.preventDefault());
     window.addEventListener("wheel", (event) => {
@@ -79,7 +79,7 @@ export class InputSampler {
     if (this.paused || !this.pad.connected) return;
     const speed = PAD.lookRadPerS * this.settings.gamepadSensitivity * (this.aimSlowdown ? PAD.aimSlowdown : 1) * (this.aiming() ? this.settings.aimSensitivity : 1);
     const seconds = Math.min(0.1, elapsedMs / 1000);
-    this.turn(-this.pad.lookX * speed * seconds, -this.pad.lookY * speed * seconds);
+    this.turn(-this.pad.lookX * speed * seconds, -this.pad.lookY * speed * seconds * this.settings.verticalSensitivity);
   }
 
   setAimSlowdown(active: boolean): void { this.aimSlowdown = active; }
@@ -104,7 +104,7 @@ export class InputSampler {
         out.moveZ = touch.moveZ;
       }
       this.yaw += touch.lookDx;
-      this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - touch.lookDy));
+      this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - touch.lookDy * this.settings.verticalSensitivity));
       out.yaw = this.yaw;
       out.pitch = this.pitch;
       (out as { _touchButtons?: number })._touchButtons = touch.buttons;

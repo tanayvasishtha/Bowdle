@@ -348,9 +348,9 @@ export const CAMERA_CROUCH_MS = 80;
 
 export const DEFAULT_FOV = 90;
 
-export const MIN_FOV = 80;
+export const MIN_FOV = 70;
 
-export const MAX_FOV = 110;
+export const MAX_FOV = 120;
 
 export const AIM_FOV = 65;
 

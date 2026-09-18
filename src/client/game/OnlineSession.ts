@@ -150,7 +150,8 @@ export class OnlineSession {
           x: 0, y: 12, z: 0, yaw: 0, pitch: -0.35, crouched: false, team: 0, kills: 0, deaths: 0,
           alive: true, downed: false, drawMs: 0, arrowSlot: 0, meleeCooldownMs: 0,
           grappleActive: false, grappleReeling: false, grappleCooldownMs: 0, zipId: "",
-          relicCarrier: false,
+          relicCarrier: false, grounded: true, vx: 0, vy: 0, vz: 0, airJumps: 0,
+          dodgeCdMs: 0, scatterCharges: 0, height: 1.7,
           look: { bowSkin: "bow.default", arrowTrail: "trail.default", outfit: "outfit.default", killEffect: "effect.default" },
         },
       } as unknown as typeof this.me;

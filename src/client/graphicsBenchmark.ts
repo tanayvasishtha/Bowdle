@@ -14,6 +14,7 @@ export async function runGraphicsBenchmark(host: HTMLElement): Promise<GraphicsP
   shell.style.cssText = "position:absolute;inset:0;opacity:0;pointer-events:none;z-index:0";
   host.append(shell);
   const renderer = new Renderer(shell, false, defaultMatchMap);
+  renderer.canvas.removeAttribute("id");
   renderer.setViewmodelVisible(false);
   renderer.setTestCamera(24, 14, 24, 0, 4, 0);
   await renderer.warmShaders();

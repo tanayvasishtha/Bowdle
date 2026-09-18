@@ -22,6 +22,7 @@ export function startAttract(host: HTMLElement): AttractHandle {
   host.append(overlay);
 
   const renderer = new Renderer(root, false, map);
+  renderer.canvas.removeAttribute("id");
   renderer.setViewmodelVisible(false);
   const motions = [
     createMotion(),

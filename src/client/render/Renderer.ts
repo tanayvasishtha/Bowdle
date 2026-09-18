@@ -219,7 +219,7 @@ export class Renderer {
     this.renderer = new WebGLRenderer({ antialias: false, alpha: false });
     this.renderer.info.autoReset = false;
     this.canvas = this.renderer.domElement;
-    this.canvas.id = `game-canvas-${Math.random().toString(36).slice(2, 8)}`;
+    this.canvas.id = "game-canvas";
     this.canvas.dataset.mapId = map.id;
     this.canvas.dataset.mapFeatures = String(map.ramps.length + map.volumes.length + map.zipLines.length + map.boulders.length);
     container.append(this.canvas);

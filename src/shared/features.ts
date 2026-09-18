@@ -15,6 +15,8 @@ export const features = {
   pingsWheel: false,
   attractMode: false,
   serviceWorker: false,
+  /** Old menu entries (ranked, relic, party, locker, profile, leaderboard, course). */
+  legacyMenu: false,
 } as const;
 
 export type FeatureFlag = keyof typeof features;

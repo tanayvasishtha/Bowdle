@@ -15,8 +15,8 @@ export function attachControlsHelp(container: HTMLElement, canvas: HTMLCanvasEle
   const hint = document.createElement("div");
   hint.className = "bowdle-aim-hint";
   hint.dataset.testid = "aim-hint";
-  hint.textContent = "Click the page to aim · F1 controls";
-  hint.style.cssText = "position:absolute;left:50%;top:58%;transform:translateX(-50%);padding:6px 14px;background:#efe3c6dd;border:3px solid #4a3527;color:#4a3527;font:20px 'Permanent Marker';pointer-events:none;z-index:7";
+  hint.textContent = "Click to play";
+  hint.style.cssText = "position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:18px 36px;background:#efe3c6f2;border:4px solid #4a3527;color:#4a3527;font:36px 'Permanent Marker';pointer-events:none;z-index:7;box-shadow:6px 6px 0 #d2531f";
   container.append(overlay, hint);
 
   const render = (): void => {

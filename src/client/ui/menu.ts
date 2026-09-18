@@ -8,6 +8,7 @@ import { music } from "../audio/music.ts";
 import { musicIntensity } from "../audio/spatial.ts";
 import { ACTION_LABELS, ACTIONS, CROSSHAIR_COLORS, CROSSHAIR_SIZE, CROSSHAIR_STYLES, TEAM_PALETTE_NAMES, keyLabel, loadName, loadSettings, nameError, saveName, saveSettings, type Action, type GameSettings } from "../settings.ts";
 import { showLeaderboard, showProfile } from "./profile.ts";
+import { featureEnabled } from "../../shared/features.ts";
 import { armAttractIdle } from "./attract.ts";
 import { platform } from "../platform/sdk.ts";
 import { showPartyPanel } from "./party.ts";
@@ -24,6 +25,7 @@ export function installMenuStyles(container: HTMLElement): void {
   // Settings grew past one screen: it starts at the top and scrolls.
   style.textContent += ".bowdle-settings{place-content:start center;overflow-y:auto;padding:24px 0}";
   // Everything after Play sits in two columns so the menu fits one screen.
+  style.textContent += ".bowdle-menu .bowdle-name{display:block;font-size:22px;margin:8px auto 4px}.bowdle-menu .bowdle-name input{display:block;margin:6px auto;font:28px 'Gochi Hand';padding:8px 12px;border:3px solid #4a3527;background:#fffaf0;text-align:center;min-width:240px}.bowdle-menu .bowdle-gear{position:absolute;top:18px;right:18px;min-width:52px;padding:6px 10px;font-size:28px;box-shadow:3px 3px 0 #d2531f}.bowdle-menu .bowdle-status{font-size:22px;min-height:28px;color:#8a5a12}.bowdle-menu button[data-action=training],.bowdle-menu button[data-action=play],.bowdle-menu button[data-action=lobby]{min-width:300px;font-size:34px;padding:14px 32px}.bowdle-settings summary{font:26px 'Permanent Marker';cursor:pointer;margin:12px}";
   style.textContent += ".bowdle-menu-grid{display:grid;grid-template-columns:repeat(2,260px);gap:0 18px;justify-content:center}.bowdle-menu .bowdle-menu-grid button{margin:8px 0}";
   container.append(style);
 }
@@ -38,9 +40,13 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
   panel.className = "bowdle-panel bowdle-settings";
   panel.innerHTML = `<h2>Settings</h2>
     <label>Mouse sensitivity <input data-setting="sensitivity" type="range" min="0.0005" max="0.012" step="0.0005" value="${settings.sensitivity}"></label>
-    <label>Vertical look <input data-setting="verticalSensitivity" type="range" min="0.5" max="2" step="0.05" value="${settings.verticalSensitivity}"></label>
+    <label><input data-setting="invertY" type="checkbox" ${settings.invertY ? "checked" : ""}> Invert vertical look</label>
     <label>Field of view <output>${settings.fov}</output><input data-setting="fov" type="range" min="${MIN_FOV}" max="${MAX_FOV}" step="1" value="${settings.fov}"></label>
     <label>Master volume <input data-setting="masterVolume" type="range" min="0" max="1" step="0.05" value="${settings.masterVolume}"></label>
+    <label>Quality <select data-setting="graphicsPreset">${GRAPHICS_PRESETS.map((preset) => `<option value="${preset}"${settings.graphicsPreset === preset ? " selected" : ""}>${preset[0]!.toUpperCase()}${preset.slice(1)}</option>`).join("")}</select></label>
+    <h3>Bindings</h3><div class="bowdle-bindings"></div>
+    <details data-launch-settings><summary>More options</summary>
+    <label>Vertical look <input data-setting="verticalSensitivity" type="range" min="0.5" max="2" step="0.05" value="${settings.verticalSensitivity}"></label>
     <label><input data-setting="boil" type="checkbox" ${settings.boil ? "checked" : ""}> Animated ink boil</label>
     <label><input data-setting="floatingNotes" type="checkbox" ${settings.floatingNotes ? "checked" : ""}> Floating map notes</label>
     <label><input data-setting="colorblindSymbols" type="checkbox" ${settings.colorblindSymbols ? "checked" : ""}> Team symbols</label>
@@ -52,8 +58,6 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     <label><input data-setting="music" type="checkbox" ${settings.music ? "checked" : ""}> Music (M)</label>
     <label><input data-setting="soundIndicators" type="checkbox" ${settings.soundIndicators ? "checked" : ""}> Sound indicators</label>
     <label><input data-setting="tips" type="checkbox" ${settings.tips ? "checked" : ""}> Tips for new players</label>
-    <h3>Aim and controls</h3>
-    <label><input data-setting="invertY" type="checkbox" ${settings.invertY ? "checked" : ""}> Invert vertical look</label>
     <label>Aim sensitivity <input data-setting="aimSensitivity" type="range" min="0.3" max="1.5" step="0.05" value="${settings.aimSensitivity}"></label>
     <label>Gamepad sensitivity <input data-setting="gamepadSensitivity" type="range" min="0.3" max="2" step="0.05" value="${settings.gamepadSensitivity}"></label>
     <label><input data-setting="trackpadMode" type="checkbox" ${settings.trackpadMode ? "checked" : ""}> Trackpad mode (click to draw, click to release)</label>
@@ -61,13 +65,11 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     <label>Crosshair size <input data-setting="crosshairSize" type="range" min="${CROSSHAIR_SIZE.min}" max="${CROSSHAIR_SIZE.max}" step="2" value="${settings.crosshairSize}"></label>
     <label>Crosshair color ${choice("crosshairColor", CROSSHAIR_COLORS, settings.crosshairColor, { sepia: "Ink brown", sunInk: "Sun orange", gold: "Gold", moonInk: "Moon blue", parchment: "Paper" })}</label>
     <label>Team colors ${choice("teamPalette", TEAM_PALETTE_NAMES, settings.teamPalette, { default: "Standard", deuteranopia: "Deuteranopia", protanopia: "Protanopia", tritanopia: "Tritanopia" })}</label>
-    <h3>Graphics</h3>
-    <label>Quality <select data-setting="graphicsPreset">${GRAPHICS_PRESETS.map((preset) => `<option value="${preset}"${settings.graphicsPreset === preset ? " selected" : ""}>${preset[0]!.toUpperCase()}${preset.slice(1)}</option>`).join("")}</select></label>
     <label>FPS cap <select data-setting="fpsCap">${FPS_CAPS.map((cap) => `<option value="${cap}"${settings.fpsCap === cap ? " selected" : ""}>${cap === 0 ? "Unlimited" : String(cap)}</option>`).join("")}</select></label>
-        <h3>Region</h3>
+    <h3>Region</h3>
     <label>Server region <select data-setting="preferredRegion"><option value="">Auto (lowest ping)</option></select></label>
     <p class="bowdle-small" data-testid="region-pings">Probing regions...</p>
-<h3>Bindings</h3><div class="bowdle-bindings"></div><button data-action="done">Done</button>`;
+    </details><button data-action="done">Done</button>`;
   const bindings = panel.querySelector<HTMLDivElement>(".bowdle-bindings")!;
   for (const action of ACTIONS) {
     const button = document.createElement("button");
@@ -113,96 +115,127 @@ container.append(panel);
 
 export function showMainMenu(container: HTMLElement): void {
   installMenuStyles(container);
-  const menu = document.createElement("main"); menu.className = "bowdle-menu";
-  menu.innerHTML = `<h1>Bowdle</h1><p>Fast bows. Wild jungle. One more match.</p><button data-action="play">Play</button><button data-action="ranked">Ranked</button><div class="bowdle-menu-grid"><button data-action="ffa">Free for All</button><button data-action="relic">Relic Run</button><button data-action="expedition">Expedition</button><button data-action="party">Play with friends</button><button data-action="practice">Practice</button><button data-action="course">Field course</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button><button data-action="settings">Settings</button></div><nav class="bowdle-legal"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></nav>`;
-  container.append(menu);
-  platform().loaded();
+  void ensureAccount(loadName() || "Explorer");
   reportFunnel("menuOpened");
   music().setIntensity(musicIntensity("menu", false, Number.POSITIVE_INFINITY));
+
+  const menu = document.createElement("main");
+  menu.className = "bowdle-menu";
+  menu.dataset.testid = "main-menu";
+  const name = loadName();
+  menu.innerHTML = `
+    <h1>Bowdle</h1>
+    <p>Fast bows. Wild jungle. One more match.</p>
+    <label class="bowdle-name">Name
+      <input data-testid="player-name" maxlength="16" autocomplete="nickname" value="${name.replaceAll('"', "&quot;")}">
+    </label>
+    <div class="bowdle-error" data-testid="name-error"></div>
+    <button data-action="training" data-testid="mode-training">Training</button>
+    <button data-action="play" data-testid="mode-play">Play</button>
+    <button data-action="lobby" data-testid="mode-lobby">Lobby</button>
+    <button data-action="settings" data-testid="open-settings" class="bowdle-gear" title="Settings" aria-label="Settings">⚙</button>
+    <p class="bowdle-status" data-testid="menu-status" hidden></p>
+    <nav class="bowdle-legal"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></nav>
+  `;
+  if (featureEnabled("legacyMenu")) {
+    const legacy = document.createElement("div");
+    legacy.className = "bowdle-menu-grid";
+    legacy.innerHTML = `<button data-action="ranked">Ranked</button><button data-action="ffa">Free for All</button><button data-action="relic">Relic Run</button><button data-action="expedition">Expedition</button><button data-action="party">Play with friends</button><button data-action="practice">Practice</button><button data-action="course">Field course</button><button data-action="locker">Locker</button><button data-action="profile">Profile</button><button data-action="leaderboard">Leaderboard</button>`;
+    menu.querySelector(".bowdle-gear")!.before(legacy);
+  }
+  container.append(menu);
+  platform().loaded();
+  if (featureEnabled("attractMode")) armAttractIdle(container, menu);
+
+  const status = menu.querySelector<HTMLElement>("[data-testid=menu-status]")!;
+  const setStatus = (text: string): void => { status.hidden = !text; status.textContent = text; };
+  const nameInput = menu.querySelector<HTMLInputElement>("[data-testid=player-name]")!;
+  const nameErrorBox = menu.querySelector<HTMLElement>("[data-testid=name-error]")!;
+  const commitName = (): string | undefined => {
+    const issue = nameError(nameInput.value);
+    nameErrorBox.textContent = issue;
+    if (issue) return undefined;
+    const trimmed = nameInput.value.trim();
+    saveName(trimmed);
+    return trimmed;
+  };
+
   const signIn = consumeSignInFragment();
   if (signIn.linked || signIn.failed) {
     const toast = document.createElement("div"); toast.className = "bowdle-toast";
-    toast.textContent = signIn.linked ? "Progress saved to your account." : "Sign-in did not finish. Try again from Profile.";
+    toast.textContent = signIn.linked ? "Progress saved to your account." : "Sign-in did not finish. Try again later.";
     container.append(toast); setTimeout(() => toast.remove(), 4000);
   }
-  const navigate = (scene: string): void => { location.search = `?scene=${scene}`; };
-  /** Asks for a name the first time, then continues. */
-  const withName = (next: (name: string) => void): void => {
-    if (loadName()) { next(loadName()); return; }
-    const card = document.createElement("section"); card.className = "bowdle-panel bowdle-name"; card.innerHTML = `<h2>Name your explorer</h2><input maxlength="16" autocomplete="nickname" autofocus><div class="bowdle-error"></div><button>Enter the jungle</button>`;
-    const input = card.querySelector("input")!, error = card.querySelector<HTMLDivElement>(".bowdle-error")!;
-    card.querySelector("button")!.addEventListener("click", () => { const issue = nameError(input.value); error.textContent = issue; if (!issue) { saveName(input.value.trim()); card.remove(); next(input.value.trim()); } });
-    container.append(card); input.focus();
+
+  const enterOnline = async (mode: GameMode, label: string): Promise<void> => {
+    const playerName = commitName();
+    if (!playerName) return;
+    setStatus(label);
+    reportFunnel("modePicked");
+    await ensureAccount(playerName);
+    location.search = onlineSearch(mode);
   };
-  const enter = async (name: string, party?: string, mode: GameMode = "tdm", checkpoint = false): Promise<void> => {
-    await ensureAccount(name);
-    location.search = onlineSearch(mode, party, checkpoint);
-  };
-  /** Expedition: a returning player past a checkpoint picks where the run starts. */
-  const expedition = (name: string): void => {
-    void (async () => {
-      const checkpoint = checkpointFor((await ensureAccount(name))?.expeditionBest ?? 0);
-      const card = document.createElement("section"); card.className = "bowdle-panel"; card.dataset.testid = "expedition-start";
-      const handicapRows = (Object.keys(EXPEDITION_HANDICAPS) as ExpeditionHandicapId[]).map((id) => {
-        const labels: Record<ExpeditionHandicapId, string> = {
-          shortLives: "Fewer spare lives",
-          swiftWaves: "Faster waves",
-          glassBodies: "Glass bodies",
-        };
-        return `<label><input type="checkbox" data-handicap="${id}"/> ${labels[id]} (x${EXPEDITION_HANDICAPS[id].rewardMult})</label>`;
-      }).join("");
-      card.innerHTML = `<h2>Expedition</h2>
-<p>Hold the camp against waves of ink creatures, alone or with up to three friends.</p>
-<label><input type="checkbox" data-weekly/> Weekly challenge (shared seed and map)</label>
-<div data-testid="expedition-handicaps">${handicapRows}</div>
-${checkpoint > 0 ? `<button data-start="checkpoint">Start after wave ${checkpoint}</button>` : ""}
-<button data-start="fresh">Start at wave 1</button>
-<button data-start="back">Back</button>`;
-      const selectedHandicaps = (): ExpeditionHandicapId[] =>
-        [...card.querySelectorAll<HTMLInputElement>("[data-handicap]:checked")].map((input) => input.dataset.handicap as ExpeditionHandicapId);
-      const weekly = (): boolean => card.querySelector<HTMLInputElement>("[data-weekly]")?.checked === true;
-      card.addEventListener("click", (event) => {
-        const start = (event.target as HTMLElement).dataset.start;
-        if (start === "back") card.remove();
-        else if (start) {
-          location.search = onlineSearch("expedition", undefined, {
-            checkpoint: start === "checkpoint",
-            weekly: weekly(),
-            handicaps: selectedHandicaps(),
-          });
-        }
-      });
-      menu.append(card);
-    })();
-  };
-  const play = (): void => withName((name) => { reportFunnel("modePicked"); void enter(name); });
-  menu.querySelector("[data-action=play]")!.addEventListener("click", play);
-  menu.querySelector("[data-action=ranked]")!.addEventListener("click", () => withName((name) => {
-    void (async () => {
-      const account = await ensureAccount(name);
-      const level = account?.progress.level ?? 0;
-      const linked = (account?.linked.length ?? 0) > 0;
-      if (level < 10 || !linked) {
-        const toast = document.createElement("div"); toast.className = "bowdle-toast";
-        toast.textContent = linked ? "Ranked unlocks at level 10." : "Link an account in Profile to play Ranked.";
-        container.append(toast); setTimeout(() => toast.remove(), 4000);
-        return;
-      }
-      reportFunnel("modePicked"); location.search = onlineSearch("tdm") + "&ranked=1";
-    })();
-  }));
-  menu.querySelector("[data-action=expedition]")!.addEventListener("click", () => withName((name) => { reportFunnel("modePicked"); expedition(name); }));
-  for (const mode of ["ffa", "relic"] as const) menu.querySelector(`[data-action=${mode}]`)!.addEventListener("click", () => withName((name) => { reportFunnel("modePicked"); void enter(name, undefined, mode); }));
-menu.querySelector("[data-action=party]")!.addEventListener("click", () => withName((name) => { reportFunnel("modePicked"); showPartyPanel(container, (code, mode) => { void enter(name, code, mode); }); }));
-  menu.querySelector("[data-action=practice]")!.addEventListener("click", () => navigate("camp"));
-  menu.querySelector("[data-action=course]")!.addEventListener("click", () => { location.search = "?scene=camp&course"; });
-  // First launch: a name, then the field course, which leads into a first match. Returning players stay on the menu.
-  if (!loadName() && !courseDone()) withName(() => { location.search = "?scene=camp&course=first"; });
-  menu.querySelector("[data-action=locker]")!.addEventListener("click", () => navigate("locker"));
-  menu.querySelector("[data-action=profile]")!.addEventListener("click", () => { void showProfile(container, () => undefined); });
-  menu.querySelector("[data-action=leaderboard]")!.addEventListener("click", () => { void showLeaderboard(container, () => undefined); });
+
+  menu.querySelector("[data-action=training]")!.addEventListener("click", () => {
+    const playerName = commitName();
+    if (!playerName) return;
+    reportFunnel("modePicked");
+    void ensureAccount(playerName);
+    location.search = "?scene=camp";
+  });
+  menu.querySelector("[data-action=play]")!.addEventListener("click", () => {
+    void enterOnline("expedition", "Finding your village…");
+  });
+  menu.querySelector("[data-action=lobby]")!.addEventListener("click", () => {
+    void enterOnline("ffa", "Joining the lobby…");
+  });
   menu.querySelector("[data-action=settings]")!.addEventListener("click", () => showSettings(container, () => undefined));
-  armAttractIdle(container, menu);
+
+  if (featureEnabled("legacyMenu")) {
+    const navigate = (scene: string): void => { location.search = `?scene=${scene}`; };
+    const withName = (next: (name: string) => void): void => {
+      const playerName = commitName();
+      if (playerName) next(playerName);
+    };
+    const enter = async (playerName: string, party?: string, mode: GameMode = "tdm"): Promise<void> => {
+      await ensureAccount(playerName);
+      location.search = onlineSearch(mode, party);
+    };
+    menu.querySelector("[data-action=ranked]")?.addEventListener("click", () => withName((playerName) => {
+      void (async () => {
+        const account = await ensureAccount(playerName);
+        const level = account?.progress.level ?? 0;
+        const linked = (account?.linked.length ?? 0) > 0;
+        if (level < 10 || !linked) {
+          const toast = document.createElement("div"); toast.className = "bowdle-toast";
+          toast.textContent = linked ? "Ranked unlocks at level 10." : "Link an account to play Ranked.";
+          container.append(toast); setTimeout(() => toast.remove(), 4000);
+          return;
+        }
+        reportFunnel("modePicked"); location.search = onlineSearch("tdm") + "&ranked=1";
+      })();
+    }));
+    menu.querySelector("[data-action=expedition]")?.addEventListener("click", () => withName((playerName) => { reportFunnel("modePicked"); void enter(playerName, undefined, "expedition"); }));
+    for (const mode of ["ffa", "relic"] as const) {
+      menu.querySelector(`[data-action=${mode}]`)?.addEventListener("click", () => withName((playerName) => { reportFunnel("modePicked"); void enter(playerName, undefined, mode); }));
+    }
+    menu.querySelector("[data-action=party]")?.addEventListener("click", () => withName((playerName) => {
+      reportFunnel("modePicked");
+      showPartyPanel(container, (code, mode) => { void enter(playerName, code, mode); });
+    }));
+    menu.querySelector("[data-action=practice]")?.addEventListener("click", () => navigate("camp"));
+    menu.querySelector("[data-action=course]")?.addEventListener("click", () => { location.search = "?scene=camp&course"; });
+    menu.querySelector("[data-action=locker]")?.addEventListener("click", () => navigate("locker"));
+    menu.querySelector("[data-action=profile]")?.addEventListener("click", () => { void showProfile(container, () => undefined); });
+    menu.querySelector("[data-action=leaderboard]")?.addEventListener("click", () => { void showLeaderboard(container, () => undefined); });
+  }
+
+  // First launch: name, then Training. Returning players stay on the menu.
+  if (!loadName()) {
+    nameInput.focus();
+  } else if (!courseDone() && !sessionStorage.getItem("bowdle-trained")) {
+    // Soft nudge only once per session; the Training button is the front door.
+  }
 }
 
 export function showDesktopOnly(container: HTMLElement): void {

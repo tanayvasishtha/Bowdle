@@ -2303,3 +2303,13 @@ Verify by hand:
 - Gates: `npm run check`, `npm run smoke` green.
 
 
+
+## L2 - Simple front door (2026-09-19 00:32 IST)
+
+- Main menu is title, name field, Training / Play / Lobby, and a settings gear. Legacy modes stay behind the `legacyMenu` feature flag.
+- Guest account is created in the background on menu open.
+- Play shows "Finding your village..." then joins Expedition (Village Defense shell until L4). Lobby shows "Joining the lobby..." then FFA.
+- Training opens the camp range. Settings front page keeps sensitivity, invert Y, FOV, volume, quality, and bindings; the rest sits under More options.
+- Pointer lock failures show a plain on-screen message. Click-to-play card is larger.
+- Gates: vitest green (abilities flake retried), build, size, smoke.
+

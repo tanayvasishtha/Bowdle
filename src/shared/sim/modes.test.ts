@@ -36,7 +36,7 @@ describe("mode rules", () => {
   });
 
   it("has the limits of the design and treats unknown modes as team deathmatch", () => {
-    expect(MODE_RULES.ffa).toMatchObject({ teams: false, scoreLimit: 20, timeLimitS: 420, maxPlayers: 8 });
+    expect(MODE_RULES.ffa).toMatchObject({ teams: false, scoreLimit: 20, timeLimitS: 420, maxPlayers: 10 });
     expect(MODE_RULES.relic).toMatchObject({ teams: true, scoreLimit: 3, timeLimitS: 480, killsScore: false });
     expect(modeRules("unknown")).toBe(MODE_RULES.tdm);
     expect(matchWinner("ffa", 20, 0)).toBe("player");

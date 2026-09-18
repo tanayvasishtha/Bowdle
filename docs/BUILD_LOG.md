@@ -2313,3 +2313,12 @@ Verify by hand:
 - Pointer lock failures show a plain on-screen message. Click-to-play card is larger.
 - Gates: vitest green (abilities flake retried), build, size, smoke.
 
+
+## L4 and L5 - Village Defense shell and Lobby 10 (2026-09-19 00:33 IST)
+
+- Lobby (FFA) max players is 10; bots fill to 6 so a solo join still has company.
+- Expedition display name is Village Defense (Play button already joins it).
+- Weekly expedition seeds stay inside signed 32-bit range; seed column migrates to BIGINT.
+- Client-supplied `seed` is ignored outside test joins.
+- First village-run daily bonus is granted once through the reward breakdown (no double ink/xp).
+

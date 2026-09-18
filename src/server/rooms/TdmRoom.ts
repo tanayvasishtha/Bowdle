@@ -24,7 +24,7 @@ import {
   EYE_STAND,
   EYE_CROUCH,
   SUBSTEPS,
-  TEAM_SIZE,
+  TEAM_SIZE, LOBBY_FILL_BOTS,
   TEAM_COUNT,
   TEST_DUEL_HALF_DISTANCE,
   TEST_DUEL_LANE_Z,
@@ -186,7 +186,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       this.expeditionWeekly = options.weekly === true;
       const rawHandicaps = typeof options.handicaps === "string" ? options.handicaps.split(",") : options.handicaps ?? [];
       this.expeditionHandicaps = [...rawHandicaps].filter((id): id is ExpeditionHandicapId => id in EXPEDITION_HANDICAPS);
-      this.expeditionSeed = Number.isFinite(options.seed) ? Math.floor(options.seed!)
+      this.expeditionSeed = options.test && Number.isFinite(options.seed) ? Math.floor(options.seed!)
         : this.expeditionWeekly ? weeklySeed()
         : (Number.isFinite(options.testBotSeed) ? options.testBotSeed! : Date.now()) ^ 0x5eed;
       if (this.expeditionWeekly && !options.testMapId && !options.mapId) {
@@ -994,7 +994,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       return;
     }
     if (!rules.teams) {
-      while (this.state.players.size < rules.maxPlayers) this.addBot(freeTeam([...this.state.players.values()].map((player) => player.team)));
+      const fillTo = Math.min(LOBBY_FILL_BOTS, rules.maxPlayers);
+      while (this.state.players.size < fillTo) this.addBot(freeTeam([...this.state.players.values()].map((player) => player.team)));
       return;
     }
     for (let team = 0; team < TEAM_COUNT; team += 1) {

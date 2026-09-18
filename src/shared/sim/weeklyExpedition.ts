@@ -17,7 +17,8 @@ export function weeklySeed(at = new Date()): number {
     hash ^= key.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
-  return hash >>> 0;
+  // Keep seeds inside signed 32-bit INTEGER columns.
+  return hash & 0x7fffffff;
 }
 
 export function weeklyMapId(seed = weeklySeed()): string {

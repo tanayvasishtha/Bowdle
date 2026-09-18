@@ -16,7 +16,10 @@ export const FUNNEL_EVENTS = ["menuOpened", "tutorialDone", "firstMatch", "secon
 
 /** Free for All and Relic Run (v2). */
 
-export const MODE_TUNING = { ffaKillLimit: 20, ffaTimeLimitS: 420, ffaPlayers: 8, relicCaptureLimit: 3, relicTimeLimitS: 480 } as const;
+/** FFA lobby keeps at least this many seats filled with bots until humans arrive. */
+export const LOBBY_FILL_BOTS = 6;
+
+export const MODE_TUNING = { ffaKillLimit: 20, ffaTimeLimitS: 420, ffaPlayers: 10, relicCaptureLimit: 3, relicTimeLimitS: 480 } as const;
 
 /** The relic: touch reach, how long it waits on the ground, and what carrying it costs. */
 

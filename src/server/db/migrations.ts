@@ -168,7 +168,8 @@ export const MIGRATIONS: readonly string[] = [
     PRIMARY KEY (account_id, blocked_id)
   );
   `,
-  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS first_expedition_day TEXT NOT NULL DEFAULT ''`
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS first_expedition_day TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE expedition_runs ALTER COLUMN seed TYPE BIGINT USING seed::BIGINT`
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

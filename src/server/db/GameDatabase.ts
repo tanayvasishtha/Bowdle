@@ -171,8 +171,8 @@ return {
           
           const dayKey = periodKeys(now).daily;
           if (account.first_expedition_day !== dayKey) {
-            await query("UPDATE accounts SET first_expedition_day = $1, ink = ink + 25, xp = xp + 50 WHERE id = $2", [dayKey, line.accountId]);
-            reward.breakdown.push({ label: "First Expedition of the day", xp: 50, ink: 25 });
+            await query("UPDATE accounts SET first_expedition_day = $1 WHERE id = $2", [dayKey, line.accountId]);
+            reward.breakdown.push({ label: "First village run of the day", xp: 50, ink: 25 });
             account.first_expedition_day = dayKey;
           }
 for (const itemId of expeditionRewardIds(line.expedition.reachedWave, line.expedition.bosses)) {

@@ -169,6 +169,24 @@ const tutorialCalls = new Map<string, Window>();
     response.json({ paid: xsolla.enabled, sandbox: xsolla.sandbox });
   });
 
+  router.get("/social/recent", async (request, response) => {
+    const session = await signedIn(request, response); if (!session) return;
+    response.json({ players: await session.db.recentPlayers(session.accountId) });
+  });
+
+  router.post("/social/block", async (request, response) => {
+    const session = await signedIn(request, response); if (!session) return;
+    const token = typeof (request.body as { token?: unknown })?.token === "string" ? (request.body as { token: string }).token : "";
+    if (!token) { response.status(400).json({ error: "bad_token" }); return; }
+    const ok = await session.db.blockByToken(session.accountId, token);
+    response.status(ok ? 200 : 404).json(ok ? { ok: true } : { error: "unknown_token" });
+  });
+
+  router.get("/shop/featured", async (_request, response) => {
+    const db = await options.database();
+    response.json(db.featuredShop());
+  });
+
   router.post("/shop/checkout", async (request, response) => {
     const session = await signedIn(request, response); if (!session) return;
     const body = SkuBody.safeParse(request.body);

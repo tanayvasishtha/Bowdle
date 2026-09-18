@@ -1,3 +1,4 @@
+import { apiBase } from "../account.ts";
 import type { Locker } from "../../shared/api.ts";
 import { CATALOG, COSMETIC_CATEGORIES, isFree, type Cosmetic, type CosmeticCategory, type Loadout } from "../../shared/cosmetics.ts";
 import { lineupMap } from "../../shared/maps/fixtures/lineup.ts";
@@ -52,6 +53,7 @@ export function startLocker(app: HTMLElement): void {
 
   let kind: "sun" | "moon" = "sun";
   let locker: Locker | undefined;
+  let featuredIds = new Set<string>();
   let level = 1;
   let previewTouched = false;
   let preview: Loadout = { bow: "bow.default", trail: "trail.default", outfit: "outfit.default", effect: "effect.default" };
@@ -87,11 +89,12 @@ export function startLocker(app: HTMLElement): void {
         else if ("sku" in item.price && paid) action = `<button data-checkout="${item.price.sku}">Buy ${priceLabel(item)}</button>`;
         else action = `<button disabled>Web store only</button>`;
         const hint = "level" in item.price && !owns(item) ? `<small>Your level: ${level} / ${item.price.level}</small>` : "";
-        return `<div class="item" tabindex="0" data-item="${item.id}" data-selected="${selected}"><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.blurb)}</small>${hint}${action}</div>`;
+        return `<div class="item" tabindex="0" data-item="${item.id}" data-selected="${selected}"><b>${escapeHtml(item.name)}</b>${featuredIds.has(item.id) ? ' · FEATURED' : ''}<small>${escapeHtml(item.blurb)}</small>${hint}${action}</div>`;
       }).join("")}
       <button class="back" data-action="back">Back to camp</button>`;
   };
 
+  void fetch(`${apiBase()}/shop/featured`).then(async (response) => { if (!response.ok) return; const body = await response.json() as { itemIds: string[] }; featuredIds = new Set(body.itemIds); draw(); }).catch(() => undefined);
   const refresh = async (): Promise<void> => { locker = await fetchLocker() ?? locker; draw(); };
 
   panel.addEventListener("click", async (event) => {

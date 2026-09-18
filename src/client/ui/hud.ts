@@ -120,7 +120,7 @@ export class MatchHud {
     if (expedition) { this.score.textContent = ""; if (state.phase !== "warmup") this.timer.textContent = ""; }
     let board = expedition ? `EXPEDITION · WAVE ${state.expedition.wave}\n` : freeForAll ? "FREE FOR ALL\n" : "SUN                         MOON\n";
     const rows = [...state.players].sort(([, left], [, right]) => freeForAll ? right.kills - left.kills : 0);
-    for (const [id, player] of rows) board += expedition ? `● ${player.name}  ${player.kills} creatures${player.downed ? "  DOWN" : ""}${id === sessionId ? "  YOU" : ""}\n` : `${freeForAll ? "◯" : player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${player.relicCarrier ? "  ◆" : ""}${id === sessionId ? "  YOU" : ""}\n`;
+    for (const [id, player] of rows) board += expedition ? `● ${player.name}${player.rank?.tier ? ` [${player.rank.tier}]` : ""}  ${player.kills} creatures${player.downed ? "  DOWN" : ""}${id === sessionId ? "  YOU" : ""}\n` : `${freeForAll ? "◯" : player.team === 0 ? "●" : "                         ●"} ${player.name}${player.rank?.tier ? ` [${player.rank.tier}]` : ""}  ${player.kills}/${player.deaths}/${player.assists}${player.relicCarrier ? "  ◆" : ""}${id === sessionId ? "  YOU" : ""}\n`;
     this.scoreboardSelfId = sessionId;
     this.scoreboard.replaceChildren();
     const title = document.createElement("div"); title.textContent = board.split("\n")[0] ?? ""; this.scoreboard.append(title);
@@ -130,8 +130,8 @@ export class MatchHud {
       row.dataset.testid = "scoreboard-row";
       row.style.cursor = id === sessionId ? "default" : "context-menu";
       row.textContent = expedition
-        ? `● ${player.name}  ${player.kills} creatures${player.downed ? "  DOWN" : ""}${id === sessionId ? "  YOU" : ""}`
-        : `${freeForAll ? "◯" : player.team === 0 ? "●" : "                         ●"} ${player.name}  ${player.kills}/${player.deaths}/${player.assists}${player.relicCarrier ? "  ◆" : ""}${id === sessionId ? "  YOU" : ""}`;
+        ? `● ${player.name}${player.rank?.tier ? ` [${player.rank.tier}]` : ""}  ${player.kills} creatures${player.downed ? "  DOWN" : ""}${id === sessionId ? "  YOU" : ""}`
+        : `${freeForAll ? "◯" : player.team === 0 ? "●" : "                         ●"} ${player.name}${player.rank?.tier ? ` [${player.rank.tier}]` : ""}  ${player.kills}/${player.deaths}/${player.assists}${player.relicCarrier ? "  ◆" : ""}${id === sessionId ? "  YOU" : ""}`;
       this.scoreboard.append(row);
     }
     const me = state.players.get(sessionId);
@@ -174,6 +174,9 @@ export class MatchHud {
     const title = document.createElement("h2"); title.textContent = run ? "Run over" : message.winner === "draw" ? "Draw in the dust" : message.winner === "player" ? `${(names.get(message.mvp) ?? "A player").toUpperCase()} WINS` : `${message.winner.toUpperCase()} WINS`;
     const summary = document.createElement("p"); summary.textContent = `${stats.kills} kills · ${stats.deaths} deaths · best shot ${Math.round(stats.bestShot)} m · best streak ${stats.bestStreak ?? 0}\nMVP: ${names.get(message.mvp) ?? message.mvp}`;
     const scores = document.createElement("p"); scores.textContent = this.score.textContent;
+    const roster = document.createElement("p"); roster.dataset.testid = "end-roster";
+    roster.textContent = [...this.scoreboard.querySelectorAll("[data-testid=scoreboard-row]")].map((node) => node.textContent ?? "").filter(Boolean).join("\n");
+
     if (run) {
       scores.dataset.testid = "run-summary";
       scores.textContent = `Reached wave ${run.wave}${run.beatBest ? " - new best!" : ` - best ${run.best}`}`;
@@ -194,9 +197,9 @@ Damage taken ${Math.round(run.damageTaken)} - revives ${run.revives}${run.beatBe
       potm.textContent = playOf.kind === "longShot"
         ? `Play of the Match · ${killer} · ${Math.round(playOf.distance)} m on ${victim}`
         : `Play of the Match · ${killer} · streak ${playOf.streak}`;
-      this.endPanel.append(title, potm, scores, summary, this.medalList, this.rewardLine, footer);
+      this.endPanel.append(title, potm, scores, roster, summary, this.medalList, this.rewardLine, footer);
     } else {
-      this.endPanel.append(title, scores, summary, this.medalList, this.rewardLine, footer);
+      this.endPanel.append(title, scores, roster, summary, this.medalList, this.rewardLine, footer);
     }
     footer.append(vote);
     if (!run) for (const map of maps) { const button = document.createElement("button"); button.textContent = map.name; button.addEventListener("click", () => { this.onVote(map.id); button.textContent = `✓ ${map.name}`; }); footer.append(button); }

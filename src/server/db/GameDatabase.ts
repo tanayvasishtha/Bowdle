@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from "node:crypto";
 import { levelProgress, expeditionMatchReward, matchReward, seasonId, type LevelProgress, type MatchReward } from "../../shared/progression.ts";
 import { nameError } from "../../shared/name.ts";
 import { migrate } from "./migrations.ts";
@@ -11,6 +10,9 @@ import { DAILY_POOL, WEEKLY_POOL, challengeReward, dailyChallenges, weeklyChalle
 import { PLAY_STREAK, UTC_DAY_MS, ONBOARDING } from "../../shared/constants.ts";
 import { explorerName } from "../../shared/pings.ts";
 import { defaultRating, softReset, updateRating, displayedSkill, tierFor, tierLabel, type Rating, type OpponentResult } from "../../shared/rating.ts";
+import { expeditionRewardIds, seasonRewardForTier } from "../../shared/n2Rewards.ts";
+import { featuredForDay, utcDayKey } from "../../shared/featured.ts";
+import { createHash, randomBytes } from "node:crypto";
 
 export { PROVIDERS, type LeaderboardRow, type Profile, type Provider };
 /** expedition is set for Expedition runs: they pay by waves and bosses and are stored for personal bests and the weekly board. */
@@ -111,15 +113,25 @@ export class GameDatabase {
     const stats = (await this.sql.query<{ kills: number; matches: number; wins: number }>(
       "SELECT kills, matches, wins FROM season_stats WHERE season = $1 AND account_id = $2", [season, accountId],
     ))[0];
-    return {
+    
+    const expeditionBest = await this.expeditionBest(accountId);
+    const favorite = (await this.sql.query<{ map_id: string }>(
+      "SELECT map_id FROM map_plays WHERE account_id = $1 ORDER BY plays DESC, wins DESC, map_id ASC LIMIT 1", [accountId],
+    ))[0];
+    const tierHistory = (await this.sql.query<{ season: string; tier: string }>(
+      "SELECT season, tier FROM tier_history WHERE account_id = $1 ORDER BY season DESC LIMIT 12", [accountId],
+    )).map((row) => ({ season: row.season, tier: row.tier }));
+    const matches = account.total_matches;
+    const wins = account.total_wins;
+return {
       id: account.id, name: account.name, xp: account.xp, ink: account.ink, progress: levelProgress(account.xp), season,
       seasonKills: stats?.kills ?? 0, seasonMatches: stats?.matches ?? 0, seasonWins: stats?.wins ?? 0,
       linked: PROVIDERS.filter((provider) => account[`${provider}_id`] !== null),
       streakDays: account.streak_days,
-      career: { matches: account.total_matches, wins: account.total_wins, kills: account.total_kills, headshots: account.total_headshots, bestStreak: account.best_streak, longestShotM: account.longest_shot_m },
+      career: { matches: account.total_matches, wins: account.total_wins, kills: account.total_kills, headshots: account.total_headshots, bestStreak: account.best_streak, longestShotM: account.longest_shot_m, winRate: matches > 0 ? wins / matches : 0, favoriteMap: favorite?.map_id, expeditionBest: expeditionBest ?? 0, tierHistory },
       nextUnlock: nextUnlock(levelProgress(account.xp).level),
       tutorialDone: account.tutorial_done,
-      expeditionBest: await this.expeditionBest(account.id),
+      expeditionBest,
       ...(await this.ratingFields(account.id)),
     };
   }
@@ -146,9 +158,20 @@ export class GameDatabase {
           [matchId, line.accountId, reward.xp, reward.ink],
         );
         if (inserted.length === 0) continue;
+        if (line.mapId) {
+          await query(
+            "INSERT INTO map_plays (account_id, map_id, plays, wins) VALUES ($1, $2, 1, $3) ON CONFLICT (account_id, map_id) DO UPDATE SET plays = map_plays.plays + 1, wins = map_plays.wins + EXCLUDED.wins",
+            [line.accountId, line.mapId, line.won ? 1 : 0],
+          );
+        }
+
         if (line.expedition) {
           await query("INSERT INTO expedition_runs (match_id, account_id, wave, bosses, week, seed, weekly, handicaps) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING",
             [matchId, line.accountId, line.expedition.reachedWave, line.expedition.bosses, periodKeys(now).weekly, line.expedition.seed ?? null, line.expedition.weekly === true, JSON.stringify(line.expedition.handicaps ?? [])]);
+          for (const itemId of expeditionRewardIds(line.expedition.reachedWave, line.expedition.bosses)) {
+            await this.grantItem(query, line.accountId, itemId, "expedition");
+          }
+
         }
         const changes: ChallengeChange[] = [];
         const stats = { ...(line.stats ?? { ...createMatchStats(), kills: line.kills, assists: line.assists, won: line.won }), medals: line.medals };
@@ -491,15 +514,116 @@ export class GameDatabase {
     return rows.length > 0;
   }
 
-    async softResetSeasonRatings(fromSeason: string, toSeason: string): Promise<number> {
+  private async grantItem(query: SqlQuery, accountId: string, itemId: string, source: string): Promise<boolean> {
+    const inserted = await query<{ item_id: string }>(
+      "INSERT INTO inventory (account_id, item_id, source) VALUES ($1, $2, $3) ON CONFLICT (account_id, item_id) DO NOTHING RETURNING item_id",
+      [accountId, itemId, source],
+    );
+    return inserted.length > 0;
+  }
+
+  async softResetSeasonRatings(fromSeason: string, toSeason: string): Promise<number> {
     const rows = await this.sql.query<{ account_id: string; rating: number; rd: number; volatility: number; matches: number }>(
       "SELECT account_id, rating, rd, volatility, matches FROM ratings WHERE season = $1", [fromSeason],
     );
     for (const row of rows) {
-      const next = softReset({ rating: row.rating, rd: row.rd, volatility: row.volatility });
+      const rating = { rating: row.rating, rd: row.rd, volatility: row.volatility };
+      const tier = tierFor(rating);
+      const itemId = seasonRewardForTier(tier);
+      await this.sql.transaction(async (query) => {
+        const granted = await query<{ account_id: string }>(
+          "INSERT INTO season_tier_grants (season, account_id, tier, item_id) VALUES ($1, $2, $3, $4) ON CONFLICT (season, account_id) DO NOTHING RETURNING account_id",
+          [fromSeason, row.account_id, tier, itemId],
+        );
+        if (granted.length) await this.grantItem(query, row.account_id, itemId, "season");
+        await query(
+          "INSERT INTO tier_history (account_id, season, tier) VALUES ($1, $2, $3) ON CONFLICT (account_id, season) DO UPDATE SET tier = EXCLUDED.tier",
+          [row.account_id, fromSeason, tier],
+        );
+      });
+      const next = softReset(rating);
       await this.setRating(row.account_id, next, 0, toSeason);
     }
     return rows.length;
+  }
+
+  /** Test helper: grant the season cosmetic for a tier at most once. */
+  async grantSeasonTierReward(accountId: string, season: string, tier: Parameters<typeof seasonRewardForTier>[0]): Promise<boolean> {
+    const itemId = seasonRewardForTier(tier);
+    return this.sql.transaction(async (query) => {
+      const granted = await query<{ account_id: string }>(
+        "INSERT INTO season_tier_grants (season, account_id, tier, item_id) VALUES ($1, $2, $3, $4) ON CONFLICT (season, account_id) DO NOTHING RETURNING account_id",
+        [season, accountId, tier, itemId],
+      );
+      if (!granted.length) return false;
+      await this.grantItem(query, accountId, itemId, "season");
+      await query(
+        "INSERT INTO tier_history (account_id, season, tier) VALUES ($1, $2, $3) ON CONFLICT (account_id, season) DO UPDATE SET tier = EXCLUDED.tier",
+        [accountId, season, tier],
+      );
+      return true;
+    });
+  }
+
+  
+  async rememberMatchPeers(accountIds: readonly string[]): Promise<void> {
+    const humans = [...new Set(accountIds)].filter(Boolean);
+    if (humans.length < 2) return;
+    for (const accountId of humans) {
+      for (const otherId of humans) {
+        if (otherId === accountId) continue;
+        const token = createHash("sha256").update(`${accountId}:${otherId}`).digest("hex").slice(0, 24);
+        await this.sql.query(
+          `INSERT INTO recent_players (account_id, other_id, token, last_played_at) VALUES ($1, $2, $3, now())
+           ON CONFLICT (account_id, other_id) DO UPDATE SET token = EXCLUDED.token, last_played_at = now()`,
+          [accountId, otherId, token],
+        );
+      }
+      await this.sql.query(
+        `DELETE FROM recent_players WHERE account_id = $1 AND other_id NOT IN (
+           SELECT other_id FROM recent_players WHERE account_id = $1 ORDER BY last_played_at DESC LIMIT 20
+         )`,
+        [accountId],
+      );
+    }
+  }
+
+  async recentPlayers(accountId: string): Promise<{ token: string; name: string }[]> {
+    const rows = await this.sql.query<{ token: string; name: string }>(
+      `SELECT rp.token AS token, a.name AS name
+       FROM recent_players rp JOIN accounts a ON a.id = rp.other_id
+       WHERE rp.account_id = $1
+       ORDER BY rp.last_played_at DESC LIMIT 20`,
+      [accountId],
+    );
+    return rows.map((row) => ({ token: row.token, name: row.name }));
+  }
+
+  async blockByToken(accountId: string, token: string): Promise<boolean> {
+    const row = (await this.sql.query<{ other_id: string }>(
+      "SELECT other_id FROM recent_players WHERE account_id = $1 AND token = $2", [accountId, token],
+    ))[0];
+    if (!row) return false;
+    await this.sql.query(
+      "INSERT INTO blocks (account_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      [accountId, row.other_id],
+    );
+    return true;
+  }
+
+  async blockedAccountIds(accountId: string): Promise<string[]> {
+    const rows = await this.sql.query<{ blocked_id: string }>("SELECT blocked_id FROM blocks WHERE account_id = $1", [accountId]);
+    return rows.map((row) => row.blocked_id);
+  }
+
+  async isBlocked(accountId: string, otherId: string): Promise<boolean> {
+    const rows = await this.sql.query("SELECT 1 FROM blocks WHERE account_id = $1 AND blocked_id = $2 LIMIT 1", [accountId, otherId]);
+    return rows.length > 0;
+  }
+
+  featuredShop(at: Date = this.now()): { day: string; itemIds: string[] } {
+    const day = utcDayKey(at);
+    return { day, itemIds: featuredForDay(day).map((item) => item.id) };
   }
 
   async fileReport(

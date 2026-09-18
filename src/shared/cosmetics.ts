@@ -16,7 +16,7 @@ export type Headgear = "crew" | "brim" | "goggles" | "bandana" | "headdress" | "
 export type Accessory = "crew" | "feather" | "satchel" | "pauldron" | "beads" | "scarf" | "mask";
 export type BurstShape = "splat" | "leaf" | "feather" | "star" | "spark" | "wing" | "cube";
 
-export type Price = { ink: number } | { sku: string; usd: number } | { free: true } | { level: number };
+export type Price = { ink: number } | { sku: string; usd: number } | { free: true } | { level: number } | { reward: true };
 
 type Base<C extends CosmeticCategory> = { id: `${C}.${string}`; category: C; name: string; blurb: string; price: Price };
 export type BowSkin = Base<"bow"> & { paint: CosmeticPaint; grip: CosmeticPaint; ornament: BowOrnament };
@@ -47,6 +47,8 @@ export const ARROW_TRAILS: readonly ArrowTrail[] = [
   { id: "trail.river", category: "trail", name: "River Ribbon", blurb: "A clean line of blue.", price: { ink: 400 }, paint: "water", style: "ribbon" },
   { id: "trail.gold", category: "trail", name: "Gold Leaf", blurb: "Shows everyone who paid for the expedition.", price: { sku: "trail-gold-leaf", usd: 1.99 }, paint: "gold", style: "ribbon" },
   { id: "trail.shadow", category: "trail", name: "Shadow Vine", blurb: "A dark ribbon that curls behind the arrow.", price: { sku: "trail-shadow-vine", usd: 1.99 }, paint: "foliageDark", style: "zigzag" },
+  { id: "trail.expedition.wave10", category: "trail", name: "Wave Ten Ribbon", blurb: "A mark for clearing the tenth Expedition wave.", price: { reward: true }, paint: "water", style: "ribbon" },
+  { id: "trail.expedition.wave20", category: "trail", name: "Deep Journal Dash", blurb: "Twenty waves deep into the notebook jungle.", price: { reward: true }, paint: "gold", style: "dashes" },
 ];
 
 export const OUTFITS: readonly Outfit[] = [
@@ -71,6 +73,13 @@ export const KILL_EFFECTS: readonly KillEffect[] = [
   { id: "effect.embers", category: "effect", name: "Torch Sparks", blurb: "A shower of red sparks.", price: { ink: 500 }, paint: "hazard", shape: "spark" },
   { id: "effect.butterflies", category: "effect", name: "Blue Morpho", blurb: "A flutter of river-blue wings.", price: { sku: "effect-blue-morpho", usd: 1.99 }, paint: "water", shape: "wing" },
   { id: "effect.idol", category: "effect", name: "Relic Rubble", blurb: "Tiny temple blocks tumble out.", price: { sku: "effect-relic-rubble", usd: 1.99 }, paint: "carvedStone", shape: "cube" },
+  { id: "effect.tier.scribble", category: "effect", name: "Scribble Burst", blurb: "Season badge for Scribble.", price: { reward: true }, paint: "stone", shape: "splat" },
+  { id: "effect.tier.sketch", category: "effect", name: "Sketch Burst", blurb: "Season badge for Sketch.", price: { reward: true }, paint: "wood", shape: "leaf" },
+  { id: "effect.tier.ink", category: "effect", name: "Ink Burst", blurb: "Season badge for Ink.", price: { reward: true }, paint: "water", shape: "spark" },
+  { id: "effect.tier.etching", category: "effect", name: "Etching Burst", blurb: "Season badge for Etching.", price: { reward: true }, paint: "carvedStone", shape: "star" },
+  { id: "effect.tier.illumination", category: "effect", name: "Illumination Burst", blurb: "Season badge for Illumination.", price: { reward: true }, paint: "gold", shape: "wing" },
+  { id: "effect.tier.masterwork", category: "effect", name: "Masterwork Burst", blurb: "Season badge for Masterwork.", price: { reward: true }, paint: "gold", shape: "cube" },
+  { id: "effect.expedition.colossus", category: "effect", name: "Colossus Crack", blurb: "You toppled a Colossus in Expedition.", price: { reward: true }, paint: "hazard", shape: "cube" },
 ];
 
 export const CATALOG: readonly Cosmetic[] = [...BOW_SKINS, ...ARROW_TRAILS, ...OUTFITS, ...KILL_EFFECTS];

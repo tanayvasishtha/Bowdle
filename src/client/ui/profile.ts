@@ -1,5 +1,5 @@
 import type { Profile, Provider } from "../../shared/api.ts";
-import { deleteAccount, enabledProviders, ensureAccount, fetchChallenges, fetchLeaderboard, fetchProfile, renameAccount, rerollChallenge, startProviderSignIn } from "../account.ts";
+import { deleteAccount, enabledProviders, ensureAccount, fetchChallenges, fetchLeaderboard, fetchProfile, renameAccount, rerollChallenge, startProviderSignIn , apiBase, loadToken } from "../account.ts";
 import type { Challenges, ChallengeState } from "../../shared/challenges.ts";
 import { PLAY_STREAK, TIME_UNITS } from "../../shared/constants.ts";
 import { cosmeticById } from "../../shared/cosmetics.ts";
@@ -49,7 +49,9 @@ export async function showProfile(container: HTMLElement, onClose: () => void): 
     <p class="bowdle-small" data-testid="tier">${profile.tier ? `Ranked: ${escapeHtml(profile.tier)}${profile.placement ? " (placement)" : ""}` : "Ranked: unranked"}</p>
     <p class="bowdle-small">Season ${escapeHtml(profile.season)}: ${profile.seasonKills} kills, ${profile.seasonWins} wins in ${profile.seasonMatches} matches</p>
     <p data-testid="play-streak">Play streak: ${profile.streakDays} days. Tomorrow's bonus: ${PLAY_STREAK.inkPerDay * Math.min(profile.streakDays + 1, PLAY_STREAK.capDays)} Ink</p>
-    <p data-testid="career">Career: ${profile.career.matches} matches · ${profile.career.wins} wins · ${profile.career.kills} kills · ${profile.career.headshots} headshots · best streak ${profile.career.bestStreak} · longest shot ${Math.round(profile.career.longestShotM)} m</p>
+    <p data-testid="career">Career: ${profile.career.matches} matches · ${profile.career.wins} wins (${Math.round((profile.career.winRate ?? 0) * 100)}%) · ${profile.career.kills} kills · ${profile.career.headshots} headshots · best streak ${profile.career.bestStreak} · longest shot ${Math.round(profile.career.longestShotM)} m · favorite map ${escapeHtml(profile.career.favoriteMap ?? "—")} · Expedition best ${profile.career.expeditionBest ?? profile.expeditionBest ?? 0}</p>
+    <p data-testid="tier-history">Tier history: ${(profile.career.tierHistory ?? []).length ? (profile.career.tierHistory ?? []).map((entry) => `${escapeHtml(entry.season)} ${escapeHtml(entry.tier)}`).join(" · ") : "none yet"}</p>
+    <div data-testid="recent-players" class="bowdle-recent"></div>
     <p data-testid="next-unlock">${profile.nextUnlock ? `Next reward at level ${profile.nextUnlock.level}: ${profile.nextUnlock.itemId ? escapeHtml(cosmeticById(profile.nextUnlock.itemId)!.name) : `${profile.nextUnlock.ink} Ink`}` : "All level rewards earned"}</p>
     <div data-testid="challenges"></div>
     <label>Explorer name <input data-field="name" maxlength="16" value="${escapeHtml(profile.name)}"></label><div class="bowdle-error"></div>
@@ -58,6 +60,40 @@ export async function showProfile(container: HTMLElement, onClose: () => void): 
     ${unlinked.map((provider) => `<button data-link="${provider}">Save progress with ${PROVIDER_LABELS[provider]}</button>`).join("")}
     <button data-action="delete">Delete account</button>
     <button data-action="close">Back</button>`;
+  const recentHost = section.querySelector("[data-testid=recent-players]");
+  if (recentHost) {
+    const headers = (): HeadersInit => {
+      const token = loadToken();
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    };
+    void fetch(`${apiBase()}/social/recent`, { headers: headers() }).then(async (response) => {
+      if (!response.ok) { recentHost.textContent = "Recent players unavailable."; return; }
+      const body = await response.json() as { players: { token: string; name: string }[] };
+      if (!body.players.length) { recentHost.textContent = "No recent players yet."; return; }
+      recentHost.replaceChildren();
+      const title = document.createElement("h3"); title.textContent = "Recent players"; recentHost.append(title);
+      for (const player of body.players) {
+        const row = document.createElement("div");
+        row.append(document.createTextNode(player.name + " "));
+        const invite = document.createElement("button"); invite.textContent = "Party invite"; invite.dataset.testid = "recent-invite";
+        invite.addEventListener("click", () => {
+          const code = prompt("Share this party code with " + player.name + ":");
+          if (code) location.search = `?scene=online&party=${encodeURIComponent(code.trim())}`;
+        });
+        const block = document.createElement("button"); block.textContent = "Block"; block.dataset.testid = "recent-block";
+        block.addEventListener("click", () => {
+          void fetch(`${apiBase()}/social/block`, {
+            method: "POST",
+            headers: { ...headers(), "Content-Type": "application/json" },
+            body: JSON.stringify({ token: player.token }),
+          }).then((res) => { block.textContent = res.ok ? "Blocked" : "Failed"; block.disabled = true; });
+        });
+        row.append(invite, block);
+        recentHost.append(row);
+      }
+    }).catch(() => { recentHost.textContent = "Recent players unavailable."; });
+  }
+
   const error = section.querySelector<HTMLDivElement>(".bowdle-error")!;
   const challengePanel = section.querySelector<HTMLDivElement>("[data-testid=challenges]")!;
   const renderChallenges = (state: Challenges | undefined): void => {

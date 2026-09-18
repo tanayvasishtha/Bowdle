@@ -3,13 +3,13 @@ import { ARROW_TRAILS, BOW_SKINS, CATALOG, COSMETIC_CATEGORIES, DEFAULT_LOADOUT,
 
 describe("cosmetic catalog", () => {
   it("has one default, six bought and two level items per category", () => {
-    expect(CATALOG.filter((item) => !isFree(item) && !("level" in item.price))).toHaveLength(24);
+    expect(CATALOG.filter((item) => !isFree(item) && !("level" in item.price) && !("reward" in item.price))).toHaveLength(24);
     for (const category of COSMETIC_CATEGORIES) {
       const items = CATALOG.filter((item) => item.category === category);
       expect(items.filter(isFree).map((item) => item.id)).toEqual([`${category}.default`]);
       expect(items.filter((item) => "level" in item.price)).toHaveLength(2);
       expect(items.filter((item) => "ink" in item.price || "sku" in item.price)).toHaveLength(6);
-      expect(items.length).toBe(9);
+      expect(items.filter((item) => !("reward" in item.price)).length).toBe(9);
     }
     expect(DEFAULT_LOADOUT).toEqual({ bow: BOW_SKINS[0]!.id, trail: ARROW_TRAILS[0]!.id, outfit: OUTFITS[0]!.id, effect: KILL_EFFECTS[0]!.id });
   });

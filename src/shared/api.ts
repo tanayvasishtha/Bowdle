@@ -8,7 +8,7 @@ export type Profile = {
   id: string; name: string; xp: number; ink: number; progress: LevelProgress; season: string;
   seasonKills: number; seasonMatches: number; seasonWins: number; linked: Provider[];
   streakDays: number;
-  career: { matches: number; wins: number; kills: number; headshots: number; bestStreak: number; longestShotM: number };
+  career: { matches: number; wins: number; kills: number; headshots: number; bestStreak: number; longestShotM: number; winRate: number; favoriteMap?: string; expeditionBest: number; tierHistory: { season: string; tier: string }[] };
   nextUnlock?: import("./cosmetics.ts").LevelReward;
   tutorialDone?: boolean;
   expeditionBest?: number;
@@ -27,3 +27,6 @@ export type Locker = { ink: number; owned: string[]; loadout: import("./cosmetic
 export type ShopConfig = { paid: boolean; sandbox: boolean };
 export type BuyResult = { ok: true; locker: Locker } | { ok: false; reason: "unknown_item" | "not_for_ink" | "owned" | "poor" };
 
+export type RecentPlayer = { token: string; name: string };
+export type SocialRecent = { players: RecentPlayer[] };
+export type FeaturedShop = { day: string; itemIds: string[] };

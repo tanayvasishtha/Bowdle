@@ -641,6 +641,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     if (lines.length === 0) return;
     const db = await gameDatabase();
     const granted = await db.recordMatch(matchId, lines);
+    await db.rememberMatchPeers(lines.map((line) => line.accountId).filter(Boolean));
     if (this.rankedMode) {
       const rankedLines: { accountId: string; won: boolean; drew: boolean; team: number }[] = [];
       for (const line of lines) {
@@ -993,6 +994,31 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       const player = this.state.players.get(sessionId);
       if (!player || player.isBot) return;
       player.look.bowSkin = loadout.bow; player.look.arrowTrail = loadout.trail; player.look.outfit = loadout.outfit; player.look.killEffect = loadout.effect;
+      if (this.rankedMode) {
+        const profile = await (await gameDatabase()).profile(accountId);
+        player.rank.tier = profile?.tier ?? "";
+      }
+      const blocked = await (await gameDatabase()).blockedAccountIds(accountId);
+      for (const [otherId, otherAccount] of this.accounts) {
+        if (otherId === sessionId) continue;
+        const other = await otherAccount;
+        if (other && blocked.includes(other)) {
+          let set = this.mutedPings.get(sessionId);
+          if (!set) { set = new Set(); this.mutedPings.set(sessionId, set); }
+          set.add(otherId);
+        }
+      }
+      // Also mute this player for people who blocked them.
+      for (const [otherId, otherAccount] of this.accounts) {
+        if (otherId === sessionId) continue;
+        const other = await otherAccount;
+        if (!other) continue;
+        if (await (await gameDatabase()).isBlocked(other, accountId)) {
+          let set = this.mutedPings.get(otherId);
+          if (!set) { set = new Set(); this.mutedPings.set(otherId, set); }
+          set.add(sessionId);
+        }
+      }
     } catch (error) {
       console.error(JSON.stringify({ event: "loadoutError", message: error instanceof Error ? error.message : String(error) }));
     }

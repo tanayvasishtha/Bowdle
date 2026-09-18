@@ -9,6 +9,12 @@ export const LookState = schema({
 }, "LookState");
 export type LookState = SchemaType<typeof LookState>;
 
+/** Ranked tier label synced for scoreboard / end screen (empty when unranked). */
+export const RankState = schema({
+  tier: t.string().default(""),
+}, "RankState");
+export type RankState = SchemaType<typeof RankState>;
+
 export const PlayerState = schema({
   name: t.string().default("Player"),
   team: t.uint8().default(0),
@@ -26,6 +32,7 @@ export const PlayerState = schema({
   zipId: t.string().default(""), zipT: t.number().default(0),
   kills: t.uint16().default(0), deaths: t.uint16().default(0), assists: t.uint16().default(0),
   look: LookState,
+  rank: RankState,
   // Movement 2.0: synced so client prediction replays air jumps, wall jumps, mantles and dodges exactly.
   airJumps: t.uint8().default(VINE_HOP.perAirtime), wallJumps: t.uint8().default(0), wallJumpCooldownMs: t.number().default(0),
   wallTouchMs: t.number().default(10_000), wallNormalX: t.number().default(0), wallNormalZ: t.number().default(0),

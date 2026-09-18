@@ -131,6 +131,42 @@ export const MIGRATIONS: readonly string[] = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
   CREATE UNIQUE INDEX IF NOT EXISTS reports_reporter_target_reason ON reports (reporter_id, target_id, reason);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS season_tier_grants (
+    season TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    tier TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    PRIMARY KEY (season, account_id)
+  );
+  CREATE TABLE IF NOT EXISTS tier_history (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    season TEXT NOT NULL,
+    tier TEXT NOT NULL,
+    PRIMARY KEY (account_id, season)
+  );
+  CREATE TABLE IF NOT EXISTS map_plays (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    map_id TEXT NOT NULL,
+    plays INTEGER NOT NULL DEFAULT 0,
+    wins INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (account_id, map_id)
+  );
+  CREATE TABLE IF NOT EXISTS recent_players (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    other_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    token TEXT NOT NULL,
+    last_played_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (account_id, other_id)
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS recent_players_token ON recent_players (account_id, token);
+  CREATE TABLE IF NOT EXISTS blocks (
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    blocked_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (account_id, blocked_id)
+  );
   `
 ];
 

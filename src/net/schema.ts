@@ -93,6 +93,12 @@ export const ExpeditionState = schema({
   wave: t.uint16().default(0), phase: t.string<"break" | "fight" | "over">().default("break"), phaseEndsAtMs: t.number().default(0),
   left: t.uint16().default(0), modifier: t.string().default("none"), lives: t.uint8().default(0), cleared: t.uint16().default(0), bosses: t.uint8().default(0),
   startWave: t.uint16().default(0),
+  totemHp: t.number().default(0),
+  totemMaxHp: t.number().default(0),
+  coins: t.uint16().default(0),
+  shop0: t.string().default(""),
+  shop1: t.string().default(""),
+  shop2: t.string().default(""),
 }, "ExpeditionState");
 export type ExpeditionState = SchemaType<typeof ExpeditionState>;
 

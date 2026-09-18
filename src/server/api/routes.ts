@@ -220,6 +220,9 @@ const tutorialCalls = new Map<string, Window>();
   router.get("/expedition/leaderboard", async (_request, response) => {
     response.json({ rows: await (await options.database()).expeditionLeaderboard() });
   });
+  router.get("/expedition/daily", async (_request, response) => {
+    response.json({ rows: await (await options.database()).expeditionDailyLeaderboard() });
+  });
 
   
   router.get("/ranked/leaderboard", async (request, response) => {

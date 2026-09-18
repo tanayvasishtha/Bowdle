@@ -1,3 +1,12 @@
+## L4 Village Defense full loop (2026-09-19)
+
+- Play mode Village Defense on Expedition: totem HP objective, coins for kills/waves, between-wave shop with three upgrades.
+- Upgrades: fastDraw, doubleShot, fireArrows, moreHealth, fastGrapple, totemRepair (run-scoped buffs; fire tip + twin shot apply on arrow spawn).
+- HUD: totem bar, coins, shop buttons (sends pickUpgrade), Chief bar, Village Defense copy.
+- Daily top board API: GET /expedition/daily (joins match created_at).
+- Unit tests: src/shared/sim/villageDefense.test.ts (4 green). Typecheck green.
+- Soft-deferred L3 big maps; L5 lobby capacity already on main.
+
 ﻿## F4: Repo hygiene, encoding and zero browser fails
 
 ## P1 Persistence (2026-09-18)

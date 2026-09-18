@@ -5,6 +5,10 @@ import { findPath, nearestWaypoint } from "../../shared/bots/nav.ts";
 import { mulberry32, type SeededRng } from "../../shared/math/rng.ts";
 import { createCreature, creatureDamage, creatureHit, stepCreature, type CreatureContext, type CreatureEvent, type CreatureTarget, type Heading } from "../../shared/sim/creatures.ts";
 import { aliveCap, earnsSoloLife, gravityMultiplier, hpMultiplier, isBossWave, modifierFor, pickKind, waveCount, type CreatureKind, type WaveModifier } from "../../shared/sim/waves.ts";
+import {
+  TOTEM_ID, VILLAGE, VILLAGE_UPGRADES, applyUpgrade, emptyBuffs, rollShop,
+  type VillageBuffs, type VillageUpgradeId,
+} from "../../shared/sim/villageDefense.ts";
 import { ArrowState, CreatureState, HerbState, type MatchState, type PlayerState } from "../../net/schema.ts";
 import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, WaveMessage } from "../../net/messages.ts";
 import type { MatchStats } from "../../shared/matchStats.ts";
@@ -51,6 +55,11 @@ export class ExpeditionDirector {
   private nextSpawnAtMs = 0;
   private serial = 0;
   private readonly routes = new Map<string, Route>();
+  private readonly playerBuffs = new Map<string, VillageBuffs>();
+  private readonly ownedUpgrades = new Map<string, Set<VillageUpgradeId>>();
+  private totemX = 0;
+  private totemY = 0;
+  private totemZ = 0;
   private readonly progress = new Map<string, Progress>();
   private mires: MirePool[] = [];
 
@@ -89,6 +98,10 @@ export class ExpeditionDirector {
     run.lives = 0;
     this.host.state.creatures.clear();
     this.mires = []; this.host.state.herbs.clear(); this.routes.clear(); this.progress.clear(); this.toSpawn = 0;
+    this.playerBuffs.clear(); this.ownedUpgrades.clear();
+    this.placeTotem();
+    run.totemMaxHp = VILLAGE.totemMaxHp; run.totemHp = VILLAGE.totemMaxHp; run.coins = 0;
+    run.shop0 = ""; run.shop1 = ""; run.shop2 = "";
     this.beginBreak(START_BREAK_MS);
   }
 
@@ -98,9 +111,24 @@ export class ExpeditionDirector {
 
   private humans(): PlayerState[] { return [...this.host.state.players.values()]; }
 
+  private placeTotem(): void {
+    const map = this.host.map;
+    const marker = map.herbSpawns?.[0];
+    const spawn = map.spawns.sun[0]?.pos;
+    const pos = marker ?? spawn ?? ([0, 0, 0] as const);
+    this.totemX = pos[0]; this.totemY = pos[1]; this.totemZ = pos[2];
+  }
+
   private beginBreak(ms: number): void {
     const run = this.run, now = this.host.now();
-    run.phase = "break"; run.phaseEndsAtMs = now + ms; run.left = 0;
+    const shopMs = run.wave > run.startWave ? Math.max(ms, VILLAGE.shopMs) : ms;
+    run.phase = "break"; run.phaseEndsAtMs = now + shopMs; run.left = 0;
+    if (run.wave > run.startWave) {
+      const owned = new Set<VillageUpgradeId>();
+      for (const set of this.ownedUpgrades.values()) for (const id of set) owned.add(id);
+      const picks = rollShop(() => this.rng(), owned);
+      run.shop0 = picks[0] ?? ""; run.shop1 = picks[1] ?? ""; run.shop2 = picks[2] ?? "";
+    } else { run.shop0 = ""; run.shop1 = ""; run.shop2 = ""; }
     this.host.state.herbs.clear();
     (this.host.map.herbSpawns ?? []).slice(0, EXPEDITION.herbs).forEach(([x, y, z], index) => {
       const herb = new HerbState(); herb.x = x; herb.y = y; herb.z = z; this.host.state.herbs.set(`herb-${run.wave}-${index}`, herb);
@@ -160,6 +188,9 @@ export class ExpeditionDirector {
       if (!player.alive || player.downed) continue;
       const target = { id, x: player.x, y: player.y, z: player.z, grounded: player.grounded };
       targets.push(target);
+    }
+    if (this.run.totemHp > 0) {
+      targets.push({ id: TOTEM_ID, x: this.totemX, y: this.totemY, z: this.totemZ, grounded: true });
     }
     const allies = [...creatures.entries()]
       .filter(([, creature]) => creature.hp > 0)
@@ -273,6 +304,33 @@ export class ExpeditionDirector {
   }
 
   /** A spit projectile reached a player: damage and the ink slow. */
+  /** Between-wave shop: spend coins on one of the three offers. */
+  pickUpgrade(playerId: string, upgradeId: string): boolean {
+    const run = this.run;
+    if (run.phase !== "break") return false;
+    const offers = [run.shop0, run.shop1, run.shop2];
+    if (!offers.includes(upgradeId)) return false;
+    const def = VILLAGE_UPGRADES.find((row) => row.id === upgradeId);
+    if (!def || run.coins < def.cost) return false;
+    run.coins -= def.cost;
+    if (upgradeId === "totemRepair") {
+      run.totemHp = Math.min(run.totemMaxHp, run.totemHp + run.totemMaxHp * 0.35);
+      return true;
+    }
+    const id = upgradeId as VillageUpgradeId;
+    const owned = this.ownedUpgrades.get(playerId) ?? new Set<VillageUpgradeId>();
+    owned.add(id); this.ownedUpgrades.set(playerId, owned);
+    const buffs = applyUpgrade(this.playerBuffs.get(playerId) ?? emptyBuffs(), id);
+    this.playerBuffs.set(playerId, buffs);
+    const player = this.host.state.players.get(playerId);
+    if (player && id === "moreHealth") {
+      player.hp = Math.min(Math.round(MAX_HP * buffs.hpMult), Math.round(player.hp * buffs.hpMult));
+    }
+    return true;
+  }
+
+  buffsFor(playerId: string): VillageBuffs { return this.playerBuffs.get(playerId) ?? emptyBuffs(); }
+
   spitHit(targetId: string): void {
     const player = this.host.state.players.get(targetId);
     if (!player || !player.alive || player.downed) return;
@@ -282,6 +340,13 @@ export class ExpeditionDirector {
 
   /** Creature damage to a player. At zero a player goes down instead of dying; a solo player with a spare life gets straight up. */
   hurt(playerId: string, damage: number): void {
+    if (playerId === TOTEM_ID) {
+      const run = this.run;
+      if (run.totemHp <= 0) return;
+      run.totemHp = Math.max(0, run.totemHp - damage);
+      if (run.totemHp <= 0) this.end();
+      return;
+    }
     const player = this.host.state.players.get(playerId);
     if (!player || !player.alive || player.downed) return;
     player.hp -= damage; player.lastDamageAtMs = this.host.now();
@@ -341,6 +406,7 @@ export class ExpeditionDirector {
     for (const id of this.host.state.players.keys()) {
       const stats = this.host.humanStats(id); if (stats) stats.waveReached = Math.max(stats.waveReached, run.wave);
     }
+    run.coins = Math.min(9999, run.coins + VILLAGE.coinWave);
     this.host.broadcastWave({ event: "clear", wave: run.wave, modifier: run.modifier, boss: isBossWave(run.wave) });
     this.beginBreak(this.breakMs);
   }
@@ -381,6 +447,9 @@ export class ExpeditionDirector {
   }
 
   private remove(id: string, creature: CreatureState, killer: string): void {
+    const run = this.run;
+    const boss = creature.kind === "colossus";
+    run.coins = Math.min(9999, run.coins + (boss ? VILLAGE.coinBoss : VILLAGE.coinKill));
     this.host.state.creatures.delete(id);
     this.routes.delete(id);
     this.progress.delete(id);

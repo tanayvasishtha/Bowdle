@@ -79,3 +79,6 @@ export type ReportMessage = z.infer<typeof ReportMessage>;
 export type AfkPromptMessage = z.infer<typeof AfkPromptMessage>;
 export type AfkRemovedMessage = z.infer<typeof AfkRemovedMessage>;
 export type PlayOfTheMatchMessage = z.infer<typeof PlayOfTheMatchMessage>;
+
+export const PickUpgradeMessage = z.object({ upgradeId: z.string().min(1).max(32) });
+export type PickUpgradeMessage = z.infer<typeof PickUpgradeMessage>;

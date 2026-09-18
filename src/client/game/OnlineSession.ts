@@ -590,7 +590,9 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
   private showExpedition(timeMs: number): void {
     const state = this.room.state;
     if (state.mode !== "expedition") return;
-    this.expeditionHud ??= new ExpeditionHud(this.renderer.canvas.parentElement!);
+    this.expeditionHud ??= new ExpeditionHud(this.renderer.canvas.parentElement!, (upgradeId) => {
+      this.room.send("pickUpgrade", { upgradeId });
+    });
     const me = this.me.state;
     let count = 0;
     this.creatureInView = false;

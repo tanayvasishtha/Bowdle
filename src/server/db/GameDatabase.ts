@@ -258,6 +258,22 @@ for (const itemId of expeditionRewardIds(line.expedition.reachedWave, line.exped
   }
 
   /** This week's best Expedition wave per account, highest first. */
+  /** Today's best Expedition / Village Defense wave per account. */
+  async expeditionDailyLeaderboard(limit = 20): Promise<ExpeditionRow[]> {
+    const day = periodKeys(this.now()).daily.slice(2);
+    const rows = await this.sql.query<{ name: string; wave: number }>(
+      `SELECT accounts.name AS name, MAX(expedition_runs.wave) AS wave
+       FROM expedition_runs
+       JOIN accounts ON accounts.id = expedition_runs.account_id
+       JOIN matches ON matches.id = expedition_runs.match_id
+       WHERE matches.created_at::date = $1::date
+       GROUP BY accounts.id, accounts.name
+       ORDER BY wave DESC, accounts.name LIMIT $2`,
+      [day, Math.max(1, Math.min(20, Math.floor(limit)))],
+    );
+    return rows.map((row) => ({ name: row.name, wave: Number(row.wave) }));
+  }
+
   async expeditionLeaderboard(limit = 20): Promise<ExpeditionRow[]> {
     const rows = await this.sql.query<{ name: string; wave: number }>(
       `SELECT accounts.name AS name, MAX(expedition_runs.wave) AS wave FROM expedition_runs JOIN accounts ON accounts.id = expedition_runs.account_id

@@ -41,7 +41,7 @@ import type { MapData } from "../../shared/maps/types.ts";
 import { defaultMatchMap, mapById, matchMaps, nextMatchMap } from "../../shared/maps/registry.ts";
 import { PITCH_LIMIT } from "../../shared/math/angles.ts";
 import { ArrowState, BoulderHazardState, InkCloudState, MatchState, PlayerInput, PlayerState, TetherState } from "../../net/schema.ts";
-import { MapVoteMessage, SetNameMessage, PingMessage, MutePingMessage, ReportMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RelicMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage, type PingEventMessage, type AfkPromptMessage, type AfkRemovedMessage, type PlayOfTheMatchMessage } from "../../net/messages.ts";
+import { MapVoteMessage, SetNameMessage, PingMessage, MutePingMessage, ReportMessage, PickUpgradeMessage, type DamagedMessage, type HitConfirmMessage, type KillMessage, type MatchEndMessage, type RewardMessage, type RelicMessage, type RobinHoodMessage, type RopeCutMessage, type SwatMessage, type PingEventMessage, type AfkPromptMessage, type AfkRemovedMessage, type PlayOfTheMatchMessage } from "../../net/messages.ts";
 import { gameDatabase, type MatchResultLine } from "../db/GameDatabase.ts";
 import { canQueueRanked } from "../../shared/rating.ts";
 import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
@@ -123,6 +123,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private tetherSerial = 0;
   /** Expedition only: the wave director, the checkpoint the next run starts from, and bot players for the soak. */
   expedition: ExpeditionDirector | null = null;
+  private readonly villageShotCount = new Map<string, number>();
   private expeditionWeekly = false;
   private expeditionSeed = 0;
   private expeditionHandicaps: ExpeditionHandicapId[] = [];
@@ -224,6 +225,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       set.add(message.targetId);
     });
     this.onMessage("report", ReportMessage, (client, message) => { void this.handleReport(client, message); });
+    this.onMessage("pickUpgrade", PickUpgradeMessage, (client, message) => {
+      this.expedition?.pickUpgrade(client.sessionId, message.upgradeId);
+    });
     this.setFixedTimestep((context) => this.simulateTick(context, this.clock.elapsedTime), TICK_HZ, { subSteps: SUBSTEPS });
   }
 
@@ -369,12 +373,19 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   private createArrow(owner: string, team: number, event: FireEvent): void {
     const aimed = { ...event, aimRange: event.aimRange ?? this.aimRangeAlongLook(owner, event) };
-    for (const sim of spawnVolley(aimed, this.state.players.get(owner)?.crouched)) {
-      const arrow = new ArrowState(); Object.assign(arrow, sim);
-      arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
-      arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs;
-      const id = `${owner}-${this.arrowSerial += 1}`;
-      this.state.arrows.set(id, arrow); this.arrowOrigins.set(id, { x: event.x, y: event.y, z: event.z });
+    const buffs = this.expedition?.buffsFor(owner);
+    const shots = (this.villageShotCount.get(owner) ?? 0) + 1;
+    this.villageShotCount.set(owner, shots);
+    const twin = !!(buffs && buffs.doubleEvery > 0 && shots % buffs.doubleEvery === 0);
+    for (let volley = 0; volley < (twin ? 2 : 1); volley += 1) {
+      for (const sim of spawnVolley(aimed, this.state.players.get(owner)?.crouched)) {
+        const arrow = new ArrowState(); Object.assign(arrow, sim);
+        if (buffs && buffs.fireBonus > 0) arrow.damage = (arrow.damage || 0) + buffs.fireBonus;
+        arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
+        arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs;
+        const id = `${owner}-${this.arrowSerial += 1}`;
+        this.state.arrows.set(id, arrow); this.arrowOrigins.set(id, { x: event.x, y: event.y, z: event.z });
+      }
     }
     let owned = 0;
     for (const [arrowId, other] of this.state.arrows) if (other.owner === owner && ++owned > ARROW_MAX_PER_PLAYER) this.deleteArrow(arrowId);

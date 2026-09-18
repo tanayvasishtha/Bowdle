@@ -41,6 +41,7 @@ export async function runGraphicsBenchmark(host: HTMLElement): Promise<GraphicsP
     requestAnimationFrame(tick);
   });
 
+  renderer.dispose();
   shell.remove();
   const average = samples.length ? samples.reduce((a, b) => a + b, 0) / samples.length : 30;
   return presetFromFrameMs(average);

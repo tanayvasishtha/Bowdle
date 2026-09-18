@@ -50,6 +50,7 @@ export function startAttract(host: HTMLElement): AttractHandle {
   return {
     stop: () => {
       cancelAnimationFrame(raf);
+      renderer.dispose();
       root.remove();
       overlay.remove();
     },

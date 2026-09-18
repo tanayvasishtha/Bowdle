@@ -1,5 +1,15 @@
 ## F4: Repo hygiene, encoding and zero browser fails
 
+## Hotfix - spectator stub, WebGL dispose, join UX (2026-09-18)
+
+- Spectator local state stub now includes the player fields the session reads (alive, draw, grapple, look, …).
+- `Renderer.dispose()` added; attract + first-launch benchmark release their WebGL contexts.
+- Canvas ids are unique so attract/benchmark do not collide with `#game-canvas`.
+- Rejoin ticket cleared only after a successful reconnect session is built.
+- Party join progress uses the loading stage helper instead of overwriting the wrong label.
+- Removed stray `tests/e2e/zz-look-probe.spec.ts`.
+
+
 ## LEFT-F3 - Attract, benchmark, loading warm-up, share assets (2026-09-18)
 
 - Attract mode after 30 s idle on the main menu (orbit camera over a random match map).

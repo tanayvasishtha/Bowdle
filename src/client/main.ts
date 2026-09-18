@@ -94,7 +94,7 @@ if (params.get("scene") === "online") {
   if (enableTouch) sampler.attachTouch(new TouchControls(app));
   const requestedParty = normalizePartyCode(params.get("party") ?? "");
   const party = isPartyCode(requestedParty) ? requestedParty : undefined;
-  if (party) loading.querySelector("p")!.textContent = `Joining party ${party}.`;
+  if (party) setLoad(`Joining party ${party}…`, 30);
   void renderer.warmShaders().then(() => {
     setLoad("Joining the match…", 70);
     return (params.get("rejoin") === "1" && params.get("token")

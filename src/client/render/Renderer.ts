@@ -219,7 +219,7 @@ export class Renderer {
     this.renderer = new WebGLRenderer({ antialias: false, alpha: false });
     this.renderer.info.autoReset = false;
     this.canvas = this.renderer.domElement;
-    this.canvas.id = "game-canvas";
+    this.canvas.id = `game-canvas-${Math.random().toString(36).slice(2, 8)}`;
     this.canvas.dataset.mapId = map.id;
     this.canvas.dataset.mapFeatures = String(map.ramps.length + map.volumes.length + map.zipLines.length + map.boulders.length);
     container.append(this.canvas);
@@ -651,6 +651,13 @@ export class Renderer {
   unpinPlayer(id: string): void { const player = this.players.get(id); if (player) player.rotation.z = 0; }
 
   /** Compile every material once so the first real frame does not hitch. */
+  /** Drop the WebGL context and canvas. Attract / benchmark must call this. */
+  dispose(): void {
+    this.renderer.dispose();
+    this.canvas.remove();
+  }
+
+
   async warmShaders(): Promise<void> {
     await this.renderer.compileAsync(this.worldScene, this.camera);
     this.render(performance.now());

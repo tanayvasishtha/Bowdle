@@ -145,7 +145,15 @@ export class OnlineSession {
       this.sampler.setLook(0, -0.35);
       room.onMessage("spectator", () => { this.spectator = true; });
       this.arrows = { spawn() {}, clear() {} } as unknown as typeof this.arrows;
-      this.me = { state: { x: 0, y: 12, z: 0, yaw: 0, pitch: -0.35, crouched: false, team: 0, kills: 0, deaths: 0 } } as unknown as typeof this.me;
+      this.me = {
+        state: {
+          x: 0, y: 12, z: 0, yaw: 0, pitch: -0.35, crouched: false, team: 0, kills: 0, deaths: 0,
+          alive: true, downed: false, drawMs: 0, arrowSlot: 0, meleeCooldownMs: 0,
+          grappleActive: false, grappleReeling: false, grappleCooldownMs: 0, zipId: "",
+          relicCarrier: false,
+          look: { bowSkin: "bow.default", arrowTrail: "trail.default", outfit: "outfit.default", killEffect: "effect.default" },
+        },
+      } as unknown as typeof this.me;
     } else {
       this.sampler.setLook(local.yaw, local.pitch);
       this.arrows = this.predict.spawns<"arrows", LocalArrow>("arrows", {
@@ -224,8 +232,9 @@ export class OnlineSession {
     const chosen = chooseRegion(probes);
     const endpoint = regionEndpoint(chosen);
     const room = await new Client(endpoint).reconnect(reconnectionToken);
+    const session = new OnlineSession(renderer, sampler, room);
     clearRejoinTicket();
-    return new OnlineSession(renderer, sampler, room);
+    return session;
   }
 
 static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false, weekly = false, handicaps: readonly string[] = [], spectator = false): Promise<OnlineSession> {

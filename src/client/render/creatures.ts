@@ -92,6 +92,22 @@ function bodyParts(kind: CreatureVisualKind): Part[] {
       { geometry: box(0.95, 0.8, 0.95), at: [2.05, 1.5, -0.1] },
       { geometry: box(3.4, 0.4, 2.3), at: [0, 4.55, 0.1] },
     ];
+    case "mire": return [
+      { geometry: ball(0.55), at: [0, 0.35, 0], scale: [1.15, 0.7, 1.15] },
+      { geometry: ball(0.32), at: [0, 0.72, 0], scale: [1, 0.85, 1] },
+      { geometry: new ConeGeometry(0.18, 0.45, 6), at: [0, 1.05, 0] },
+      { geometry: ball(0.12), at: [-0.38, 0.22, 0.2] },
+      { geometry: ball(0.12), at: [0.4, 0.2, -0.15] },
+      { geometry: ball(0.1), at: [-0.15, 0.18, -0.4] },
+    ];
+    case "tender": return [
+      { geometry: new CylinderGeometry(0.12, 0.22, 0.9, 6), at: [0, 0.55, 0] },
+      { geometry: ball(0.28), at: [0, 1.15, 0], scale: [1, 1.15, 1] },
+      { geometry: new ConeGeometry(0.08, 0.55, 5), at: [-0.35, 1.35, 0], rotate: [0, 0, 0.7] },
+      { geometry: new ConeGeometry(0.08, 0.55, 5), at: [0.35, 1.35, 0], rotate: [0, 0, -0.7] },
+      { geometry: new ConeGeometry(0.07, 0.5, 5), at: [0, 1.45, -0.3], rotate: [0.5, 0, 0] },
+      { geometry: box(0.5, 0.04, 0.18), at: [0, 0.85, 0.05], rotate: [0, 0.4, 0] },
+    ];
   }
 }
 
@@ -108,11 +124,21 @@ function accentParts(kind: CreatureVisualKind): Part[] {
       { geometry: new SphereGeometry(0.16, 6, 4), at: [-0.4, 5.3, -0.56] },
       { geometry: new SphereGeometry(0.16, 6, 4), at: [0.4, 5.3, -0.56] },
     ];
+    case "mire": return [
+      { geometry: ball(0.08), at: [-0.14, 0.8, -0.2] },
+      { geometry: ball(0.08), at: [0.14, 0.8, -0.2] },
+      { geometry: ball(0.14), at: [0, 0.4, 0.15] },
+    ];
+    case "tender": return [
+      { geometry: ball(0.1), at: [0, 1.2, -0.18] },
+      { geometry: new OctahedronGeometry(0.12), at: [0, 1.55, 0] },
+    ];
   }
 }
 
 const BODY_MATERIAL: Record<CreatureVisualKind, number> = {
   beetle: MATERIAL_ID.hazard, spitter: MATERIAL_ID.water, guardian: MATERIAL_ID.carvedStone, wisp: MATERIAL_ID.canopy, colossus: MATERIAL_ID.stone,
+  mire: MATERIAL_ID.hazard, tender: MATERIAL_ID.canopy,
 };
 
 export type CreaturePose = { kind: string; x: number; y: number; z: number; yaw: number; action: string; actionMs: number };

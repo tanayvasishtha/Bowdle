@@ -3,6 +3,7 @@ import { consumeSignInFragment, ensureAccount, reportFunnel } from "../account.t
 import { checkpointFor } from "../../shared/sim/waves.ts";
 import { courseDone } from "../game/course.ts";
 import { onlineSearch, type GameMode } from "../../shared/sim/modes.ts";
+import { EXPEDITION_HANDICAPS, type ExpeditionHandicapId } from "../../shared/constants.ts";
 import { music } from "../audio/music.ts";
 import { musicIntensity } from "../audio/spatial.ts";
 import { ACTION_LABELS, ACTIONS, CROSSHAIR_COLORS, CROSSHAIR_SIZE, CROSSHAIR_STYLES, TEAM_PALETTE_NAMES, keyLabel, loadName, loadSettings, nameError, saveName, saveSettings, type Action, type GameSettings } from "../settings.ts";
@@ -139,15 +140,37 @@ export function showMainMenu(container: HTMLElement): void {
   const expedition = (name: string): void => {
     void (async () => {
       const checkpoint = checkpointFor((await ensureAccount(name))?.expeditionBest ?? 0);
-      if (checkpoint <= 0) { location.search = onlineSearch("expedition"); return; }
       const card = document.createElement("section"); card.className = "bowdle-panel"; card.dataset.testid = "expedition-start";
-      card.innerHTML = `<h2>Expedition</h2><p>Hold the camp against waves of ink creatures, alone or with up to three friends.</p><button data-start="checkpoint">Start after wave ${checkpoint}</button><button data-start="fresh">Start at wave 1</button><button data-start="back">Back</button>`;
+      const handicapRows = (Object.keys(EXPEDITION_HANDICAPS) as ExpeditionHandicapId[]).map((id) => {
+        const labels: Record<ExpeditionHandicapId, string> = {
+          shortLives: "Fewer spare lives",
+          swiftWaves: "Faster waves",
+          glassBodies: "Glass bodies",
+        };
+        return `<label><input type="checkbox" data-handicap="${id}"/> ${labels[id]} (x${EXPEDITION_HANDICAPS[id].rewardMult})</label>`;
+      }).join("");
+      card.innerHTML = `<h2>Expedition</h2>
+<p>Hold the camp against waves of ink creatures, alone or with up to three friends.</p>
+<label><input type="checkbox" data-weekly/> Weekly challenge (shared seed and map)</label>
+<div data-testid="expedition-handicaps">${handicapRows}</div>
+${checkpoint > 0 ? `<button data-start="checkpoint">Start after wave ${checkpoint}</button>` : ""}
+<button data-start="fresh">Start at wave 1</button>
+<button data-start="back">Back</button>`;
+      const selectedHandicaps = (): ExpeditionHandicapId[] =>
+        [...card.querySelectorAll<HTMLInputElement>("[data-handicap]:checked")].map((input) => input.dataset.handicap as ExpeditionHandicapId);
+      const weekly = (): boolean => card.querySelector<HTMLInputElement>("[data-weekly]")?.checked === true;
       card.addEventListener("click", (event) => {
         const start = (event.target as HTMLElement).dataset.start;
         if (start === "back") card.remove();
-        else if (start) location.search = onlineSearch("expedition", undefined, start === "checkpoint");
+        else if (start) {
+          location.search = onlineSearch("expedition", undefined, {
+            checkpoint: start === "checkpoint",
+            weekly: weekly(),
+            handicaps: selectedHandicaps(),
+          });
+        }
       });
-      container.append(card);
+      menu.append(card);
     })();
   };
   const play = (): void => withName((name) => { reportFunnel("modePicked"); void enter(name); });

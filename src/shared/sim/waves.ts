@@ -34,7 +34,7 @@ export function bossHp(players: number): number {
 
 /** The regular creatures a wave may use: everything unlocked by this wave except the boss. */
 export function unlockedKinds(wave: number): Exclude<CreatureKind, "colossus">[] {
-  return (["beetle", "spitter", "guardian", "wisp"] as const).filter((kind) => CREATURE_TUNING[kind].fromWave <= wave);
+  return (["beetle", "spitter", "guardian", "mire", "wisp", "tender"] as const).filter((kind) => CREATURE_TUNING[kind].fromWave <= wave);
 }
 
 /** A seeded pick among the unlocked kinds; beetles are twice as common as anything else. */

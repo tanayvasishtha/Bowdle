@@ -1,4 +1,4 @@
-import { CREATURE_TUNING, EXPEDITION, MAX_HP } from "../../shared/constants.ts";
+import { CREATURE_TUNING, EXPEDITION, EXPEDITION_HANDICAPS, MAX_HP, type ExpeditionHandicapId } from "../../shared/constants.ts";
 import { BTN } from "../../shared/input.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { findPath, nearestWaypoint } from "../../shared/bots/nav.ts";
@@ -26,6 +26,7 @@ export type ExpeditionHost = {
 type Route = { path: { pos: readonly [number, number, number] }[]; index: number; refreshedAtMs: number; goalId: string };
 /** Where a creature was when it last made progress, for the stuck check. */
 type Progress = { x: number; z: number; atMs: number };
+type MirePool = { x: number; z: number; radius: number; untilMs: number; dps: number; slowMult: number };
 const walkable = (link: { kind: string }): boolean => link.kind === "walk" || link.kind === "jump" || link.kind === "drop";
 
 const START_BREAK_MS = 3000;
@@ -40,15 +41,43 @@ export const CREATURE_TEAM = 9;
 export class ExpeditionDirector {
   private readonly host: ExpeditionHost;
   private rng: SeededRng;
+  private readonly handicaps: ExpeditionHandicapId[];
+  private readonly rewardMult: number;
+  private readonly spawnGapMult: number;
+  private readonly breakMs: number;
+  private readonly playerHpMult: number;
+  private readonly soloLifeEvery: number;
   private toSpawn = 0;
   private nextSpawnAtMs = 0;
   private serial = 0;
   private readonly routes = new Map<string, Route>();
   private readonly progress = new Map<string, Progress>();
+  private mires: MirePool[] = [];
 
-  constructor(host: ExpeditionHost, seed: number) {
+  constructor(host: ExpeditionHost, seed: number, handicaps: readonly ExpeditionHandicapId[] = []) {
     this.host = host;
     this.rng = mulberry32(seed);
+    this.handicaps = [...handicaps];
+    let rewardMult = 1;
+    let spawnGapMult = 1;
+    let breakMs: number = EXPEDITION.breakMs;
+    let playerHpMult = 1;
+    let soloLifeEvery: number = EXPEDITION.soloLifeEvery;
+    for (const id of this.handicaps) {
+      const handicap = EXPEDITION_HANDICAPS[id] as {
+        rewardMult?: number; spawnGapMult?: number; breakMs?: number; hpMult?: number; soloLifeEvery?: number;
+      };
+      rewardMult *= handicap.rewardMult ?? 1;
+      spawnGapMult *= handicap.spawnGapMult ?? 1;
+      if (handicap.breakMs !== undefined) breakMs = handicap.breakMs;
+      playerHpMult *= handicap.hpMult ?? 1;
+      if (handicap.soloLifeEvery !== undefined) soloLifeEvery = handicap.soloLifeEvery;
+    }
+    this.rewardMult = rewardMult;
+    this.spawnGapMult = spawnGapMult;
+    this.breakMs = breakMs;
+    this.playerHpMult = playerHpMult;
+    this.soloLifeEvery = soloLifeEvery;
   }
 
   private get run() { return this.host.state.expedition; }
@@ -58,11 +87,14 @@ export class ExpeditionDirector {
     const run = this.run;
     run.wave = startWave; run.startWave = startWave; run.cleared = 0; run.bosses = 0; run.left = 0; run.modifier = "none";
     run.lives = 0;
-    this.host.state.creatures.clear(); this.host.state.herbs.clear(); this.routes.clear(); this.progress.clear(); this.toSpawn = 0;
+    this.host.state.creatures.clear();
+    this.mires = []; this.host.state.herbs.clear(); this.routes.clear(); this.progress.clear(); this.toSpawn = 0;
     this.beginBreak(START_BREAK_MS);
   }
 
   gravityMult(): number { return gravityMultiplier(this.run.modifier); }
+  rewardMultiplier(): number { return this.rewardMult; }
+  playerHealthMult(): number { return this.playerHpMult; }
 
   private humans(): PlayerState[] { return [...this.host.state.players.values()]; }
 
@@ -121,7 +153,7 @@ export class ExpeditionDirector {
     }
     const creatures = this.host.state.creatures;
     if (this.toSpawn > 0 && now >= this.nextSpawnAtMs && creatures.size < aliveCap(run.wave)) {
-      this.spawn(pickKind(run.wave, this.rng)); this.toSpawn -= 1; this.nextSpawnAtMs = now + EXPEDITION.spawnGapMs;
+      this.spawn(pickKind(run.wave, this.rng)); this.toSpawn -= 1; this.nextSpawnAtMs = now + EXPEDITION.spawnGapMs * this.spawnGapMult;
     }
     const targets: CreatureTarget[] = [];
     for (const [id, player] of this.host.state.players) {
@@ -129,13 +161,17 @@ export class ExpeditionDirector {
       const target = { id, x: player.x, y: player.y, z: player.z, grounded: player.grounded };
       targets.push(target);
     }
-    const ctx: CreatureContext = { map: this.host.map, targets, dt, gravityMult: this.gravityMult(), steer: (creature, target) => this.steer(creature as CreatureState, target, now) };
+    const allies = [...creatures.entries()]
+      .filter(([, creature]) => creature.hp > 0)
+      .map(([allyId, creature]) => ({ id: allyId, x: creature.x, y: creature.y, z: creature.z }));
+    const ctx: CreatureContext = { map: this.host.map, targets, allies, dt, gravityMult: this.gravityMult(), steer: (creature, target) => this.steer(creature as CreatureState, target, now) };
     for (const [id, creature] of creatures) {
       this.currentCreature = id;
       for (const event of stepCreature(creature, ctx)) this.apply(id, event, targets);
       if (creature.y < this.host.map.bounds.min[1] - 5) this.remove(id, creature, "");
       else this.checkStuck(id, creature, targets, now);
     }
+    this.tickMires(dt);
     run.left = this.toSpawn + creatures.size;
     if (this.toSpawn === 0 && creatures.size === 0) this.clearWave();
   }
@@ -188,13 +224,46 @@ export class ExpeditionDirector {
     return null;
   }
 
+
+  /** Ink mires planted by Mire Blooms: damage and slow players standing in them. */
+  private tickMires(dt: number): void {
+    const now = this.host.now();
+    this.mires = this.mires.filter((pool) => pool.untilMs > now);
+    if (this.mires.length === 0) return;
+    const seconds = dt > 2 ? dt / 1000 : dt;
+    for (const [playerId, player] of this.host.state.players) {
+      if (!player.alive || player.downed) continue;
+      for (const pool of this.mires) {
+        if (Math.hypot(player.x - pool.x, player.z - pool.z) > pool.radius) continue;
+        this.hurt(playerId, pool.dps * seconds);
+        player.slowMs = Math.max(player.slowMs, 400);
+        break;
+      }
+    }
+  }
+
   private apply(id: string, event: CreatureEvent, targets: readonly CreatureTarget[]): void {
     if (event.type === "melee") this.hurt(event.target, event.damage);
     else if (event.type === "stomp") {
       for (const target of targets) if (target.grounded && Math.hypot(target.x - event.x, target.z - event.z) <= event.radius) this.hurt(target.id, event.damage);
     } else if (event.type === "summon") {
       for (let index = 0; index < event.count; index += 1) this.spawn("beetle", { x: event.x, z: event.z });
-    } else {
+    } else if (event.type === "mire") {
+      this.mires.push({
+        x: event.x,
+        z: event.z,
+        radius: event.radius,
+        untilMs: this.host.now() + event.durationMs,
+        dps: event.dps,
+        slowMult: event.slowMult,
+      });
+    } else if (event.type === "heal") {
+      for (const targetId of event.targets) {
+        const creature = this.host.state.creatures.get(targetId);
+        if (!creature || creature.hp <= 0) continue;
+        creature.hp = Math.min(creature.maxHp, creature.hp + event.amount);
+      }
+    } else if (event.type === "spit") {
       const arrow = new ArrowState();
       arrow.x = event.x; arrow.y = event.y; arrow.z = event.z; arrow.prevX = event.x; arrow.prevY = event.y; arrow.prevZ = event.z;
       arrow.vx = event.vx; arrow.vy = event.vy; arrow.vz = event.vz;
@@ -273,7 +342,7 @@ export class ExpeditionDirector {
       const stats = this.host.humanStats(id); if (stats) stats.waveReached = Math.max(stats.waveReached, run.wave);
     }
     this.host.broadcastWave({ event: "clear", wave: run.wave, modifier: run.modifier, boss: isBossWave(run.wave) });
-    this.beginBreak(EXPEDITION.breakMs);
+    this.beginBreak(this.breakMs);
   }
 
   private end(): void {

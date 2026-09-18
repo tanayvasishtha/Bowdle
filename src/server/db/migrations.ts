@@ -97,6 +97,12 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX expedition_runs_week ON expedition_runs (week, wave DESC)
   `,
   `
+  ALTER TABLE expedition_runs ADD COLUMN IF NOT EXISTS seed INTEGER;
+  ALTER TABLE expedition_runs ADD COLUMN IF NOT EXISTS weekly BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE expedition_runs ADD COLUMN IF NOT EXISTS handicaps TEXT NOT NULL DEFAULT '[]';
+  CREATE INDEX IF NOT EXISTS expedition_runs_weekly ON expedition_runs (weekly, week, wave DESC)
+  `,
+  `
   CREATE TABLE reports (
     id BIGSERIAL PRIMARY KEY,
     reporter_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

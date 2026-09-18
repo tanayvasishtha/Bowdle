@@ -293,3 +293,7 @@ Both follow the art density and scenery rules (WORLD.md, W7, W8) and join the ro
 ### Pings in FFA and Expedition
 
 In FFA every player has a unique team, so pings are shown to the whole lobby. In Expedition the party shares a team, so pings stay party-wide.
+
+## N1 Expedition depth
+
+See `docs/N1-CREATURES.md` for Mire Bloom, Mycelium Tender, player handicaps, weekly seed, and end-of-run summary.

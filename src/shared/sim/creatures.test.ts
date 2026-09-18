@@ -125,7 +125,7 @@ describe("waves", () => {
     expect(aliveCap(30)).toBe(18);
     expect(unlockedKinds(1)).toEqual(["beetle"]);
     expect(unlockedKinds(4)).toEqual(["beetle", "spitter", "guardian"]);
-    expect(unlockedKinds(6)).toEqual(["beetle", "spitter", "guardian", "wisp"]);
+    expect(unlockedKinds(6)).toEqual(["beetle", "spitter", "guardian", "mire", "wisp"]);
     const rng = mulberry32(7);
     for (let pick = 0; pick < 50; pick += 1) expect(unlockedKinds(2)).toContain(pickKind(2, rng));
     expect([1, 4, 5, 9, 10].map(isBossWave)).toEqual([false, false, true, false, true]);

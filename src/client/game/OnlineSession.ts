@@ -197,7 +197,7 @@ export class OnlineSession {
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
-  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false): Promise<OnlineSession> {
+  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false, weekly = false, handicaps: readonly string[] = []): Promise<OnlineSession> {
     const probes = await probeRegions();
     const chosen = chooseRegion(probes);
     const endpoint = regionEndpoint(chosen);
@@ -205,7 +205,7 @@ export class OnlineSession {
       ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party, mode }, MatchState)
       : ranked
         ? await new Client(endpoint).joinOrCreate<MatchState>("ranked", { name, token: loadToken(), ranked: true, test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}) }, MatchState)
-        : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}), ...(mode === "expedition" ? { checkpoint, ...(testing && testStartWave !== undefined ? { testStartWave } : {}) } : {}) }, MatchState);
+        : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}), ...(mode === "expedition" ? { checkpoint, weekly, handicaps: handicaps.join(","), ...(testing && testStartWave !== undefined ? { testStartWave } : {}) } : {}) }, MatchState);
     if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {
@@ -517,6 +517,9 @@ export class OnlineSession {
   }
 
   private expeditionHud: ExpeditionHud | null = null;
+  private expeditionDamageTaken = 0;
+  private expeditionRevives = 0;
+  private wasDowned = false;
   private expeditionBest = 0;
   private creatureInView = false;
   private lastHp = -1;
@@ -547,8 +550,12 @@ export class OnlineSession {
     this.renderer.setCreatures(this.poses, state.herbs.values(), timeMs);
     this.renderer.setNight(state.expedition.modifier === "night" && state.expedition.phase === "fight");
     // Creature damage has no damaged message; a drop in health is enough for the camera and music.
-    if (this.lastHp >= 0 && me.hp < this.lastHp && me.alive) { this.cameraRig.hurt(this.lastHp - me.hp); this.lastDamageAtMs = performance.now(); }
+    if (this.lastHp >= 0 && me.hp < this.lastHp && me.alive) { const lost = this.lastHp - me.hp; if (this.room.state.mode === "expedition") this.expeditionDamageTaken += lost; this.cameraRig.hurt(lost); this.lastDamageAtMs = performance.now(); }
     this.lastHp = me.hp;
+    if (this.room.state.mode === "expedition") {
+      if (this.wasDowned && !me.downed && me.alive) this.expeditionRevives += 1;
+      this.wasDowned = me.downed;
+    }
   }
 
   /** The nearest downed teammate within reach, while this player can revive. */
@@ -565,7 +572,16 @@ export class OnlineSession {
   private runSummary(): RunSummary | undefined {
     const run = this.room.state.expedition;
     if (this.room.state.mode !== "expedition") return undefined;
-    return { wave: run.wave, best: Math.max(this.expeditionBest, run.wave), cleared: run.cleared, bosses: run.bosses };
+    const best = Math.max(this.expeditionBest, run.wave);
+    return {
+      wave: run.wave,
+      best,
+      cleared: run.cleared,
+      bosses: run.bosses,
+      damageTaken: this.expeditionDamageTaken,
+      revives: this.expeditionRevives,
+      beatBest: run.wave > this.expeditionBest,
+    };
   }
 
   private onCreatureHit(message: CreatureHitMessage): void {

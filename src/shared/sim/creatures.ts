@@ -18,13 +18,16 @@ export type CreatureEvent =
   | { type: "melee"; target: string; damage: number }
   | { type: "spit"; target: string; x: number; y: number; z: number; vx: number; vy: number; vz: number }
   | { type: "stomp"; x: number; z: number; radius: number; damage: number }
-  | { type: "summon"; count: number; x: number; z: number };
+  | { type: "summon"; count: number; x: number; z: number }
+  | { type: "mire"; x: number; z: number; radius: number; durationMs: number; dps: number; slowMult: number }
+  | { type: "heal"; targets: string[]; amount: number };
 
 /**
  * steer returns where to walk next toward a far target (the next route waypoint), or null to walk straight.
  * Targets are the players a creature may attack: alive and not downed.
  */
-export type CreatureContext = { map: MapData; targets: readonly CreatureTarget[]; dt: number; gravityMult: number; steer?: (creature: CreatureSim, target: CreatureTarget) => Heading | null };
+export type CreatureAlly = { id: string; x: number; y: number; z: number };
+export type CreatureContext = { map: MapData; targets: readonly CreatureTarget[]; allies?: readonly CreatureAlly[]; dt: number; gravityMult: number; steer?: (creature: CreatureSim, target: CreatureTarget) => Heading | null };
 /** Where a creature walks next; y lets a blocked creature leap high enough for a ledge. */
 export type Heading = { x: number; y: number; z: number };
 
@@ -88,6 +91,8 @@ export function stepCreature(creature: CreatureSim, ctx: CreatureContext): Creat
   switch (creature.kind) {
     case "spitter": stepSpitter(creature, ctx, found, events); break;
     case "wisp": stepWisp(creature, ctx, found, events); break;
+    case "mire": stepMire(creature, ctx, found, events); break;
+    case "tender": stepTender(creature, ctx, found, events); break;
     case "colossus": stepColossus(creature, ctx, found, events); break;
     default: stepMelee(creature, ctx, found, events);
   }
@@ -227,3 +232,47 @@ export function creatureDamage(creature: CreatureSim, base: number, hit: Creatur
   if (creature.kind === "colossus") return { damage: base * (hit.gem ? CREATURE_TUNING.colossus.gemDamageMult : CREATURE_TUNING.colossus.bodyDamageMult), blocked: false };
   return { damage: base, blocked: false };
 }
+
+/** Mire Bloom: approach players and plant slowing ink pools. */
+function stepMire(creature: CreatureSim, ctx: CreatureContext, found: ReturnType<typeof nearest>, events: CreatureEvent[]): void {
+  const stats = CREATURE_TUNING.mire;
+  if (found) {
+    const head = headFor(creature, ctx, found.target);
+    walk(creature, ctx, head.x, head.z, stats.speed, head.y);
+    face(creature, found.target);
+  } else walk(creature, ctx, creature.x, creature.z, 0);
+  if (creature.cooldownMs <= 0) {
+    events.push({ type: "mire", x: creature.x, z: creature.z, radius: stats.mireRadiusM, durationMs: stats.mireDurationMs, dps: stats.mireDps, slowMult: stats.mireSlowMult });
+    creature.cooldownMs = stats.cooldownMs;
+  }
+}
+
+/** Mycelium Tender: hold near allies and pulse heals. */
+function stepTender(creature: CreatureSim, ctx: CreatureContext, _found: ReturnType<typeof nearest>, events: CreatureEvent[]): void {
+  const stats = CREATURE_TUNING.tender;
+  const allies = ctx.allies ?? [];
+  let anchor = allies[0];
+  let best = Number.POSITIVE_INFINITY;
+  for (const ally of allies) {
+    const distance = Math.hypot(ally.x - creature.x, ally.z - creature.z);
+    if (distance < best) { best = distance; anchor = ally; }
+  }
+  if (anchor) {
+    const distance = Math.hypot(anchor.x - creature.x, anchor.z - creature.z);
+    if (distance < stats.holdMinM) walk(creature, ctx, creature.x * 2 - anchor.x, creature.z * 2 - anchor.z, stats.speed);
+    else if (distance > stats.holdMaxM) walk(creature, ctx, anchor.x, anchor.z, stats.speed, anchor.y);
+    else walk(creature, ctx, creature.x, creature.z, 0);
+  } else walk(creature, ctx, creature.x, creature.z, 0);
+  if (creature.cooldownMs <= 0 && allies.length > 0) {
+    const near = allies
+      .map((ally) => ({ ally, distance: Math.hypot(ally.x - creature.x, ally.z - creature.z) }))
+      .filter((entry) => entry.distance <= stats.healRadiusM)
+      .sort((left, right) => left.distance - right.distance)
+      .slice(0, stats.healMaxTargets);
+    if (near.length > 0) {
+      events.push({ type: "heal", targets: near.map((entry) => entry.ally.id), amount: stats.healAmount });
+      creature.cooldownMs = stats.cooldownMs;
+    }
+  }
+}
+

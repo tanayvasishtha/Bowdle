@@ -40,6 +40,10 @@ export const CREATURE_TUNING = {
 
   wisp: { hp: 30, speed: 8.5, radius: 0.4, height: 0.6, damage: 10, hoverM: 3.5, diveSpeed: 14, reachM: 1.2, cooldownMs: 2200, fromWave: 6 },
 
+  mire: { hp: 80, speed: 3.0, radius: 0.7, height: 1.1, damage: 0, reachM: 0, cooldownMs: 4000, mireRadiusM: 3.5, mireDurationMs: 6000, mireDps: 8, mireSlowMult: 0.55, fromWave: 5 },
+
+  tender: { hp: 70, speed: 3.5, radius: 0.6, height: 1.4, damage: 0, reachM: 0, cooldownMs: 3000, healRadiusM: 6, healAmount: 12, healMaxTargets: 4, holdMinM: 8, holdMaxM: 14, fromWave: 7 },
+
   colossus: { hp: 800, hpPerExtraPlayer: 200, speed: 2.4, radius: 1.8, height: 6, stompDamage: 35, stompRadiusM: 9, stompWindupMs: 900, stompCooldownMs: 6000, summonAtFraction: 0.5, summons: 4, gemHeightM: 5.2, gemRadiusM: 0.6, bodyDamageMult: 0.5, gemDamageMult: 2, fromWave: 5 },
 
 } as const;
@@ -525,3 +529,10 @@ export const BOT_DIFFICULTY_LEVELS = { normal: 4, hard: 12 } as const;
 
 export const NEW_PLAYER_MATCHES = 3;
 
+/** Optional Expedition start handicaps (N1). Reward mults stack; Ink still capped by EXPEDITION.inkCap. */
+export const EXPEDITION_HANDICAPS = {
+  shortLives: { soloLifeEvery: 8, reviveTokensDelta: -1, rewardMult: 1.25 },
+  swiftWaves: { breakMs: 5000, spawnGapMult: 0.85, rewardMult: 1.2 },
+  glassBodies: { hpMult: 0.75, rewardMult: 1.35 },
+} as const;
+export type ExpeditionHandicapId = keyof typeof EXPEDITION_HANDICAPS;

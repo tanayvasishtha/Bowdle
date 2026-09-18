@@ -27,11 +27,23 @@ export function isGameMode(value: unknown): value is GameMode {
 export const MODE_NAMES: Record<GameMode, string> = { tdm: "Quick Play", ffa: "Free for All", relic: "Relic Run", expedition: "Expedition" };
 
 /** The address of an online match in a mode; team deathmatch keeps the plain address. */
-export function onlineSearch(mode: GameMode, party?: string, checkpoint = false): string {
+export type ExpeditionSearchOptions = {
+  checkpoint?: boolean;
+  weekly?: boolean;
+  handicaps?: readonly string[];
+};
+
+/** The address of an online match in a mode; team deathmatch keeps the plain address. */
+export function onlineSearch(mode: GameMode, party?: string, checkpointOrOptions: boolean | ExpeditionSearchOptions = false): string {
+  const options: ExpeditionSearchOptions = typeof checkpointOrOptions === "boolean"
+    ? { checkpoint: checkpointOrOptions }
+    : checkpointOrOptions;
   const params = new URLSearchParams({ scene: "online" });
   if (party) params.set("party", party);
   if (mode !== "tdm") params.set("mode", mode);
-  if (checkpoint && mode === "expedition" && !party) params.set("checkpoint", "1");
+  if (options.checkpoint && mode === "expedition" && !party) params.set("checkpoint", "1");
+  if (options.weekly && mode === "expedition") params.set("weekly", "1");
+  if (options.handicaps && options.handicaps.length > 0 && mode === "expedition") params.set("handicaps", options.handicaps.join(","));
   return `?${params.toString()}`;
 }
 

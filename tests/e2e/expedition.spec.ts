@@ -74,3 +74,24 @@ test("a boss wave wakes the Temple Colossus with its health bar", async ({ page 
   expect((await hooks(page, (api) => api.stats())).drawCalls).toBeLessThanOrEqual(150);
   expect(errors).toEqual([]);
 });
+
+test("wave 5 draws a mire bloom", async ({ page }) => {
+  const errors = collectErrors(page);
+  await returningPlayer(page);
+  await page.goto(`${onlineUrl("map=sun-temple")}&mode=expedition&startWave=5`);
+  await expect.poll(() => hooks(page, (api) => api.expedition().drawn.mire ?? 0), { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
+  await lookAtCreature(page, "mire", 4, 2.0, 0.5);
+  await page.screenshot({ path: "test-results/qa/n1/mire.png" });
+  expect(errors).toEqual([]);
+});
+
+test("wave 7 draws a mycelium tender", async ({ page }) => {
+  const errors = collectErrors(page);
+  await returningPlayer(page);
+  await page.goto(`${onlineUrl("map=sun-temple")}&mode=expedition&startWave=7`);
+  await expect.poll(() => hooks(page, (api) => api.expedition().drawn.tender ?? 0), { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
+  await lookAtCreature(page, "tender", 4, 2.2, 0.8);
+  await page.screenshot({ path: "test-results/qa/n1/tender.png" });
+  expect(errors).toEqual([]);
+});
+

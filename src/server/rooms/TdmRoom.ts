@@ -50,7 +50,9 @@ import type { FireEvent } from "../../shared/sim/bow.ts";
 import { tetherLine } from "../../shared/sim/tether.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
 import { applyDamage, stepRegen } from "../../shared/sim/health.ts";
-import { CREATURE_TEAM, ExpeditionDirector, type ExpeditionHost } from "./expedition.ts";
+import { CREATURE_TEAM, ExpeditionDirector, type ExpeditionHost } from "./expedition.ts"
+import { weeklyMapId, weeklySeed } from "../../shared/sim/weeklyExpedition.ts";
+import { EXPEDITION_HANDICAPS, type ExpeditionHandicapId } from "../../shared/constants.ts";
 import { checkpointFor } from "../../shared/sim/waves.ts";
 import { createPlayerSim, type PlayerSim } from "../../shared/sim/movement.ts";
 import { breakableHitBySegment, createBreakables, createHerbs, damageBreakable, mergeBreakablesIntoMap, solidBreakableBoxes, stepBreakables, tryPickHerb, type BreakableRuntime, type HerbRuntime } from "../../shared/sim/mapFeatures.ts";
@@ -79,7 +81,7 @@ const RELIC_CARRY_HEIGHT_M = 2.1;
 /** Falling out of the world in an Expedition costs this much health. */
 const EXPEDITION_FALL_DAMAGE = 25;
 
-type JoinOptions = { mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number; ranked?: boolean };
+type JoinOptions = { mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number; ranked?: boolean ; weekly?: boolean; handicaps?: string | readonly string[]; seed?: number };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage ; pingEvent: PingEventMessage; afkPrompt: AfkPromptMessage; afkRemoved: AfkRemovedMessage; playOfTheMatch: PlayOfTheMatchMessage };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
@@ -119,6 +121,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private tetherSerial = 0;
   /** Expedition only: the wave director, the checkpoint the next run starts from, and bot players for the soak. */
   expedition: ExpeditionDirector | null = null;
+  private expeditionWeekly = false;
+  private expeditionSeed = 0;
+  private expeditionHandicaps: ExpeditionHandicapId[] = [];
   private startWave = 0;
   private expeditionBots = 0;
   private readonly creatureEnemies = new Map<string, PlayerSim>();
@@ -175,7 +180,17 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.state.mode = named ?? (this.roomName === PARTY_ROOM && isGameMode(options.mode) ? options.mode : "tdm");
     this.maxClients = modeRules(this.state.mode).maxPlayers;
     if (this.state.mode === "expedition") {
-      this.expedition = new ExpeditionDirector(this.expeditionHost(), (Number.isFinite(options.testBotSeed) ? options.testBotSeed! : Date.now()) ^ 0x5eed);
+      this.expeditionWeekly = options.weekly === true;
+      const rawHandicaps = typeof options.handicaps === "string" ? options.handicaps.split(",") : options.handicaps ?? [];
+      this.expeditionHandicaps = [...rawHandicaps].filter((id): id is ExpeditionHandicapId => id in EXPEDITION_HANDICAPS);
+      this.expeditionSeed = Number.isFinite(options.seed) ? Math.floor(options.seed!)
+        : this.expeditionWeekly ? weeklySeed()
+        : (Number.isFinite(options.testBotSeed) ? options.testBotSeed! : Date.now()) ^ 0x5eed;
+      if (this.expeditionWeekly && !options.testMapId && !options.mapId) {
+        options = { ...options, mapId: weeklyMapId(this.expeditionSeed) };
+      }
+      this.expedition = new ExpeditionDirector(this.expeditionHost(), this.expeditionSeed, this.expeditionHandicaps);
+
       // Tests may start a run later, for example right before a boss wave.
       if (options.test && Number.isFinite(options.testStartWave)) this.startWave = Math.max(0, Math.floor(options.testStartWave!));
       if (Number.isFinite(options.testBotSeed)) this.expeditionBots = Math.max(0, Math.min(EXPEDITION.maxPlayers, Math.floor(options.botPlayers ?? 0)));
@@ -615,7 +630,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const snapshot = [...this.accounts].flatMap(([sessionId, pending]) => {
       const player = this.state.players.get(sessionId);
       const stats = this.humanStats.get(sessionId); let bestKills = 0; for (const other of this.state.players.values()) bestKills = Math.max(bestKills, other.kills);
-      return player && !player.isBot && stats ? [{ sessionId, pending, mapId: this.map.id, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, expedition: this.expedition ? { waves: this.state.expedition.cleared, bosses: this.state.expedition.bosses, reachedWave: this.state.expedition.wave } : undefined, won: winner === "player" ? stats.won : winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
+      return player && !player.isBot && stats ? [{ sessionId, pending, mapId: this.map.id, stats: { ...stats }, medals: medalsFor(stats, bestKills), kills: player.kills, assists: player.assists, expedition: this.expedition ? { waves: this.state.expedition.cleared, bosses: this.state.expedition.bosses, reachedWave: this.state.expedition.wave, seed: this.expeditionSeed, weekly: this.expeditionWeekly, handicaps: this.expeditionHandicaps } : undefined, won: winner === "player" ? stats.won : winner !== "draw" && player.team === (winner === "sun" ? 0 : 1) }] : [];
     });
     for (const entry of snapshot) {
       const accountId = await entry.pending;

@@ -67,7 +67,7 @@ export const FFA_RING_COLORS = ["#d2531f", "#3346b8", "#e3b23c", "#3f8f8c", "#7a
 /** Expedition creatures: instance capacity, walk and hover motion, the stomp windup, herbs. */
 export const CREATURE_LOOK = {
   capacity: 24, bossCapacity: 2, herbCapacity: 4,
-  walkHz: { beetle: 3.2, spitter: 1.4, guardian: 1.1, wisp: 0, colossus: 0.45 }, walkBobM: { beetle: 0.05, spitter: 0.08, guardian: 0.06, wisp: 0, colossus: 0.18 }, walkRoll: 0.05,
+  walkHz: { beetle: 3.2, spitter: 1.4, guardian: 1.1, wisp: 0, colossus: 0.45, mire: 1.6, tender: 2.0 }, walkBobM: { beetle: 0.05, spitter: 0.08, guardian: 0.06, wisp: 0, colossus: 0.18, mire: 0.06, tender: 0.07 }, walkRoll: 0.05,
   wispBobHz: 0.9, wispBobM: 0.25, wispRoll: 0.35, wispDivePitch: 0.7, windupSquash: 0.12, windupPitch: 0.25,
   herbBobHz: 0.6, herbBobM: 0.08, herbLiftM: 0.1, herbSpinPerS: 0.8,
   bossBursts: 4, nightFadeMs: 1500,

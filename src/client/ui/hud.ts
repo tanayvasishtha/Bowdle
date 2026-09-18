@@ -10,7 +10,7 @@ import { loadSettings } from "../settings.ts";
 
 type EndStats = { kills: number; deaths: number; bestShot: number; bestStreak?: number };
 /** An Expedition run's end: the wave reached, the personal best, waves cleared and bosses defeated. */
-export type RunSummary = { wave: number; best: number; cleared: number; bosses: number };
+export type RunSummary = { wave: number; best: number; cleared: number; bosses: number; damageTaken: number; revives: number; beatBest: boolean };
 
 export type HudActions = {
   /** Runs before the end screen closes, for example a portal ad break. */
@@ -176,8 +176,9 @@ export class MatchHud {
     const scores = document.createElement("p"); scores.textContent = this.score.textContent;
     if (run) {
       scores.dataset.testid = "run-summary";
-      scores.textContent = `Reached wave ${run.wave}${run.wave >= run.best ? " · new best!" : ` · best ${run.best}`}`;
-      summary.textContent = `${run.cleared} ${run.cleared === 1 ? "wave" : "waves"} cleared · ${run.bosses} Colossus defeated · ${stats.kills} creatures`;
+      scores.textContent = `Reached wave ${run.wave}${run.beatBest ? " - new best!" : ` - best ${run.best}`}`;
+      summary.textContent = `${run.cleared} ${run.cleared === 1 ? "wave" : "waves"} cleared - ${run.bosses} Colossus defeated - ${stats.kills} creatures
+Damage taken ${Math.round(run.damageTaken)} - revives ${run.revives}${run.beatBest ? " - personal best" : ""}`;
     }
     this.summaryLine = run ? undefined : summary; this.summaryMvp = names.get(message.mvp) ?? message.mvp;
     const footer = document.createElement("div"); footer.dataset.testid = "postmatch-footer";

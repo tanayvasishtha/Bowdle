@@ -19,3 +19,12 @@
 - Daily featured shop shelf from the existing catalog (`/shop/featured`), cosmetic only.
 - Server tests: season grant once, recent-player privacy (no account ids), featured day stability.
 
+## N3 - Reach and retention (2026-09-18)
+
+- Touch controls for tablets: virtual stick, draw/release, look pad; settings `touchControls` auto/on/off; desktop-only gate skipped when touch is wanted.
+- Rejoin: client stores a reconnection ticket, shows a banner on drop, and reconnects within the existing ~15s seat hold.
+- Party spectator: join with `spectator` (party only), no player seat / no score / inputs ignored; free camera on the client.
+- Daily/weekly Expedition challenges (`wave10`, `colossusKills`) and first Expedition of the day bonus.
+- `matchFinished` log includes mode, map, region, humans, bots, duration; `npm run report` summarizes those lines.
+- Tests: tablet touch e2e, server rejoin + spectator seat, rejoin ticket + challenge progress units.
+

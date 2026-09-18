@@ -71,7 +71,7 @@ export type GameSettings = {
   fpsCap: FpsCap;
   /** True after the first-launch benchmark or a manual preset pick. */
   graphicsBenchmarked: boolean;
-};
+ touchControls?: "auto" | "on" | "off"; touchLookSensitivity?: number; };
 
 export const DEFAULT_KEYS: KeyBindings = {
   forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD", jump: "Space", crouch: "KeyC",

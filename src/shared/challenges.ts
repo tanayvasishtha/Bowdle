@@ -19,6 +19,8 @@ export const DAILY_POOL: readonly Challenge[] = [
   { id: "d.streak", text: "Get 3 kills without being tagged", stat: "streaks3", target: D.streak },
   { id: "d.scatter", text: "Get 3 kills with Scatter arrows", stat: "scatterKills", target: D.scatter },
   { id: "d.relic", text: "Capture a relic", stat: "relicCaptures", target: D.relic },
+  { id: "d.expedition", text: "Reach wave 10 in Expedition", stat: "wave10", target: 1 },
+  { id: "d.expeditionBoss", text: "Fell a Colossus", stat: "colossusKills", target: 1 },
 ];
 export const WEEKLY_POOL: readonly Challenge[] = [
   { id: "w.kills", text: "Tag 80 explorers", stat: "kills", target: W.kills },
@@ -28,6 +30,8 @@ export const WEEKLY_POOL: readonly Challenge[] = [
   { id: "w.robin", text: "Split an arrow in mid-air", stat: "robinHoods", target: W.robin },
   { id: "w.boulder", text: "Crush an enemy with the boulder", stat: "boulderKills", target: W.boulder },
   { id: "w.maps", text: "Win on all three maps", stat: "mapsWon", target: W.maps },
+  { id: "w.expedition", text: "Reach wave 10 in Expedition five times", stat: "wave10", target: 5 },
+  { id: "w.expeditionBoss", text: "Fell 3 Colossi", stat: "colossusKills", target: 3 },
   { id: "w.medals", text: "Earn 15 medals", stat: "medals", target: W.medals },
   { id: "w.tether", text: "Ride 10 tether lines", stat: "tetherRides", target: W.tether },
   { id: "w.wave10", text: "Reach wave 10 in Expedition", stat: "wave10", target: W.wave10 },

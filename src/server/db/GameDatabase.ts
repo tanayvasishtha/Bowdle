@@ -20,7 +20,7 @@ export type MatchResultLine = { accountId: string; kills: number; assists: numbe
 export type ExpeditionRow = { name: string; wave: number };
 export type GrantedReward = MatchReward & { accountId: string; before: LevelProgress; after: LevelProgress; challenges: ChallengeChange[]; streakDays: number; unlocked: string[] };
 
-type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null; streak_days: number; last_play_day: string; first_win_day: string; reroll_day: string; total_matches: number; total_wins: number; total_kills: number; total_headshots: number; best_streak: number; longest_shot_m: number; tutorial_done: boolean };
+type AccountRow = { id: string; name: string; xp: number; ink: number; discord_id: string | null; google_id: string | null; streak_days: number; last_play_day: string; first_win_day: string; reroll_day: string; total_matches: number; total_wins: number; total_kills: number; total_headshots: number; best_streak: number; longest_shot_m: number; tutorial_done: boolean; first_expedition_day: string };
 type ChallengeRow = { period_key: string; challenge_id: string; progress: number; done: boolean; maps: string };
 
 async function challengeRows(query: SqlQuery, accountId: string, now: Date): Promise<ChallengeRow[]> {
@@ -168,7 +168,14 @@ return {
         if (line.expedition) {
           await query("INSERT INTO expedition_runs (match_id, account_id, wave, bosses, week, seed, weekly, handicaps) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING",
             [matchId, line.accountId, line.expedition.reachedWave, line.expedition.bosses, periodKeys(now).weekly, line.expedition.seed ?? null, line.expedition.weekly === true, JSON.stringify(line.expedition.handicaps ?? [])]);
-          for (const itemId of expeditionRewardIds(line.expedition.reachedWave, line.expedition.bosses)) {
+          
+          const dayKey = periodKeys(now).daily;
+          if (account.first_expedition_day !== dayKey) {
+            await query("UPDATE accounts SET first_expedition_day = $1, ink = ink + 25, xp = xp + 50 WHERE id = $2", [dayKey, line.accountId]);
+            reward.breakdown.push({ label: "First Expedition of the day", xp: 50, ink: 25 });
+            account.first_expedition_day = dayKey;
+          }
+for (const itemId of expeditionRewardIds(line.expedition.reachedWave, line.expedition.bosses)) {
             await this.grantItem(query, line.accountId, itemId, "expedition");
           }
 

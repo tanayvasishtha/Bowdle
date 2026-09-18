@@ -81,8 +81,8 @@ const RELIC_CARRY_HEIGHT_M = 2.1;
 /** Falling out of the world in an Expedition costs this much health. */
 const EXPEDITION_FALL_DAMAGE = 25;
 
-type JoinOptions = { mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number; ranked?: boolean ; weekly?: boolean; handicaps?: string | readonly string[]; seed?: number };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage ; pingEvent: PingEventMessage; afkPrompt: AfkPromptMessage; afkRemoved: AfkRemovedMessage; playOfTheMatch: PlayOfTheMatchMessage };
+type JoinOptions = { spectator?: boolean; mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number; ranked?: boolean ; weekly?: boolean; handicaps?: string | readonly string[]; seed?: number };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage ; pingEvent: PingEventMessage; afkPrompt: AfkPromptMessage; afkRemoved: AfkRemovedMessage; playOfTheMatch: PlayOfTheMatchMessage; spectator: { ok: boolean } };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
 type ArrowOrigin = { x: number; y: number; z: number };
@@ -158,6 +158,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   private readonly accounts = new Map<string, Promise<string | undefined>>();
   private readonly lastInputAtMs = new Map<string, number>();
   private readonly pingStamps = new Map<string, number[]>();
+  private readonly spectators = new Set<string>();
   private readonly mutedPings = new Map<string, Set<string>>();
   private readonly afkPrompted = new Set<string>();
   private playOfTheMatch: PlayOfTheMatchMessage | undefined;
@@ -274,6 +275,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     if (updateMatchPhase(this.state, nowMs, modeRules(this.state.mode).timeLimitS) === "end") this.sendMatchEnd();
     if (this.state.phase !== "live") return;
     for (const [sessionId, frames] of this.pending) {
+      if (this.spectators.has(sessionId)) continue;
       const player = this.state.players.get(sessionId);
       if (!player) continue;
       for (const frame of frames) {
@@ -616,7 +618,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.playOfTheMatch = undefined;
     this.broadcast("matchEnd", { winner, mvp, ...(playOf ? { playOf } : {}) });
     let humans = 0; for (const [id, player] of this.state.players) { const stats = this.humanStats.get(id); if (!stats || player.isBot) continue; humans += 1; stats.kills = player.kills; stats.deaths = player.deaths; stats.assists = player.assists; stats.won = winner === "player" ? id === mvp : winner !== "draw" && player.team === (winner === "sun" ? 0 : 1); this.clientById(id)?.send("matchStats", { stats: { ...stats }, medals: medalsFor(stats, kills) }); }
-    console.log(JSON.stringify({ event: "matchFinished", mapId: this.map.id, humans, bots: this.state.players.size - humans, durationS: Math.max(0, (this.simulationNowMs - this.matchLiveAtMs) / 1000), scoreSun: this.state.scoreSun, scoreMoon: this.state.scoreMoon }));
+    console.log(JSON.stringify({ event: "matchFinished", mode: this.state.mode, mapId: this.map.id, region: process.env.BOWDLE_REGION ?? "local", humans, bots: this.state.players.size - humans, durationS: Math.max(0, (this.simulationNowMs - this.matchLiveAtMs) / 1000), scoreSun: this.state.scoreSun, scoreMoon: this.state.scoreMoon }));
     this.rewardsSettled = this.grantRewards(`${this.roomId}:${this.matchSerial}`, winner).catch((error: unknown) => {
       console.error(JSON.stringify({ event: "rewardError", roomId: this.roomId, message: error instanceof Error ? error.message : String(error) }));
     });
@@ -1068,6 +1070,13 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   onJoin(client: GameClient, options?: JoinOptions): void {
+    if (options?.spectator) {
+      if (!this.partyCode) throw new Error("spectator_party_only");
+      this.spectators.add(client.sessionId);
+      client.send("spectator", { ok: true });
+      return;
+    }
+
     if (options?.test && !this.testMode) {
       this.testMode = true;
       for (const id of this.bots.keys()) this.state.players.delete(id);
@@ -1122,6 +1131,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   onLeave(client: GameClient): void {
+    this.spectators.delete(client.sessionId);
     const player = this.state.players.get(client.sessionId);
     const accountPromise = this.accounts.get(client.sessionId);
     this.state.players.delete(client.sessionId);

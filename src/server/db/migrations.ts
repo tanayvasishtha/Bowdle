@@ -167,7 +167,8 @@ export const MIGRATIONS: readonly string[] = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (account_id, blocked_id)
   );
-  `
+  `,
+  `ALTER TABLE accounts ADD COLUMN IF NOT EXISTS first_expedition_day TEXT NOT NULL DEFAULT ''`
 ];
 
 export async function migrate(sql: SqlClient): Promise<number> {

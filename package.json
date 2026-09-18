@@ -23,6 +23,7 @@
     "start": "node src/server/main.ts",
     "smoke": "node scripts/prod-smoke.ts",
     "soak": "node scripts/bot-soak.ts",
+    "report": "tsx scripts/match-report.ts",
     "balance": "node scripts/balance-report.ts",
     "retention": "node scripts/retention-report.ts",
     "icons": "node scripts/generate-icons.mjs",

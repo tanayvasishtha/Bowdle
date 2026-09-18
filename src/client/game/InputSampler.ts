@@ -2,14 +2,15 @@ import { lockPointer } from "./pointerLock.ts";
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { PITCH_LIMIT, clamp, wrapAngle } from "../../shared/math/angles.ts";
 import { loadSettings, type GameSettings } from "../settings.ts";
+import type { TouchControls } from "../ui/touchControls.ts";
 import { PAD, TrackpadToggles, emptyPad, firstPad, readPad } from "./gamepad.ts";
 
 export class InputSampler {
   private readonly canvas: HTMLCanvasElement;
   private readonly keys = new Set<string>();
   private mouseButtons = 0;
-  private yaw: number;
-  private pitch = 0;
+  yaw: number;
+  pitch = 0;
   private settings = loadSettings();
   private paused = false;
   /** Wheel steps not sent yet. Each step becomes one press, with a released sample between presses. */
@@ -20,6 +21,7 @@ export class InputSampler {
   private readonly toggles = new TrackpadToggles();
   /** True while an enemy is under the crosshair; stick look slows down, nothing else changes. */
   private aimSlowdown = false;
+  private touch: TouchControls | undefined;
 
   constructor(canvas: HTMLCanvasElement, initialYaw = -Math.PI / 2) {
     this.canvas = canvas;
@@ -83,12 +85,30 @@ export class InputSampler {
   setAimSlowdown(active: boolean): void { this.aimSlowdown = active; }
   gamepadConnected(): boolean { return this.pad.connected; }
 
+  attachTouch(controls: TouchControls): void {
+    this.touch?.dispose();
+    this.touch = controls;
+  }
+
+
   sample(out: PlayerInputFrame): void {
     const keyboardX = Number(this.bound("right")) - Number(this.bound("left"));
     const keyboardZ = Number(this.bound("forward")) - Number(this.bound("back"));
     const usePad = Math.hypot(this.pad.moveX, this.pad.moveZ) > Math.hypot(keyboardX, keyboardZ);
     out.moveX = this.paused ? 0 : usePad ? this.pad.moveX : keyboardX;
     out.moveZ = this.paused ? 0 : usePad ? this.pad.moveZ : keyboardZ;
+    if (!this.paused && this.touch) {
+      const touch = this.touch.sample();
+      if (Math.hypot(touch.moveX, touch.moveZ) > 0.05) {
+        out.moveX = touch.moveX;
+        out.moveZ = touch.moveZ;
+      }
+      this.yaw += touch.lookDx;
+      this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - touch.lookDy));
+      out.yaw = this.yaw;
+      out.pitch = this.pitch;
+      (out as { _touchButtons?: number })._touchButtons = touch.buttons;
+    }
     out.yaw = this.yaw;
     out.pitch = this.pitch;
     let buttons = this.paused ? 0 : this.pad.buttons;
@@ -110,7 +130,7 @@ export class InputSampler {
       buttons |= this.wheelSteps > 0 ? BTN.SLOT_NEXT : BTN.SLOT_PREV;
       this.wheelSteps -= Math.sign(this.wheelSteps); this.wheelSent = true;
     }
-    out.buttons = buttons;
+    out.buttons = buttons | ((out as { _touchButtons?: number })._touchButtons ?? 0);
   }
 
   setLook(yaw: number, pitch: number): void {

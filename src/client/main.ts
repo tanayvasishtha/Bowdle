@@ -14,7 +14,9 @@ import { defaultMatchMap, mapById } from "../shared/maps/registry.ts";
 import { loadName } from "./settings.ts";
 import { platform } from "./platform/sdk.ts";
 import { fetchLocker } from "./account.ts";
-import { installMenuStyles, showDesktopOnly, showMainMenu } from "./ui/menu.ts";
+import { installMenuStyles, showMainMenu } from "./ui/menu.ts";
+import { wantsTouchControls, TouchControls, ensureTouchSettingDefault } from "./ui/touchControls.ts";
+import { loadRejoinTicket, showRejoinBanner, clearRejoinTicket } from "./ui/rejoin.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
 import { attachControlsHelp } from "./ui/controls.ts";
 import { installAudioMix } from "./audio/mixer.ts";
@@ -73,19 +75,23 @@ installAudioMix();
 attachPadNavigation();
 installMenuStyles(app);
 attachUiSounds();
-const touchOnly = navigator.maxTouchPoints > 0 && matchMedia("(pointer: coarse)").matches;
-if (touchOnly) showDesktopOnly(app);
-else if (params.get("scene") === "online") {
+ensureTouchSettingDefault();
+const enableTouch = wantsTouchControls();
+if (params.get("scene") === "online") {
   const loading = document.createElement("section"); loading.className = "bowdle-panel bowdle-loading";
   loading.innerHTML = `<h2>Opening the field journal…</h2><p>Finding a match in the jungle.</p>`;
   app.append(loading);
   const requestedMapId = params.get("map") ?? undefined;
   const renderer = new Renderer(app, params.has("debug"), requestedMapId ? mapById(requestedMapId) ?? defaultMatchMap : defaultMatchMap);
   const sampler = new InputSampler(renderer.canvas);
+  if (enableTouch) sampler.attachTouch(new TouchControls(app));
   const requestedParty = normalizePartyCode(params.get("party") ?? "");
   const party = isPartyCode(requestedParty) ? requestedParty : undefined;
   if (party) loading.querySelector("p")!.textContent = `Joining party ${party}.`;
-  void OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm", params.has("checkpoint"), params.has("startWave") ? Number(params.get("startWave")) : undefined, params.has("ranked"), params.has("weekly"), (params.get("handicaps") ?? "").split(",").filter(Boolean)).then((session) => {
+  void (params.get("rejoin") === "1" && params.get("token")
+    ? OnlineSession.reconnect(renderer, sampler, params.get("token")!)
+    : OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm", params.has("checkpoint"), params.has("startWave") ? Number(params.get("startWave")) : undefined, params.has("ranked"), params.has("weekly"), (params.get("handicaps") ?? "").split(",").filter(Boolean), params.has("spectator"))
+  ).then((session) => {
     loading.remove();
     attachPauseMenu(app, sampler, party);
     attachControlsHelp(app, renderer.canvas);
@@ -180,7 +186,14 @@ else if (params.get("scene") === "online") {
     cameraAt: (x, y, z, lookX, lookY, lookZ) => renderer.setTestCamera(x, y, z, lookX, lookY, lookZ),
   };
 } else {
-  showMainMenu(app);
+  const ticket = loadRejoinTicket();
+  if (ticket) {
+    showRejoinBanner(app, () => {
+      location.assign(`/?scene=online&rejoin=1&token=${encodeURIComponent(ticket.reconnectionToken)}&mode=${encodeURIComponent(ticket.mode)}`);
+    }, () => { clearRejoinTicket(); showMainMenu(app); });
+  } else {
+    showMainMenu(app);
+  }
 }
 
 

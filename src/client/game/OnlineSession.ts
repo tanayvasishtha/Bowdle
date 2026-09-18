@@ -1,3 +1,4 @@
+import { saveRejoinTicket, clearRejoinTicket, loadRejoinTicket, showRejoinBanner } from "../ui/rejoin.ts";
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
 import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, CREATURE_TUNING, EXPEDITION, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
@@ -63,6 +64,8 @@ export type ExpeditionView = {
 type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number };
 
 export class OnlineSession {
+  private spectator = false;
+  private freeCam = { x: 0, y: 12, z: 0 };
   readonly sessionId: string;
   private readonly renderer: Renderer;
   private readonly sampler: InputSampler;
@@ -101,6 +104,7 @@ export class OnlineSession {
     this.renderer = renderer;
     this.sampler = sampler;
     this.room = room;
+    if (this.room.reconnectionToken) saveRejoinTicket({ roomId: this.room.roomId, reconnectionToken: this.room.reconnectionToken, mode: String(this.room.state?.mode ?? "tdm"), savedAt: Date.now() });
     this.map = mapById(room.state.mapId) ?? defaultMatchMap;
     this.playMap = this.map;
     this.renderer.setMap(this.map);
@@ -136,27 +140,34 @@ export class OnlineSession {
     this.predict.attachAll("creatures", { mode: "lerp", fields: ["x", "y", "z"], smoothMs: 0 });
     this.predict.attachAll("creatures", { mode: "lerp", fields: ["yaw"], angle: true, smoothMs: 0 });
     const local = room.state.players.get(room.sessionId);
-    if (!local) throw new Error("Server joined without a local player");
-    this.sampler.setLook(local.yaw, local.pitch);
-    this.arrows = this.predict.spawns<"arrows", LocalArrow>("arrows", {
-      owned: (arrow) => arrow.owner === room.sessionId,
-      spawnTime: (arrow) => arrow.bornMs,
-      step: (arrow, dt) => { stepArrow(arrow, this.map, dt, arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined); },
-      fields: ["x", "y", "z"],
-    });
-    this.me = this.predict.reconciler(local, {
-      input: this.input,
-      smoothMs: RECONCILE_SMOOTH_MS,
-      step: (context, state, command) => {
-        this.refreshPlayMap();
-        const events = stepPlayer(state, command, this.playMap, { nowMs: context.reckonTime, matchTimeMs: this.room.clock.serverNow(), zipLines: this.tetherZips, gravityMult: gravityMultiplier(this.room.state.expedition.modifier), geyserLaunches: this.geyserLaunches, geyserPlayerId: this.sessionId });
-        if (context.isReplay) return;
-        for (const event of events) {
-          if (event.type === "fire") for (const arrow of spawnVolley(event, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
-          else if (event.type === "grapple" || event.type === "ink") this.arrows.spawn({ ...spawnAbilityProjectile(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: event.type });
-        }
-      },
-    });
+    if (!local) {
+      this.spectator = true;
+      this.sampler.setLook(0, -0.35);
+      room.onMessage("spectator", () => { this.spectator = true; });
+      this.arrows = { spawn() {}, clear() {} } as unknown as typeof this.arrows;
+      this.me = { state: { x: 0, y: 12, z: 0, yaw: 0, pitch: -0.35, crouched: false, team: 0, kills: 0, deaths: 0 } } as unknown as typeof this.me;
+    } else {
+      this.sampler.setLook(local.yaw, local.pitch);
+      this.arrows = this.predict.spawns<"arrows", LocalArrow>("arrows", {
+        owned: (arrow) => arrow.owner === room.sessionId,
+        spawnTime: (arrow) => arrow.bornMs,
+        step: (arrow, dt) => { stepArrow(arrow, this.map, dt, arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined); },
+        fields: ["x", "y", "z"],
+      });
+      this.me = this.predict.reconciler(local, {
+        input: this.input,
+        smoothMs: RECONCILE_SMOOTH_MS,
+        step: (context, state, command) => {
+          this.refreshPlayMap();
+          const events = stepPlayer(state, command, this.playMap, { nowMs: context.reckonTime, matchTimeMs: this.room.clock.serverNow(), zipLines: this.tetherZips, gravityMult: gravityMultiplier(this.room.state.expedition.modifier), geyserLaunches: this.geyserLaunches, geyserPlayerId: this.sessionId });
+          if (context.isReplay) return;
+          for (const event of events) {
+            if (event.type === "fire") for (const arrow of spawnVolley(event, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
+            else if (event.type === "grapple" || event.type === "ink") this.arrows.spawn({ ...spawnAbilityProjectile(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: event.type });
+          }
+        },
+      });
+    }
     const callbacks = Callbacks.get(room);
     callbacks.onRemove("players", (_player, id) => this.renderer.removePlayer(id));
     callbacks.onAdd("arrows", (arrow, id) => { if (!this.heardShots.has(id) && this.hearShot(arrow, arrow)) this.heardShots.add(id); });
@@ -194,19 +205,44 @@ export class OnlineSession {
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
     room.onMessage<RopeCutMessage>("ropeCut", (payload) => { const parsed = RopeCutMessage.safeParse(payload); if (parsed.success) this.onRopeCut(parsed.data); });
+    room.onLeave((code) => {
+      if (code === 1000) { clearRejoinTicket(); return; }
+      const ticket = loadRejoinTicket();
+      if (!ticket || !this.room.reconnectionToken) return;
+      saveRejoinTicket({ roomId: ticket.roomId, reconnectionToken: this.room.reconnectionToken, mode: ticket.mode, savedAt: Date.now() });
+      const host = this.renderer.canvas.parentElement;
+      if (host) showRejoinBanner(host, () => {
+        location.assign(`/?scene=online&rejoin=1&token=${encodeURIComponent(this.room.reconnectionToken!)}`);
+      }, () => { location.assign("/"); });
+    });
     room.onMessage<RobinHoodMessage>("robinHood", (payload) => { const parsed = RobinHoodMessage.safeParse(payload); if (parsed.success) { this.hud.banner("ROBIN HOOD!"); this.sounds.play("paper"); happyTime("robinHood"); } });
   }
 
-  static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false, weekly = false, handicaps: readonly string[] = []): Promise<OnlineSession> {
+  
+  static async reconnect(renderer: Renderer, sampler: InputSampler, reconnectionToken: string): Promise<OnlineSession> {
+    const probes = await probeRegions();
+    const chosen = chooseRegion(probes);
+    const endpoint = regionEndpoint(chosen);
+    const room = await new Client(endpoint).reconnect(reconnectionToken);
+    clearRejoinTicket();
+    return new OnlineSession(renderer, sampler, room);
+  }
+
+static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false, weekly = false, handicaps: readonly string[] = [], spectator = false): Promise<OnlineSession> {
     const probes = await probeRegions();
     const chosen = chooseRegion(probes);
     const endpoint = regionEndpoint(chosen);
     const room = party
-      ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party, mode }, MatchState)
+      ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party, mode, spectator }, MatchState)
       : ranked
         ? await new Client(endpoint).joinOrCreate<MatchState>("ranked", { name, token: loadToken(), ranked: true, test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}) }, MatchState)
         : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}), ...(mode === "expedition" ? { checkpoint, weekly, handicaps: handicaps.join(","), ...(testing && testStartWave !== undefined ? { testStartWave } : {}) } : {}) }, MatchState);
-    if (!room.state.players.get(room.sessionId)) {
+    if (spectator) {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("spectator_timeout")), 5000);
+        room.onMessage("spectator", () => { clearTimeout(timer); resolve(); });
+      });
+    } else if (!room.state.players.get(room.sessionId)) {
       await new Promise<void>((resolve) => {
         const off = Callbacks.get(room).onAdd("players", (_player, id) => {
           if (id !== room.sessionId) return;
@@ -313,10 +349,24 @@ export class OnlineSession {
     this.sampler.frame(elapsed);
     const steps = this.predict.tick(timeMs);
     for (let step = 0; step < steps; step += 1) {
-      this.sampler.sample(this.input.data);
-      this.input.send();
+      if (!this.spectator) {
+        this.sampler.sample(this.input.data);
+        this.input.send();
+      } else {
+        this.sampler.frame(elapsed);
+        this.sampler.sample(this.input.data);
+        const yaw = this.sampler.yaw;
+        const pitch = this.sampler.pitch;
+        const dist = 14;
+        const lookX = this.freeCam.x + Math.sin(yaw) * Math.cos(pitch) * dist;
+        const lookY = this.freeCam.y + Math.sin(pitch) * dist;
+        const lookZ = this.freeCam.z + Math.cos(yaw) * Math.cos(pitch) * dist;
+        this.renderer.setTestCamera(this.freeCam.x, this.freeCam.y, this.freeCam.z, lookX, lookY, lookZ);
+        this.freeCam.x += this.input.data.moveX * 0.35;
+        this.freeCam.z += this.input.data.moveZ * 0.35;
+      }
     }
-    this.cameraRig.update(this.renderer.camera, this.me.state, this.me.state, 1, elapsed);
+    if (!this.spectator) this.cameraRig.update(this.renderer.camera, this.me.state, this.me.state, 1, elapsed);
     this.renderer.setFeel(this.cameraRig.output.hurt, this.cameraRig.output.streaks);
     this.renderer.setDebugMovement(this.me.state);
     const serverNow = this.room.clock.serverNow();

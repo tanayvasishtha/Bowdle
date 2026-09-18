@@ -46,6 +46,7 @@ export class OfflineSession {
     const tickMs = 1000 / TICK_HZ;
     while (this.accumulatorMs >= tickMs) {
       copyState(this.previous, this.player);
+      this.sampler.frame(tickMs);
       this.sampler.sample(input);
       stepPlayer(this.player, input, this.map, { nowMs: this.simTimeMs });
       this.simTimeMs += tickMs;

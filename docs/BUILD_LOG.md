@@ -1,4 +1,12 @@
-﻿## F4: Repo hygiene, encoding and zero browser fails
+## F4: Repo hygiene, encoding and zero browser fails
+
+## Strafe / omni-move fix (2026-09-18)
+
+- Movement was winner-take-all between keyboard and gamepad: a stick with only forward/back (or Y drift) could wipe A/D strafe.
+- Now blends **per axis** (keyboard + pad + touch), so left/right always works alongside forward/back.
+- WASD and arrow keys are hard fallbacks even if rebinds are broken; blank key bindings are repaired on load.
+- Offline sessions now call `frame()` before `sample()` so pad axes stay fresh.
+- Added a movement test that asserts strafe moves sideways relative to facing.
 
 ## Controls / POV feel (2026-09-18)
 

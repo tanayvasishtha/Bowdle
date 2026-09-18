@@ -66,6 +66,16 @@ describe("movement", () => {
     expect(state.sliding).toBe(false);
   });
 
+  it("strafes sideways relative to facing", () => {
+    const state = createPlayerSim();
+    run(state, { ...idle, yaw: 0, moveX: 1, moveZ: 0 }, 30);
+    expect(Math.abs(state.x)).toBeGreaterThan(1);
+    expect(Math.abs(state.z)).toBeLessThan(Math.abs(state.x) * 0.35);
+    const left = createPlayerSim();
+    run(left, { ...idle, yaw: 0, moveX: -1, moveZ: 0 }, 30);
+    expect(left.x).toBeLessThan(-1);
+  });
+
   it("held jump preserves bunny-hop momentum", () => {
     const state = createPlayerSim();
     state.vx = RUN_SPEED;

@@ -93,6 +93,17 @@ function range(value: unknown, min: number, max: number, fallback: number): numb
 }
 function unit(value: unknown, fallback: number): number { return range(value, 0, 1, fallback); }
 
+
+/** Drop blank or non-string rebinds so left/right cannot disappear from a bad save. */
+function repairKeys(parsed: Partial<KeyBindings> | undefined): KeyBindings {
+  const merged: KeyBindings = { ...DEFAULT_KEYS, ...(parsed ?? {}) };
+  for (const action of Object.keys(DEFAULT_KEYS) as (keyof KeyBindings)[]) {
+    const code = merged[action];
+    if (typeof code !== "string" || code.length === 0) merged[action] = DEFAULT_KEYS[action];
+  }
+  return merged;
+}
+
 export function loadSettings(): GameSettings {
   const defaults = defaultSettings();
   try {
@@ -122,7 +133,7 @@ export function loadSettings(): GameSettings {
       crosshairSize: range(parsed.crosshairSize, CROSSHAIR_SIZE.min, CROSSHAIR_SIZE.max, defaults.crosshairSize),
       crosshairColor: oneOf(parsed.crosshairColor, CROSSHAIR_COLORS, defaults.crosshairColor),
       teamPalette: oneOf(parsed.teamPalette, TEAM_PALETTE_NAMES, defaults.teamPalette),
-      keys: { ...DEFAULT_KEYS, ...parsed.keys },
+      keys: repairKeys(parsed.keys),
       preferredRegion: typeof parsed.preferredRegion === "string" ? parsed.preferredRegion : defaults.preferredRegion,
       graphicsPreset: (GRAPHICS_PRESETS as readonly string[]).includes(String(parsed.graphicsPreset)) ? parsed.graphicsPreset as GraphicsPreset : defaults.graphicsPreset,
       fpsCap: (FPS_CAPS as readonly number[]).includes(Number(parsed.fpsCap)) ? Number(parsed.fpsCap) as FpsCap : defaults.fpsCap,

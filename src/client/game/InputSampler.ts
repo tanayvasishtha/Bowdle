@@ -62,8 +62,30 @@ export class InputSampler {
   private bound(action: keyof GameSettings["keys"]): boolean {
     if (this.settings.trackpadMode && (action === "draw" || action === "aim")) return this.toggles.held(action);
     const code = this.settings.keys[action];
+    if (!code || typeof code !== "string") return false;
     if (code.startsWith("Mouse")) return (this.mouseButtons & (1 << Number(code.slice(5)))) !== 0;
     return this.keys.has(code);
+  }
+
+  /** True when this physical key is down, even if the player rebound the action. */
+  private keyDown(...codes: string[]): boolean {
+    return codes.some((code) => this.keys.has(code));
+  }
+
+  /**
+   * Keyboard move on one axis, with WASD and arrow keys as hard fallbacks so a bad rebind
+   * cannot brick strafing. Positive is right / forward.
+   */
+  private keyboardAxis(negative: keyof GameSettings["keys"], positive: keyof GameSettings["keys"], fallbackNeg: string[], fallbackPos: string[]): number {
+    let value = Number(this.bound(positive)) - Number(this.bound(negative));
+    if (this.keyDown(...fallbackPos)) value += 1;
+    if (this.keyDown(...fallbackNeg)) value -= 1;
+    return Math.max(-1, Math.min(1, value));
+  }
+
+  /** Pick the stronger signal per axis so a drifting stick cannot wipe keyboard strafe. */
+  private blendAxis(keyboard: number, pad: number): number {
+    return Math.abs(pad) > Math.abs(keyboard) ? pad : keyboard;
   }
 
   private aiming(): boolean { return this.bound("aim") || (this.pad.buttons & BTN.AIM) !== 0; }
@@ -92,16 +114,17 @@ export class InputSampler {
 
 
   sample(out: PlayerInputFrame): void {
-    const keyboardX = Number(this.bound("right")) - Number(this.bound("left"));
-    const keyboardZ = Number(this.bound("forward")) - Number(this.bound("back"));
-    const usePad = Math.hypot(this.pad.moveX, this.pad.moveZ) > Math.hypot(keyboardX, keyboardZ);
-    out.moveX = this.paused ? 0 : usePad ? this.pad.moveX : keyboardX;
-    out.moveZ = this.paused ? 0 : usePad ? this.pad.moveZ : keyboardZ;
+    const keyboardX = this.keyboardAxis("left", "right", ["KeyA", "ArrowLeft"], ["KeyD", "ArrowRight"]);
+    const keyboardZ = this.keyboardAxis("back", "forward", ["KeyS", "ArrowDown"], ["KeyW", "ArrowUp"]);
+    const padX = this.pad.connected ? this.pad.moveX : 0;
+    const padZ = this.pad.connected ? this.pad.moveZ : 0;
+    out.moveX = this.paused ? 0 : this.blendAxis(keyboardX, padX);
+    out.moveZ = this.paused ? 0 : this.blendAxis(keyboardZ, padZ);
     if (!this.paused && this.touch) {
       const touch = this.touch.sample();
       if (Math.hypot(touch.moveX, touch.moveZ) > 0.05) {
-        out.moveX = touch.moveX;
-        out.moveZ = touch.moveZ;
+        if (Math.abs(touch.moveX) >= 0.05) out.moveX = touch.moveX;
+        if (Math.abs(touch.moveZ) >= 0.05) out.moveZ = touch.moveZ;
       }
       this.yaw += touch.lookDx;
       this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - touch.lookDy * this.settings.verticalSensitivity));

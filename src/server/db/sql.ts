@@ -10,10 +10,20 @@ export type SqlClient = {
 
 type PgValue = string | number | boolean | null | Date;
 
+
+export type DatabaseMode = "postgres" | "pglite" | "memory";
+
+/** How accounts are stored for this process. `memory` vanishes on restart. */
+export function databaseMode(env: NodeJS.ProcessEnv = process.env): DatabaseMode {
+  if (env.DATABASE_URL) return "postgres";
+  if (env.PGLITE_DIR) return "pglite";
+  return "memory";
+}
+
 /** Opens Postgres when DATABASE_URL is set, otherwise PGlite. PGLITE_DIR persists the dev database; tests stay in memory. */
 export async function openSql(env: NodeJS.ProcessEnv = process.env): Promise<SqlClient> {
   if (env.DATABASE_URL) return openPostgres(env.DATABASE_URL);
-  if (env.NODE_ENV === "production" && !env.PGLITE_DIR) console.warn(JSON.stringify({ event: "databaseInMemory", message: "Set DATABASE_URL so accounts survive restarts" }));
+  if (env.NODE_ENV === "production" && databaseMode(env) === "memory") console.warn(JSON.stringify({ event: "databaseInMemory", mode: "memory", message: "Set DATABASE_URL (or PGLITE_DIR for a single-node durable file) so accounts survive restarts" }));
   return openPglite(env.PGLITE_DIR);
 }
 

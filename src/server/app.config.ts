@@ -4,6 +4,7 @@ import express from "express";
 import { Encoder } from "@colyseus/schema";
 import { apiRouter } from "./api/routes.ts";
 import { gameDatabase } from "./db/GameDatabase.ts";
+import { databaseMode } from "./db/sql.ts";
 import { TdmRoom } from "./rooms/TdmRoom.ts";
 import { QueueRoom } from "./rooms/QueueRoom.ts";
 
@@ -27,7 +28,7 @@ export const server = defineServer({
   express: (app) => {
     if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
     app.get("/health", (_req, res) => {
-      res.json({ ok: true, region: process.env.REGION || "local" });
+      res.json({ ok: true, region: process.env.REGION || "local", database: databaseMode() });
     });
     // Portal builds call this API from other origins; Colyseus already answers CORS preflights for every route.
     app.use("/api", apiRouter({ database: gameDatabase }));

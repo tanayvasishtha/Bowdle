@@ -27,7 +27,8 @@
     "balance": "node scripts/balance-report.ts",
     "retention": "node scripts/retention-report.ts",
     "icons": "node scripts/generate-icons.mjs",
-    "og": "node scripts/generate-og.mjs"
+    "og": "node scripts/generate-og.mjs",
+    "persist-smoke": "vitest run src/server/db/persist.smoke.test.ts"
   },
   "dependencies": {
     "@colyseus/better-call": "1.3.3",

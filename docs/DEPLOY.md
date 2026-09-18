@@ -23,15 +23,15 @@ npm run build
 npm run smoke
 ```
 
-`npm run smoke` starts the production server on port 2599 (override with `SMOKE_PORT`), checks `/health`, the served client page and a WebSocket join on `tdm`, then shuts down.
+`npm run smoke` starts the production server on port 2599 (override with `SMOKE_PORT`), checks `/health` (JSON includes `database`: `postgres` | `pglite` | `memory`), the served client page and a WebSocket join on `tdm`, then shuts down.
 
 ## 2. Create the Render service
 
 1. Push the intended release commit and tag to GitHub.
-2. In Render, choose **New → Web Service** and connect `tanayvasishtha/Bowdle`.
+2. In Render, choose **New â†’ Web Service** and connect `tanayvasishtha/Bowdle`.
 3. Select the `main` branch and **Docker** runtime. Render discovers the root `Dockerfile`; no build or start override is needed.
 4. Choose a paid instance with at least 1 GB memory so the real-time server does not sleep between matches.
-5. Set the health-check path to `/health`.
+5. Set the health-check path to `/health` (JSON includes `database`: `postgres` | `pglite` | `memory`).
 6. Add `NODE_ENV=production`. Render provides `PORT`; do not hard-code or override it.
    - `DATABASE_URL`: a Render Postgres internal URL. Without it, accounts live in memory and vanish on restart (the server logs `databaseInMemory`).
    - `TRUST_PROXY=1`, so the guest sign-up rate limit sees real client addresses behind the Render proxy.
@@ -53,7 +53,7 @@ Open the HTTPS URL on two different networks, join a match from both, move and f
 
 ## 4. Attach `bowdle.io`
 
-1. In the service’s **Settings → Custom Domains**, add `bowdle.io` and `www.bowdle.io`.
+1. In the serviceâ€™s **Settings â†’ Custom Domains**, add `bowdle.io` and `www.bowdle.io`.
 2. At the DNS provider, create the exact A/ANAME and CNAME records Render displays. Remove conflicting records for those hostnames.
 3. Wait for Render to mark both domains verified and issue certificates.
 4. Redirect `www.bowdle.io` to `bowdle.io` in Render.
@@ -61,7 +61,7 @@ Open the HTTPS URL on two different networks, join a match from both, move and f
 
 ## 5. Release and roll back
 
-Record the deployed commit and tag in the release notes. To roll back, open **Events**, select the last known-good deploy, and choose **Rollback**. Render redeploys that immutable image. Recheck `/health`, the root page, and a two-player match. Do not force-push or move release tags to simulate a rollback.
+Record the deployed commit and tag in the release notes. To roll back, open **Events**, select the last known-good deploy, and choose **Rollback**. Render redeploys that immutable image. Recheck `/health` (JSON includes `database`: `postgres` | `pglite` | `memory`), the root page, and a two-player match. Do not force-push or move release tags to simulate a rollback.
 
 ## Portal builds (Poki and CrazyGames)
 
@@ -88,14 +88,14 @@ Record the deployed commit and tag in the release notes. To roll back, open **Ev
 
 Each region is its own Bowdle process (and usually its own Render service) with a shared Postgres.
 
-1. Set `REGION` on the server to a short id such as `eu` or `us`. Health checks stay on `/health`.
+1. Set `REGION` on the server to a short id such as `eu` or `us`. Health checks stay on `/health` (JSON includes `database`: `postgres` | `pglite` | `memory`).
 2. At client build time set `VITE_REGIONS` to a JSON list of `{ "id", "url" }` entries, for example:
 
 ```bash
 VITE_REGIONS='[{"id":"eu","url":"https://eu.bowdle.example"},{"id":"us","url":"https://us.bowdle.example"}]'
 ```
 
-3. On boot the client probes `/health` on every entry, picks the lowest ping, shows that ping in the HUD, and lets players override the region in Settings.
+3. On boot the client probes `/health` (JSON includes `database`: `postgres` | `pglite` | `memory`) on every entry, picks the lowest ping, shows that ping in the HUD, and lets players override the region in Settings.
 4. Ranked queue and public matches stay on the chosen region endpoint (`VITE_SERVER_URL` is only the fallback when `VITE_REGIONS` is empty).
 
 

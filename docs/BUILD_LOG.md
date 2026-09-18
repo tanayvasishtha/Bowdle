@@ -1,5 +1,14 @@
 ## F4: Repo hygiene, encoding and zero browser fails
 
+## P1 Persistence (2026-09-18)
+
+- `/health` now reports `database`: `postgres` | `pglite` | `memory`.
+- `.env.example` documents `DATABASE_URL` and `PGLITE_DIR`.
+- `npm run persist-smoke` proves a guest account survives reopening a `PGLITE_DIR`.
+- Added `docs/LAUNCH-READY.md` and `docs/RUNBOOK-LAUNCH.md` (P2–P4 still TODO).
+- Does **not** claim million-user scale; this is durable accounts on one node.
+
+
 ## Strafe / omni-move fix (2026-09-18)
 
 - Movement was winner-take-all between keyboard and gamepad: a stick with only forward/back (or Y drift) could wipe A/D strafe.

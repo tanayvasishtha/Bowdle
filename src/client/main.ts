@@ -207,7 +207,8 @@ if (params.get("scene") === "online") {
     }
   };
   const settings = loadSettings();
-  if (!settings.graphicsBenchmarked) {
+  // Automated scenes skip the 5s first-launch sample so tests and deep-links stay snappy.
+  if (!settings.graphicsBenchmarked && !params.has("test")) {
     const banner = document.createElement("section");
     banner.className = "bowdle-panel bowdle-loading";
     banner.dataset.testid = "graphics-benchmark";

@@ -1,5 +1,13 @@
 ## F4: Repo hygiene, encoding and zero browser fails
 
+## Playability audit (2026-09-18)
+
+- `npm run build` + `npm run smoke` green: `/health`, guest auth, profile, WebSocket TDM join.
+- Playwright play-path: practice headshot, two-player shared movement + HEADSHOT kill, solo online match, grapple/ink online, journal render — passed.
+- Flake found: LEFT-F3 first-launch graphics benchmark hid the menu `h1` for ~5s and failed smoke/menu e2e. Fixed by seeding `graphicsBenchmarked` in e2e helpers and skipping the sample when `?test` is present.
+- Without `DATABASE_URL` the server uses in-memory DB (accounts reset on restart); still playable locally.
+
+
 ## Hotfix - spectator stub, WebGL dispose, join UX (2026-09-18)
 
 - Spectator local state stub now includes the player fields the session reads (alive, draw, grapple, look, …).

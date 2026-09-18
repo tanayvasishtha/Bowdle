@@ -23,7 +23,24 @@ export async function returningPlayer(page: Page, keepCourse = false): Promise<v
   await page.addInitScript((keep) => {
     if (keep) { if (!localStorage.getItem("bowdle.name")) localStorage.setItem("bowdle.name", "Returning"); }
     else localStorage.setItem("bowdle.course.done", "yes");
+    // Skip LEFT-F3 first-launch benchmark so menu e2e is not racing a 5s sample.
+    try {
+      const key = "bowdle.settings.v1";
+      const current = JSON.parse(localStorage.getItem(key) ?? "{}") as Record<string, unknown>;
+      localStorage.setItem(key, JSON.stringify({ ...current, graphicsBenchmarked: true, graphicsPreset: current.graphicsPreset ?? "medium" }));
+    } catch { /* ignore */ }
   }, keepCourse);
+}
+
+/** Fresh profile that already skipped the graphics benchmark (for smoke / home). */
+export async function skipGraphicsBenchmark(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      const key = "bowdle.settings.v1";
+      const current = JSON.parse(localStorage.getItem(key) ?? "{}") as Record<string, unknown>;
+      localStorage.setItem(key, JSON.stringify({ ...current, graphicsBenchmarked: true, graphicsPreset: current.graphicsPreset ?? "medium" }));
+    } catch { /* ignore */ }
+  });
 }
 
 /**

@@ -1,7 +1,7 @@
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
-import { defaultMatchMap } from "../../src/shared/maps/registry.ts";
+import { sunTempleMap } from "../../src/shared/maps/sunTemple.ts";
 import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 
@@ -24,7 +24,7 @@ describe("online movement", () => {
   });
 
   it("90 wire inputs match 90 direct shared steps", async () => {
-    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Runner" });
+    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Runner", testMapId: "sun-temple" });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
     room.state.phase = "live";
@@ -40,7 +40,7 @@ describe("online movement", () => {
       wire.data.buttons = 0;
       wire.send();
       await room.waitForNextTimestep();
-      stepPlayer(direct, { moveX: 0, moveZ: 1, yaw: -Math.PI / 2, pitch: 0, buttons: 0 }, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(direct, { moveX: 0, moveZ: 1, yaw: -Math.PI / 2, pitch: 0, buttons: 0 }, sunTempleMap, { nowMs: frame * 1000 / 30 });
     }
     expect(Math.abs(serverPlayer.x - direct.x)).toBeLessThanOrEqual(1e-6);
     expect(Math.abs(serverPlayer.y - direct.y)).toBeLessThanOrEqual(1e-6);

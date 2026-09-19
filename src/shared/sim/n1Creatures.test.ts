@@ -48,6 +48,6 @@ describe("N1 weekly expedition seed", () => {
     expect(isoWeekKey(mid)).toBe(isoWeekKey(sameWeek));
     expect(weeklySeed(mid)).toBe(weeklySeed(sameWeek));
     expect(weeklySeed(mid)).not.toBe(weeklySeed(nextWeek));
-    expect(weeklyMapId(weeklySeed(mid))).toMatch(/sun-temple|canopy|lost-river|sky-bridges|sunken-ruins/);
+    expect(weeklyMapId(weeklySeed(mid))).toMatch(/wild-crossing|home-grove/);
   });
 });

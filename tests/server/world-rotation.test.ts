@@ -14,11 +14,11 @@ describe("jungle map rotation", () => {
   beforeEach(async () => { await colyseus.cleanup(); });
   afterAll(async () => { await colyseus.shutdown(); });
 
-  it("rotates through all five arena maps", async () => {
+  it("rotates through launch arena maps", async () => {
     const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Observer" }); await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
-    expect(room.state.mapId).toBe("sun-temple");
-    for (const expected of ["canopy", "lost-river", "sky-bridges", "sunken-ruins", "sun-temple"]) {
+    expect(room.state.mapId).toBe("wild-crossing");
+    for (const expected of ["home-grove", "wild-crossing"]) {
       room.state.phase = "end"; room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0);
       expect(room.state.mapId).toBe(expected);
     }
@@ -28,11 +28,11 @@ describe("jungle map rotation", () => {
     const first = await colyseus.sdk.joinOrCreate("tdm", { name: "One", test: true }); await first.waitForInitialState();
     const second = await colyseus.sdk.joinOrCreate("tdm", { name: "Two", test: true }); await second.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(first.roomId); room.state.phase = "end"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
-    room.voteMap(first.sessionId, "lost-river"); room.voteMap(second.sessionId, "lost-river");
-    room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("lost-river");
+    room.voteMap(first.sessionId, "home-grove"); room.voteMap(second.sessionId, "home-grove");
+    room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("home-grove");
     room.state.phase = "end"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
-    room.voteMap(first.sessionId, "sun-temple"); room.voteMap(second.sessionId, "canopy");
-    room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("sky-bridges");
+    room.voteMap(first.sessionId, "wild-crossing"); room.voteMap(second.sessionId, "home-grove");
+    room.state.phaseEndsAtMs = 0; room.simulateTick(context, 0); expect(room.state.mapId).toBe("wild-crossing");
   });
 
   it("finishes an eight-player Lost River match", async () => {

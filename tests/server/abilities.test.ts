@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import { BTN } from "../../src/shared/input.ts";
-import { defaultMatchMap } from "../../src/shared/maps/registry.ts";
+import { sunTempleMap } from "../../src/shared/maps/sunTemple.ts";
 import { kitMap } from "../../src/shared/maps/fixtures/kit.ts";
 import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
 import { ArrowState } from "../../src/net/schema.ts";
@@ -16,7 +16,7 @@ describe("authoritative online abilities", () => {
   afterAll(async () => { await colyseus.shutdown(); });
 
   it("matches a predicted grapple swing for 60 frames", async () => {
-    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Hook", test: true });
+    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Hook", test: true, testMapId: "sun-temple" });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
     const serverPlayer = room.state.players.get(client.sessionId)!;
@@ -34,7 +34,7 @@ describe("authoritative online abilities", () => {
       wire.data.moveZ = moveZ;
       wire.data.moveX = 0; wire.data.yaw = yaw; wire.data.pitch = pitch; wire.data.buttons = buttons;
       wire.send(); await room.waitForNextTimestep();
-      stepPlayer(direct, { moveX: 0, moveZ, yaw, pitch, buttons }, defaultMatchMap, { nowMs: frame * 1000 / 30, matchTimeMs: room.clock.elapsedTime, geyserLaunches: (room as unknown as { geyserLaunches: Map<string, number> }).geyserLaunches, geyserPlayerId: client.sessionId });
+      stepPlayer(direct, { moveX: 0, moveZ, yaw, pitch, buttons }, sunTempleMap, { nowMs: frame * 1000 / 30, matchTimeMs: room.clock.elapsedTime, geyserLaunches: (room as unknown as { geyserLaunches: Map<string, number> }).geyserLaunches, geyserPlayerId: client.sessionId });
       if (direct.grappleActive && direct.grappleReeling) attached += 1;
       if (direct.grappleActive && !direct.grappleReeling) swung += 1;
     }
@@ -72,7 +72,7 @@ describe("authoritative online abilities", () => {
   }, 15_000);
 
   it("an enemy arrow cuts a rope and the owner falls", async () => {
-    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Snipper", test: true });
+    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Snipper", test: true, testMapId: "sun-temple" });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
     const cuts: Array<{ cutter: string; owner: string }> = [];
@@ -90,7 +90,7 @@ describe("authoritative online abilities", () => {
     expect(hanger.grappleCooldownMs).toBe(GRAPPLE_COOLDOWN_MS);
     expect(room.xpEvents).toContainEqual({ type: "ropeCut", player: client.sessionId });
     const startY = hanger.y;
-    for (let frame = 0; frame < 10; frame += 1) stepPlayer(hanger, { moveX: 0, moveZ: 0, yaw: 0, pitch: 0, buttons: 0 }, defaultMatchMap, { nowMs: 200 + frame * 33 });
+    for (let frame = 0; frame < 10; frame += 1) stepPlayer(hanger, { moveX: 0, moveZ: 0, yaw: 0, pitch: 0, buttons: 0 }, sunTempleMap, { nowMs: 200 + frame * 33 });
     expect(hanger.y).toBeLessThan(startY - 0.5);
     await new Promise((resolve) => setTimeout(resolve, 150));
     expect(cuts).toContainEqual({ cutter: client.sessionId, owner: "hanger", x: expect.any(Number), y: expect.any(Number), z: expect.any(Number) });
@@ -98,7 +98,7 @@ describe("authoritative online abilities", () => {
   }, 15_000);
 
   it("spawns an expiring cloud when an ink lob hits the world", async () => {
-    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Inker", test: true });
+    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Inker", test: true, testMapId: "sun-temple" });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
     const wire = client.input({ mode: "reliable" });

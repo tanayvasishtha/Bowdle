@@ -1,3 +1,9 @@
+## L3 Big maps (2026-09-19)
+
+- Wild Crossing (`wild-crossing`): ~200x160 lobby arena with ruined temple, river bridges, cliffs, zips, 10 edge spawns. Default match map.
+- Home Grove (`home-grove`): ~160x160 Village Defense map with totem, huts, walls, watchtowers, edge creatureSpawns, herbSpawns[0] at totem ground.
+- `matchMaps` rotation is only those two; `legacyMatchMaps` keeps Sun Temple through Sunken Ruins for mapById/tests.
+- Expedition without creatureSpawns falls back to Home Grove. Soak expedition map set is `home-grove`.
 ## L6 Launch gates and v3.0.0 (2026-09-19)
 
 - Expedition soak: hard-fail only on stuck creatures; shallow clears warn (seed variance). Maps limited to sun-temple and canopy for the launch gate.

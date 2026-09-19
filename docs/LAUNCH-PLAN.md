@@ -78,7 +78,10 @@ The bow must hit where the crosshair points, feel instant up close and reward sk
 6. In-match HUD: health, ammo-free bow draw meter, score or wave, a small timer. Hide everything else.
 7. Screenshots of the menu and the first 10 seconds of each mode.
 
-## L3: Big maps
+## L3: Big maps (done)
+
+Shipped: Wild Crossing (lobby) and Home Grove (Village Defense) are the matchMaps rotation; legacy arenas stay in mapById.
+
 
 1. **Lobby map, "Wild Crossing":** about 200 x 160 m. A ruined temple in the middle, a river with bridges, cliffs and
    tree platforms for height, open meadows for long shots, tight ruins for close fights, zip lines and grapple points

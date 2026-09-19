@@ -11,7 +11,7 @@ describe("server performance budget", () => {
   afterAll(async () => { await colyseus.shutdown(); });
 
   it("keeps an eight-player room with twenty arrows under the tick budget", async () => {
-    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Observer" }); await client.waitForInitialState();
+    const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Observer", testMapId: "sun-temple" }); await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.replacePlayerWithBot(client.sessionId); room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
     const context = { dt: 1 / TICK_HZ, dtMs: 1000 / TICK_HZ, tick: 0, subSteps: SUBSTEPS, subDt: 1 / (TICK_HZ * SUBSTEPS), subDtMs: 1000 / (TICK_HZ * SUBSTEPS) };
     for (let tick = 0; tick < TICK_HZ; tick += 1) { context.tick = tick; room.simulateTick(context, tick * context.dtMs); }

@@ -206,7 +206,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.botSeedBase = Number.isFinite(options.testBotSeed) ? options.testBotSeed! : 0;
     let selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
     // Expeditions need creature spawns and always keep their map.
-    if (this.state.mode === "expedition" && !selected?.creatureSpawns) selected = defaultMatchMap;
+    if (this.state.mode === "expedition" && !selected?.creatureSpawns) selected = mapById("home-grove") ?? defaultMatchMap;
     this.fixedMap = selected !== undefined;
     this.loadMap(selected ?? defaultMatchMap, 0);
     this.state.phase = "warmup";

@@ -6,6 +6,8 @@ import { campMap } from "./camp.ts";
 import { lostRiverMap } from "./lostRiver.ts";
 import { skyBridgesMap } from "./skyBridges.ts";
 import { sunkenRuinsMap } from "./sunkenRuins.ts";
+import { wildCrossingMap } from "./wildCrossing.ts";
+import { homeGroveMap } from "./homeGrove.ts";
 import type { MapData } from "./types.ts";
 import { validateMap } from "./validate.ts";
 
@@ -20,6 +22,8 @@ describe("map validation", () => {
   it("accepts Lost River", () => expect(validateMap(lostRiverMap)).toEqual([]));
   it("accepts Sky Bridges", () => expect(validateMap(skyBridgesMap)).toEqual([]));
   it("accepts Sunken Ruins", () => expect(validateMap(sunkenRuinsMap)).toEqual([]));
+  it("accepts Wild Crossing", () => expect(validateMap(wildCrossingMap)).toEqual([]));
+  it("accepts Home Grove", () => expect(validateMap(homeGroveMap)).toEqual([]));
   it("accepts Practice Camp", () => expect(validateMap(campMap)).toEqual([]));
 
   it("rejects a ramp over the slope limit", () => {

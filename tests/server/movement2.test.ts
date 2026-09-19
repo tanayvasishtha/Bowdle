@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import { BTN } from "../../src/shared/input.ts";
-import { defaultMatchMap } from "../../src/shared/maps/registry.ts";
+import { sunTempleMap } from "../../src/shared/maps/sunTemple.ts";
 import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
 import { PlayerState } from "../../src/net/schema.ts";
 
@@ -25,8 +25,8 @@ describe("movement 2.0 online", () => {
     let hopped = false, dodged = false;
     for (let frame = 0; frame < 120; frame += 1) {
       const input = { moveX: frame % 30 < 15 ? 1 : 0, moveZ: 1, yaw, pitch: 0, buttons: buttonsAt(frame) };
-      stepPlayer(synced, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
-      stepPlayer(direct, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(synced, input, sunTempleMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(direct, input, sunTempleMap, { nowMs: frame * 1000 / 30 });
       if (frame === 10) hopped = direct.airJumps === 0;
       if (frame === 25) dodged = direct.dodgeCooldownMs > 0;
       for (const key of ["x", "y", "z", "vx", "vy", "vz", "airJumps", "wallJumps", "dodgeCooldownMs", "mantleCooldownMs", "landingGraceMs", "wallTouchMs"] as const) {
@@ -44,8 +44,8 @@ describe("movement 2.0 online", () => {
     let swung = 0;
     for (let frame = 0; frame < 60; frame += 1) {
       const input = { moveX: 0, moveZ: frame >= 12 ? 1 : 0, yaw: -Math.PI / 2, pitch: 0.1, buttons: buttonsAt(frame) };
-      stepPlayer(synced, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
-      stepPlayer(direct, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(synced, input, sunTempleMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(direct, input, sunTempleMap, { nowMs: frame * 1000 / 30 });
       if (direct.grappleActive && !direct.grappleReeling) swung += 1;
       for (const key of ["x", "y", "z", "vx", "vy", "vz", "grappleActive", "grappleLen", "grappleMs", "grappleBlockedMs", "grappleReeling", "grappleCooldownMs", "airJumps"] as const) {
         expect(synced[key], `${key} at frame ${frame}`).toBe(direct[key]);
@@ -62,8 +62,8 @@ describe("movement 2.0 online", () => {
     let volleys = 0;
     for (let frame = 0; frame < 120; frame += 1) {
       const input = { moveX: 0, moveZ: 0, yaw: -Math.PI / 2, pitch: 0.05, buttons: buttonsAt(frame) };
-      stepPlayer(synced, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
-      const events = stepPlayer(direct, input, defaultMatchMap, { nowMs: frame * 1000 / 30 });
+      stepPlayer(synced, input, sunTempleMap, { nowMs: frame * 1000 / 30 });
+      const events = stepPlayer(direct, input, sunTempleMap, { nowMs: frame * 1000 / 30 });
       volleys += events.filter((event) => event.type === "fire" && event.kind !== "arrow").length;
       for (const key of ["arrowSlot", "scatterCharges", "scatterRechargeMs", "tetherCooldownMs", "drawMs", "releaseCooldownMs"] as const) {
         expect(synced[key], `${key} at frame ${frame}`).toBe(direct[key]);

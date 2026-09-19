@@ -7,12 +7,15 @@ import type { MapData } from "./types.ts";
 import { validateMap } from "./validate.ts";
 
 const LAUNCH_PLAY_AREA = rect(-34, -26, 34, 26);
+function playAreaFor(map: MapData) {
+  return rect(map.bounds.min[0] + 2, map.bounds.min[2] + 2, map.bounds.max[0] - 2, map.bounds.max[2] - 2);
+}
 const CAMP_PLAY_AREA = rect(-15.5, -81.5, 15.5, 9.5);
 
 describe("launch map scenery", () => {
   for (const map of matchMaps) {
     it(`${map.id}: every tall prop inside the arena stands on a collider`, () => {
-      expect(unbackedTallProps(map, LAUNCH_PLAY_AREA)).toEqual([]);
+      expect(unbackedTallProps(map, playAreaFor(map))).toEqual([]);
     });
 
     it(`${map.id}: both teams can see the landmark from their spawn area`, () => {

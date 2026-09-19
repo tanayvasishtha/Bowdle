@@ -51,7 +51,7 @@ describe("Free for All and Relic Run rooms", () => {
   }, 20_000);
 
   it("carries the relic home for a capture, drops it on death and sends it home after a while", async () => {
-    const client = await colyseus.sdk.joinOrCreate("relic", { name: "Runner", test: true });
+    const client = await colyseus.sdk.joinOrCreate("relic", { name: "Runner", test: true, testMapId: "sun-temple" });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
     room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
@@ -108,7 +108,7 @@ describe("Free for All and Relic Run rooms", () => {
   }, 20_000);
 
   it("records relic captures for human players", async () => {
-    const client = await colyseus.sdk.joinOrCreate("relic", { name: "Capturer", test: true });
+    const client = await colyseus.sdk.joinOrCreate("relic", { name: "Capturer", test: true, testMapId: "sun-temple" });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
     room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;

@@ -262,7 +262,7 @@ const CREATURE_FAR_M = 30;
 
 
 
-const EXPEDITION_SOAK_MAPS = new Set(["sun-temple", "canopy"]); // launch gate maps where bots clear early waves
+const EXPEDITION_SOAK_MAPS = new Set(["home-grove"]); // launch gate maps where bots clear early waves
 for (const map of matchMaps.filter((entry) => entry.creatureSpawns && EXPEDITION_SOAK_MAPS.has(entry.id) && (!onlyMode || onlyMode === "expedition"))) for (let seed = 1; seed <= seeds; seed += 1) {
 
 

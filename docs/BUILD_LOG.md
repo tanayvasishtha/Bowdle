@@ -1,3 +1,10 @@
+## Soak harden: 20-wave Home Grove (2026-09-19)
+
+- Expedition soak gate raised from 8 to 20 waves on \home-grove\ (7 min per-wave cap).
+- Bots no longer melee-lock on creatures; they keep shooting, see creatures through tall grass, close past 18 m, and prefer the nearest creature.
+- Schema encoder buffer 64 KB for big-map state. Collapse below 18 waves hard-fails; 18-19 warns.
+- Verified: seeds 202 and 303 clear 20; seed 101 clears 19 (warn).
+
 ## L3 Big maps (2026-09-19)
 
 - Wild Crossing (`wild-crossing`): ~200x160 lobby arena with ruined temple, river bridges, cliffs, zips, 10 edge spawns. Default match map.
@@ -2347,4 +2354,11 @@ Verify by hand:
 - Weekly expedition seeds stay inside signed 32-bit range; seed column migrates to BIGINT.
 - Client-supplied `seed` is ignored outside test joins.
 - First village-run daily bonus is granted once through the reward breakdown (no double ink/xp).
+## C0: Big-map bot and Expedition soak hardening (2026-09-21)
+
+- Raised the Home Grove Expedition soak gate to 20 waves and increased the schema encoder buffer for full large-map state.
+- Bots close distance on large maps, retain visible creature targets, and use bows instead of melee against creatures.
+- Fixed the Mycelium Tender selecting itself as its ally anchor, which left it stationary until the director repeatedly respawned it. Added a regression test for a Tender with no nearby ally.
+- Verified: `npm run check` 383/383, production build, smoke, 20-wave soak for seeds 101, 202 and 303, and portal builds pass.
+- Browser suite is intentionally carried into C1: 38/60 pass, with menu entry points, legal links, Expedition routing, camp combat and interaction flows requiring the C1 repairs.
 

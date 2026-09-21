@@ -38,6 +38,21 @@ describe("N1 mire and tender", () => {
     });
     expect(events).toContainEqual({ type: "heal", targets: ["c1"], amount: CREATURE_TUNING.tender.healAmount });
   });
+
+  it("does not anchor to itself when it has no other creature nearby", () => {
+    const creature = createCreature("tender", 0, 0, 0);
+    const allies: CreatureAlly[] = [{ id: "self", x: 0, y: 0, z: 0 }];
+    for (let tick = 0; tick < 30; tick += 1) {
+      stepCreature(creature, {
+        map: sunTempleMap,
+        targets: [{ id: "p", x: 20, y: 0, z: 0, grounded: true }],
+        allies,
+        dt: 1 / 30,
+        gravityMult: 1,
+      });
+    }
+    expect(creature.x).toBeGreaterThan(0);
+  });
 });
 
 describe("N1 weekly expedition seed", () => {

@@ -246,11 +246,11 @@ for (const mode of GAME_MODES.filter((entry) => entry !== "expedition" && (!only
 
 
 
-const EXPEDITION_WAVES = 8;
+const EXPEDITION_WAVES = 20;
 
 
 
-const WAVE_LIMIT_S = 5 * 60;
+const WAVE_LIMIT_S = 7 * 60;
 
 
 
@@ -426,8 +426,10 @@ for (const map of matchMaps.filter((entry) => entry.creatureSpawns && EXPEDITION
   // Launch gate: stuck creatures are hard failures. Shallow wave clears warn only (seed variance).
   const stuckFail = stuck.size > 0;
   const shallow = run.cleared < EXPEDITION_WAVES || slowWave !== 0;
-  if (stuckFail) failures += 1;
-  const tag = stuckFail ? "FAIL" : shallow ? "warn" : "ok  ";
+  // Hard-fail on stuck creatures or a collapse below 90% of the wave gate; 18-19 is a soft warn (seed variance).
+  const collapse = run.cleared < Math.floor(EXPEDITION_WAVES * 0.9);
+  if (stuckFail || collapse) failures += 1;
+  const tag = stuckFail || collapse ? "FAIL" : shallow ? "warn" : "ok  ";
   console.log(`${tag} expedition ${map.id.padEnd(11)} seed ${String(seed * 101).padStart(3)}  waves ${String(run.cleared).padStart(2)}  bosses ${run.bosses}  ${(tick / TICK_HZ / 60).toFixed(1)} min  stuck creatures ${stuck.size}  respawned ${room.expedition?.unstuck ?? 0}${stuck.size ? ` (${[...stuck].slice(0, 4).join(" ")})` : ""}  (${((performance.now() - started) / 1000).toFixed(1)} s wall)`);
 
 

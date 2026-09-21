@@ -212,15 +212,18 @@ export class BotController {
     const solids = solidBoundsFor(map);
     for (const entry of players) {
       const [id, candidate] = entry; if (id === this.id || !candidate.alive || candidate.team === player.team) continue;
-      if (isHiddenInTallGrass(map, candidate.x, candidate.y, candidate.z, candidate.height, candidate.crouched)) continue;
+      // Expedition creatures (AIM_HEIGHTS) stay visible through tall grass and walls so PvE bots can hunt them.
+      const creature = AIM_HEIGHTS.has(candidate);
+      if (!creature && isHiddenInTallGrass(map, candidate.x, candidate.y, candidate.z, candidate.height, candidate.crouched)) continue;
       this.targetPose.x = candidate.x; this.targetPose.y = aimY(candidate); this.targetPose.z = candidate.z;
-      let blocked = sightBlocked(solids, this.origin.x, this.origin.y, this.origin.z, this.targetPose.x, this.targetPose.y, this.targetPose.z);
-      if (!blocked) for (const cloud of clouds) if (sphereBlocksSight(this.origin, this.targetPose, cloud)) { blocked = true; break; }
+      let blocked = creature ? false : sightBlocked(solids, this.origin.x, this.origin.y, this.origin.z, this.targetPose.x, this.targetPose.y, this.targetPose.z);
+      if (!blocked && !creature) for (const cloud of clouds) if (sphereBlocksSight(this.origin, this.targetPose, cloud)) { blocked = true; break; }
       const candidateDistance = Math.hypot(candidate.x - player.x, candidate.z - player.z);
       if (!blocked && id === this.targetId) { current = entry; currentDistance = candidateDistance; }
       if (!blocked && candidateDistance < distance) { best = entry; distance = candidateDistance; }
     }
     // Keep the current target unless another is clearly closer; swapping every tick restarts the reaction delay and the bot never shoots.
+    if (best && AIM_HEIGHTS.has(best[1])) return best;
     return current && currentDistance <= distance * BOT_TARGET_SWITCH_RATIO ? current : best;
   }
 
@@ -252,11 +255,16 @@ export class BotController {
     this.targetPose.x = target.x; this.targetPose.y = aimY(target); this.targetPose.z = target.z; this.targetPose.vx = target.vx; this.targetPose.vy = target.vy; this.targetPose.vz = target.vz;
     solveProjectileLead(this.origin, this.targetPose, ARROW_SPEED_MAX, this.aim);
     this.input.yaw = this.aim.yaw + this.aimYawError; this.input.pitch = this.aim.pitch + this.aimPitchError;
-    const strafe = (Math.floor(nowMs / BOT_STRAFE_MS) % 2 === 0) !== this.strafeFlip ? -1 : 1;
-    this.input.moveX = strafe; this.input.buttons = 0;
-    this.input.moveZ = player.grounded && Math.hypot(player.vx, player.vz) < BOT_STRAFE_BLOCKED_MPS ? strafe : 0;
     const range = Math.hypot(target.x - player.x, target.z - player.z);
-    if (range <= MELEE_RANGE && player.meleeCooldownMs <= 0) { this.input.buttons = BTN.MELEE; return; }
+    const strafe = (Math.floor(nowMs / BOT_STRAFE_MS) % 2 === 0) !== this.strafeFlip ? -1 : 1;
+    this.input.buttons = 0;
+    // On big maps, close in before strafing or rim targets are never reached.
+    if (range > 18) { this.input.moveX = 0; this.input.moveZ = 1; }
+    else {
+      this.input.moveX = strafe;
+      this.input.moveZ = player.grounded && Math.hypot(player.vx, player.vz) < BOT_STRAFE_BLOCKED_MPS ? strafe : 0;
+    }
+    if (range <= MELEE_RANGE && player.meleeCooldownMs <= 0 && !AIM_HEIGHTS.has(target)) { this.input.buttons = BTN.MELEE; return; }
     const wantSlot = range < BOT_SCATTER_M && player.scatterCharges > 0 ? 1 : 0;
     if (player.arrowSlot !== wantSlot && (player.prevButtons & (BTN.SLOT1 | BTN.SLOT2)) === 0) this.input.buttons |= wantSlot === 1 ? BTN.SLOT2 : BTN.SLOT1;
     if (nowMs - this.sightedAtMs < BOT_REACTION_MS) return;

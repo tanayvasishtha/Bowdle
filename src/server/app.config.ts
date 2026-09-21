@@ -9,7 +9,7 @@ import { TdmRoom } from "./rooms/TdmRoom.ts";
 import { QueueRoom } from "./rooms/QueueRoom.ts";
 
 // A full state with nested looks, hazards and Expedition creatures passes the 8 KB default; start larger than growing mid-match.
-Encoder.BUFFER_SIZE = 32 * 1024;
+Encoder.BUFFER_SIZE = 64 * 1024;
 
 export const server = defineServer({
   transport: new WebSocketTransport(),

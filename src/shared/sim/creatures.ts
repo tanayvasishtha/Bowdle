@@ -248,13 +248,15 @@ function stepMire(creature: CreatureSim, ctx: CreatureContext, found: ReturnType
 }
 
 /** Mycelium Tender: hold near allies and pulse heals. */
-function stepTender(creature: CreatureSim, ctx: CreatureContext, _found: ReturnType<typeof nearest>, events: CreatureEvent[]): void {
+function stepTender(creature: CreatureSim, ctx: CreatureContext, found: ReturnType<typeof nearest>, events: CreatureEvent[]): void {
   const stats = CREATURE_TUNING.tender;
   const allies = ctx.allies ?? [];
-  let anchor = allies[0];
+  let anchor: CreatureAlly | undefined;
   let best = Number.POSITIVE_INFINITY;
   for (const ally of allies) {
     const distance = Math.hypot(ally.x - creature.x, ally.z - creature.z);
+    // The director supplies the full creature roster, which includes this Tender.
+    if (distance <= Number.EPSILON) continue;
     if (distance < best) { best = distance; anchor = ally; }
   }
   if (anchor) {
@@ -262,6 +264,9 @@ function stepTender(creature: CreatureSim, ctx: CreatureContext, _found: ReturnT
     if (distance < stats.holdMinM) walk(creature, ctx, creature.x * 2 - anchor.x, creature.z * 2 - anchor.z, stats.speed);
     else if (distance > stats.holdMaxM) walk(creature, ctx, anchor.x, anchor.z, stats.speed, anchor.y);
     else walk(creature, ctx, creature.x, creature.z, 0);
+  } else if (found) {
+    const head = headFor(creature, ctx, found.target);
+    walk(creature, ctx, head.x, head.z, stats.speed, head.y);
   } else walk(creature, ctx, creature.x, creature.z, 0);
   if (creature.cooldownMs <= 0 && allies.length > 0) {
     const near = allies
@@ -275,4 +280,3 @@ function stepTender(creature: CreatureSim, ctx: CreatureContext, _found: ReturnT
     }
   }
 }
-

@@ -127,7 +127,7 @@ Built on the Expedition code (wave director, creatures, downed and revive), resk
    - The client can send its own `seed` and `testStartWave` in production; ignore both outside tests.
    - Handicap and creature bugs only if the handicaps or those creatures stay in the mode.
 7. Tests: unit tests for each raider behavior and the upgrade picks, server tests for the totem loss, the coin and
-   upgrade flow and the daily board, the soak running 15 waves with bots on Home Grove, e2e screenshots of wave 1,
+   upgrade flow and the daily board, the soak running 20 waves with bots on Home Grove, e2e screenshots of wave 1,
    the upgrade shop and the Chief.
 
 ## L5: Lobby mode (up to 10 players)

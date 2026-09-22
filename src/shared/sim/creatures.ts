@@ -3,6 +3,7 @@ import type { MapData } from "../maps/types.ts";
 import { segmentDistance } from "../math/segments.ts";
 import { movePlayer, moveResult } from "./collision.ts";
 import { bossHp, type CreatureKind } from "./waves.ts";
+import { TOTEM_ID, VILLAGE } from "./villageDefense.ts";
 
 export type CreatureAction = "move" | "windup" | "dive" | "rise";
 
@@ -40,13 +41,23 @@ export function createCreature(kind: CreatureKind, x: number, y: number, z: numb
   return { kind, x, y, z, vx: 0, vy: 0, vz: 0, yaw: 0, hp, maxHp: hp, action: "move", actionMs: 0, cooldownMs: 0, summoned: false, grounded: false };
 }
 
+/**
+ * Who a creature goes for. Without a village totem, the nearest player. With one, raiders fight a player within
+ * VILLAGE.totemAggroM and otherwise go for the totem; Runners (beetles) go for the totem unless a player is right on them.
+ */
 function nearest(creature: CreatureSim, targets: readonly CreatureTarget[]): { target: CreatureTarget; distance: number } | null {
-  let best: CreatureTarget | null = null, bestDistance = Number.POSITIVE_INFINITY;
+  let player: CreatureTarget | null = null, playerDistance = Number.POSITIVE_INFINITY;
+  let totem: CreatureTarget | null = null, totemDistance = Number.POSITIVE_INFINITY;
   for (const target of targets) {
     const distance = Math.hypot(target.x - creature.x, target.z - creature.z);
-    if (distance < bestDistance) { best = target; bestDistance = distance; }
+    if (target.id === TOTEM_ID) { totem = target; totemDistance = distance; }
+    else if (distance < playerDistance) { player = target; playerDistance = distance; }
   }
-  return best ? { target: best, distance: bestDistance } : null;
+  if (totem) {
+    const engageM = creature.kind === "beetle" ? VILLAGE.runnerPlayerM : VILLAGE.totemAggroM;
+    if (!player || playerDistance > engageM) return { target: totem, distance: totemDistance };
+  }
+  return player ? { target: player, distance: playerDistance } : null;
 }
 
 /**

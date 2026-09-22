@@ -265,8 +265,7 @@ for (const itemId of expeditionRewardIds(line.expedition.reachedWave, line.exped
       `SELECT accounts.name AS name, MAX(expedition_runs.wave) AS wave
        FROM expedition_runs
        JOIN accounts ON accounts.id = expedition_runs.account_id
-       JOIN matches ON matches.id = expedition_runs.match_id
-       WHERE matches.created_at::date = $1::date
+       WHERE (expedition_runs.created_at AT TIME ZONE 'UTC')::date = $1::date
        GROUP BY accounts.id, accounts.name
        ORDER BY wave DESC, accounts.name LIMIT $2`,
       [day, Math.max(1, Math.min(20, Math.floor(limit)))],

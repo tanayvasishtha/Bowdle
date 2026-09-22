@@ -195,7 +195,7 @@ describe("Expedition", () => {
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
     // The checkpoint comes from an async database lookup; wait for it instead of a fixed sleep that loses the race under load.
     const pending = room as unknown as { startWave: number };
-    for (let wait = 0; wait < 100 && pending.startWave === 0; wait += 1) await new Promise((resolve) => setTimeout(resolve, 50));
+    for (let wait = 0; wait < 300 && pending.startWave === 0; wait += 1) await new Promise((resolve) => setTimeout(resolve, 50));
     room.state.phaseEndsAtMs = 0;
     room.simulateTick(step, 10);
     expect(room.state.phase).toBe("live");

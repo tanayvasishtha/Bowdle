@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TOTEM_ID } from "./villageDefense.ts";
 import { CREATURE_TUNING, EXPEDITION } from "../constants.ts";
 import { mulberry32 } from "../math/rng.ts";
 import type { MapData } from "../maps/types.ts";
@@ -19,6 +20,25 @@ function run(creature: ReturnType<typeof createCreature>, targets: CreatureTarge
 }
 
 describe("creatures", () => {
+  it("raiders go for the village totem unless a player is close, and Runners only when one is right on them", () => {
+    const totem: CreatureTarget = { id: TOTEM_ID, x: 0, y: 0, z: 0, grounded: true };
+    const runner = createCreature("beetle", 30, 0, 0);
+    const events = run(runner, [player(30, 20), totem], 1);
+    expect(runner.x).toBeLessThan(30);
+    expect(events.filter((event) => event.type === "melee")).toHaveLength(0);
+    const cornered = createCreature("beetle", 30, 0, 0);
+    const bites = run(cornered, [player(31, 0), totem], 1).filter((event) => event.type === "melee");
+    expect(bites[0]).toMatchObject({ target: "p" });
+    // A guardian fights a player inside the aggro range and walks to the totem when everyone is far away.
+    const guardian = createCreature("guardian", 40, 0, 0);
+    run(guardian, [player(40, 20), totem], 1);
+    expect(guardian.z).toBeGreaterThan(0.5);
+    const lone = createCreature("guardian", 40, 0, 0);
+    run(lone, [player(40, 60), totem], 1);
+    expect(lone.x).toBeLessThan(40);
+    expect(Math.abs(lone.z)).toBeLessThan(0.5);
+  });
+
   it("a walking creature hops a log and leaps up to a ledge it is heading for", () => {
     const log: MapData = { ...flat, boxes: [...flat.boxes, { id: "log", min: [4, 0, -3], max: [5, 1, 3], material: "wood", tags: ["solid"] }] };
     const beetle = createCreature("beetle", 0, 0, 0);

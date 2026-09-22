@@ -1,3 +1,26 @@
+## Fix 4: the bow charges while you stand still, clear crosshair, instant hit feedback, health bar (2026-09-23)
+
+Tag `fix4`.
+
+Built:
+- Holding still stopped the bow charging. A client only sends input when it changes, and the server only stepped a player on frames it received, so standing still froze the draw (and everything else) until the mouse moved. The server now repeats a player last frame on ticks where nothing arrives. This is the clearest part of shooting feeling wrong.
+- Arrows tested every solid box on the map each substep; the launch maps carry hundreds. They now reject boxes by bounding box first, from a per-map list built once. With the full twenty arrow load a tick went from about 4 to 6 ms down to under the 3 ms budget.
+- The tick budget test kept its twenty arrows alive for every timed window and takes the best of five windows. It used to let the arrows expire halfway, so it measured a nearly empty room, and a busy machine decided the result.
+- The client rebuilt its collision map on every prediction step; it now rebuilds only when a wall breaks or the map changes.
+- The ping callout wheel was drawn permanently in the middle of the screen, around the crosshair, in every match: its inline `display:grid` beat the `hidden` attribute. The scoreboard right click menu had the same bug and sat as an empty box in the top left corner. A global `[hidden]{display:none!important}` rule fixes every overlay built that way. Pings are off for launch, so Z and middle mouse no longer open anything.
+- Your own arrow is simulated on your machine, so a hit is now shown the frame it lands (marker, sound, damage number) instead of a network round trip later. The server confirmation for the same target inside 600 ms adds nothing twice.
+- Health bar and bow draw meter above the ability cards. There was no health display at all before, only a red vignette.
+- The Village Defense daily board shows today's top 5 on the end screen once the run is stored. The route behind it had always failed: its query joined a `matches` table that does not exist. It now uses the run's own timestamp in UTC. New server test.
+- Raiders use the totem as intended: Runners go for it unless a player is within 8 m; other raiders fight players within 28 m and otherwise go for the totem. `VILLAGE.totemAggroM` was defined and never read.
+- First launch Training runs a three step course: move, double jump, headshot. The old eight station course stays behind the legacy flag; its last station needed the dagger, which is off at launch, so new players could never have finished it.
+- The Expedition checkpoint test waits up to 15 s for the database lookup; it failed on a cold database start.
+
+Verified: `npm run check` 392 of 392; Playwright 61 of 61; `npm run soak` passes. Break it: the new production join test fails without the sanitizer (fix 1), and the tick budget test fails when the arrow load is left to expire mid-window.
+
+Left:
+- The Torch Bearer does not go for huts and walls yet: Home Grove has no breakable huts to target.
+- The predicted hit marker cannot be taken back if the server disagrees; the server still decides damage and kills.
+
 ## Fix 3: Lobby is a real mode, bots find fights, close shots stop flying high (2026-09-22)
 
 Tag `fix3`.

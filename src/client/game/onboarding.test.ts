@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ONBOARDING } from "../../shared/constants.ts";
-import { COURSE_STATIONS, emptySnapshot, moveSignals } from "./course.ts";
+import { COURSE_STATIONS, courseStations, emptySnapshot, moveSignals } from "./course.ts";
 import { TipScheduler, tipsActive } from "./tips.ts";
 
 describe("tip scheduler", () => {
@@ -52,5 +52,7 @@ describe("course signals", () => {
 
   it("covers the eight moves of the design in order", () => {
     expect(COURSE_STATIONS.map((station) => station.signal)).toEqual(["reach", "vineHop", "slide", "wallJump", "mantle", "swing", "headshot", "swat"]);
+    // At launch the course is move, jump, shoot; the swat station needs the dagger, which is off.
+    expect(courseStations().map((station) => station.signal)).toEqual(["reach", "vineHop", "headshot"]);
   });
 });

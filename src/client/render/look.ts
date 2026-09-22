@@ -73,4 +73,4 @@ export const CREATURE_LOOK = {
   bossBursts: 4, nightFadeMs: 1500,
 } as const;
 
-export const HIT_FEEL = { damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;
+export const HIT_FEEL = { predictedConfirmMs: 600, damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;

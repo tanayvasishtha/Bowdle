@@ -1,4 +1,4 @@
-import type { BuyResult, GuestSession, Leaderboard, Locker, Profile, Provider, ShopConfig } from "../shared/api.ts";
+import type { BuyResult, GuestSession, DailyRunRow, Leaderboard, Locker, Profile, Provider, ShopConfig } from "../shared/api.ts";
 import type { Loadout } from "../shared/cosmetics.ts";
 
 const TOKEN_KEY = "bowdle.token";
@@ -76,6 +76,11 @@ export async function renameAccount(name: string): Promise<Profile | undefined> 
 
 export async function deleteAccount(): Promise<void> {
   try { await request("/profile", { method: "DELETE" }); } finally { saveToken(undefined); }
+}
+
+/** Today's best Village Defense waves. Undefined when the server cannot be reached. */
+export async function fetchDailyRuns(): Promise<DailyRunRow[] | undefined> {
+  try { return (await request<{ rows: DailyRunRow[] }>("/expedition/daily"))?.rows; } catch { return undefined; }
 }
 
 export async function fetchLeaderboard(): Promise<Leaderboard | undefined> {

@@ -1,6 +1,8 @@
 # Deploy Bowdle to Render
 
-Status: **v2.0.0** (tag `v2.0.0` on `main`). Deploy the tagged release after `npm run check`, smoke, soak and balance pass on the release candidate.
+Status: **v3.0.1** (tag `v3.0.1` on `main`). Deploy that tag. Do not deploy `v3.0.0`: it was tagged before the launch gates were green, and 9 map commits landed after it.
+
+Deploy a tagged release only after `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite pass on the release commit.
 
 Bowdle runs as one Node process: Express serves `dist/client`, Colyseus serves the game WebSocket on the same origin, and `GET /health` reports readiness. Render terminates HTTPS and secure WebSockets at the public edge.
 
@@ -112,15 +114,19 @@ When a new season id first appears, the ranked queue soft-resets ratings from th
 5. Run migrations once against production, then confirm `GET /health` returns ready with a durable `database` mode.
 6. Domain and HTTPS up; WebSocket joins work from two networks.
 7. Ten-minute playtest of Training, Play (Village Defense), and Lobby with two people on the production URL.
+   - One of the two should be far from the server region, or use the latency procedure in `docs/NETCODE.md` (about 150 ms). This has not been done for v3 yet, and it is the only check that shows whether grapple, zip lines and shooting feel right for players who are not next to the server.
 8. Error logging visible (service logs); guest and report rate limits engaged.
 9. Rollback: redeploy the previous known-good image or tag; do not force-push release tags.
 
-## Capacity note (L6)
+## Capacity
 
-One Bowdle Node process is sized for launch traffic as:
+Not measured under real load yet. A rough ceiling from the tick budget:
 
-- Lobby rooms of 10: about **8** concurrent rooms under a 3 ms tick budget on a 1 vCPU / 1 GB instance (measure with `npm run soak` and watch `averageTickMs` in `serverMetrics`).
-- Play / Village Defense rooms of 4: about **12** concurrent rooms on the same box.
+- The server ticks 30 times a second, so each tick has about 33 ms, and all rooms in one Node process share one thread.
+- A room is budgeted at 3 ms per tick (`tests/server/performance.test.ts` checks an 8 player room with 20 arrows). At that cost one process tops out around 10 busy rooms before ticks start running late, and it is wise to plan for about half that.
+- So plan on roughly 5 busy rooms per process at launch (up to 50 Lobby players or 20 Village Defense players), then measure.
+
+To measure: open rooms against a production build and watch the tick time in the `serverMetrics` log lines as rooms are added.
 
 If `averageTickMs` stays under 3 with your target room count, keep a single process. To scale further, run several identical processes behind the load balancer (sticky sessions or Colyseus presence when you outgrow one node). Do not add a presence driver until measured load requires it.
 

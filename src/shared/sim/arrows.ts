@@ -121,6 +121,24 @@ export function spawnArrow(event: Omit<FireEvent, "kind">, crouched = false): Ar
   };
 }
 
+/**
+ * Solid box bounds per map as a flat [minX, minY, minZ, maxX, maxY, maxZ, ...] array, built once per map.
+ * An arrow used to run the slab test against every box on the map, and the launch maps carry hundreds of them.
+ */
+const solidBoxBounds = new WeakMap<MapData, Float64Array>();
+function solidBoxesFor(map: MapData): Float64Array {
+  let bounds = solidBoxBounds.get(map);
+  if (bounds) return bounds;
+  const solids = map.boxes.filter((box) => box.tags.includes("solid"));
+  bounds = new Float64Array(solids.length * 6);
+  solids.forEach((box, index) => { bounds!.set([box.min[0], box.min[1], box.min[2], box.max[0], box.max[1], box.max[2]], index * 6); });
+  solidBoxBounds.set(map, bounds);
+  return bounds;
+}
+
+const sweepMin: number[] = [0, 0, 0];
+const sweepMax: number[] = [0, 0, 0];
+
 function sweepExpandedBox(start: Readonly<Vec3>, end: Readonly<Vec3>, min: readonly number[], max: readonly number[]): number | null {
   let near = 0;
   let far = 1;
@@ -160,9 +178,18 @@ export function stepArrow(arrow: ArrowSim, map: MapData, dt: number, gravity = A
   to.z = arrow.z + arrow.vz * dt;
   let earliest = 1;
   let hit = false, boxHit = false;
-  for (const box of map.boxes) {
-    if (!box.tags.includes("solid")) continue;
-    const t = sweepExpandedBox(from, to, box.min, box.max);
+  const bounds = solidBoxesFor(map);
+  // Reject boxes the flight segment cannot touch before running the slab test.
+  const loX = Math.min(from.x, to.x) - ARROW_RADIUS, hiX = Math.max(from.x, to.x) + ARROW_RADIUS;
+  const loY = Math.min(from.y, to.y) - ARROW_RADIUS, hiY = Math.max(from.y, to.y) + ARROW_RADIUS;
+  const loZ = Math.min(from.z, to.z) - ARROW_RADIUS, hiZ = Math.max(from.z, to.z) + ARROW_RADIUS;
+  for (let index = 0; index < bounds.length; index += 6) {
+    const minX = bounds[index]!, minY = bounds[index + 1]!, minZ = bounds[index + 2]!;
+    const maxX = bounds[index + 3]!, maxY = bounds[index + 4]!, maxZ = bounds[index + 5]!;
+    if (hiX < minX || loX > maxX || hiY < minY || loY > maxY || hiZ < minZ || loZ > maxZ) continue;
+    sweepMin[0] = minX; sweepMin[1] = minY; sweepMin[2] = minZ;
+    sweepMax[0] = maxX; sweepMax[1] = maxY; sweepMax[2] = maxZ;
+    const t = sweepExpandedBox(from, to, sweepMin, sweepMax);
     if (t !== null && t < earliest) { earliest = t; hit = true; boxHit = true; }
   }
   for (const ramp of map.ramps) {

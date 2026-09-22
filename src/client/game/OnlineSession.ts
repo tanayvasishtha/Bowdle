@@ -1,4 +1,5 @@
 import { saveRejoinTicket, clearRejoinTicket, loadRejoinTicket, showRejoinBanner } from "../ui/rejoin.ts";
+import { featureEnabled } from "../../shared/features.ts";
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
 import { ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, CREATURE_TUNING, EXPEDITION, EYE_CROUCH, EYE_STAND, HEAD_AIM_OFFSET, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
@@ -7,7 +8,7 @@ import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { createPlayerSim, stepPlayer } from "../../shared/sim/movement.ts";
 import { mergeBreakablesIntoMap, type BreakableRuntime } from "../../shared/sim/mapFeatures.ts";
-import { aimRangeAlongLook, spawnVolley, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
+import { aimRangeAlongLook, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { ARROW_SLOTS, fullDrawMs } from "../../shared/sim/bow.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
 import { QuiverStrip } from "../ui/quiver.ts";
@@ -24,7 +25,7 @@ import { ExpeditionHud, MODIFIER_NAMES, type ReviveView } from "../ui/expedition
 import type { CreaturePose } from "../render/creatures.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { happyTime } from "../platform/web.ts";
-import { fetchProfile, loadToken } from "../account.ts";
+import { fetchDailyRuns, fetchProfile, loadToken } from "../account.ts";
 import { apiBase } from "../account.ts";
 import { setAudioSuspended } from "../audio/bus.ts";
 import { portalPolicy } from "../platform/platform.ts";
@@ -44,7 +45,7 @@ import { isInWater } from "../../shared/sim/volumes.ts";
 import { gravityMultiplier } from "../../shared/sim/waves.ts";
 import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
 import { createMotion } from "../render/characters/pose.ts";
-import { AUDIO_MIX, ROPE_LOOK } from "../render/look.ts";
+import { AUDIO_MIX, ROPE_LOOK, HIT_FEEL } from "../render/look.ts";
 import { music } from "../audio/music.ts";
 import { busTarget } from "../audio/bus.ts";
 import { cueAngle, footstepGain, musicIntensity, strideLength } from "../audio/spatial.ts";
@@ -61,7 +62,7 @@ export type ExpeditionView = {
   creatures: Array<{ kind: string; x: number; y: number; z: number; yaw: number }>; drawn: Record<string, number>;
   herbs: number; herbsDrawn: number; downed: boolean; night: number; hud: string; me: { x: number; y: number; z: number };
 };
-type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number };
+type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number; placed: boolean };
 
 export class OnlineSession {
   private spectator = false;
@@ -211,7 +212,12 @@ export class OnlineSession {
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.onHitConfirm(parsed.data); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) { this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); this.lastDamageAtMs = performance.now(); this.cameraRig.hurt(parsed.data.damage); } });
     room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); if (parsed.data.playOf) this.playOfTheMatch = parsed.data.playOf; this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, this.votableMaps(), this.runSummary(), this.playOfTheMatch); });
-    room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
+    room.onMessage<RewardMessage>("rewards", (payload) => {
+      const parsed = RewardMessage.safeParse(payload); if (!parsed.success) return;
+      this.hud.rewards(parsed.data);
+      // Rewards arrive once the run is stored, so today's board already includes it.
+      if (room.state.mode === "expedition") void fetchDailyRuns().then((rows) => { if (rows) this.hud.dailyBoard(rows, room.state.players.get(room.sessionId)?.name ?? ""); });
+    });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
     room.onMessage<RopeCutMessage>("ropeCut", (payload) => { const parsed = RopeCutMessage.safeParse(payload); if (parsed.success) this.onRopeCut(parsed.data); });
     room.onLeave((code) => {
@@ -429,6 +435,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     const drawn = drawFraction(this.me.state.drawMs, fullDrawMs(this.me.state.arrowSlot));
     this.renderer.setDrawFraction(drawn);
     this.crosshair.update(drawn);
+    this.hud.setDraw(drawn);
     this.sampler.setAimSlowdown(this.enemyUnderCrosshair);
     this.renderer.setMeleeSwing(stabProgress(this.me.state.meleeCooldownMs));
     if (!this.me.state.alive) { this.renderer.setViewmodelVisible(false); this.replay.update(this.renderer.camera, timeMs); }
@@ -457,9 +464,13 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
       if (!source) continue;
       if (!render) {
         const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.look.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0 }; this.arrowRenders.set(entry.id, render);
+        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.look.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0, placed: false }; this.arrowRenders.set(entry.id, render);
       }
+      const fromX = render.sim.x, fromY = render.sim.y, fromZ = render.sim.z;
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
+      // The first frame only places the arrow; from then on each frame sweeps the stretch it just flew.
+      if (source.owner === this.sessionId && render.placed) this.predictHit(entry.id, source, fromX, fromY, fromZ, render.sim);
+      render.placed = true;
       if (!this.heardShots.has(entry.id) && this.hearShot(source, render.sim)) this.heardShots.add(entry.id);
       render.sim.vx = source.vx; render.sim.vy = source.vy; render.sim.vz = source.vz; this.renderer.updateArrowVisual(render.visual, render.sim);
       if (capture) this.replay.arrow(entry.id, render.sim.x, render.sim.y, render.sim.z);
@@ -467,7 +478,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     for (const [id, render] of this.arrowRenders) {
       if (this.arrows.alive(id)) continue;
       if (render.removedAtMs === 0) render.removedAtMs = timeMs;
-      if (timeMs - render.removedAtMs >= render.stuckForMs) { this.renderer.removeVisual(render.visual); this.arrowRenders.delete(id); this.heardShots.delete(id); }
+      if (timeMs - render.removedAtMs >= render.stuckForMs) { this.renderer.removeVisual(render.visual); this.arrowRenders.delete(id); this.heardShots.delete(id); this.predictedArrows.delete(id); }
     }
     } catch (error) {
       console.error("OnlineSession.renderArrows", error);
@@ -555,8 +566,23 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
   }
 
 
+  private brokenKey = " ";
+  private playMapSource: MapData | null = null;
+
+  /**
+   * Collision only changes when a wall breaks or is rebuilt, so the merged map is kept until that happens. It used to be
+   * rebuilt on every prediction step, which also threw away the per-map sweep caches the arrow step keeps.
+   */
   private refreshPlayMap(): void {
-    const items: BreakableRuntime[] = (this.map.breakables ?? []).map((entry) => {
+    const entries = this.map.breakables ?? [];
+    if (entries.length === 0) { this.playMap = this.map; this.playMapSource = this.map; this.brokenKey = ""; return; }
+    let key = "";
+    for (const entry of entries) if (this.room.state.breakables?.get(entry.id)?.broken) key += `${entry.id},`;
+    // A map vote swaps the map under us, so the cache is only good while both the map and the broken walls are the same.
+    if (key === this.brokenKey && this.playMapSource === this.map) return;
+    this.playMapSource = this.map;
+    this.brokenKey = key;
+    const items: BreakableRuntime[] = entries.map((entry) => {
       const net = this.room.state.breakables?.get(entry.id);
       return {
         id: entry.id,
@@ -797,7 +823,40 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
   showRopeCut(message: RopeCutMessage): void { this.onRopeCut(RopeCutMessage.parse(message)); }
   grappleReeling(): boolean { return this.me.state.grappleReeling; }
 
+  private readonly predictedArrows = new Set<string | number>();
+  private readonly predictedTargets = new Map<string, number>();
+  private readonly predictFrom = { x: 0, y: 0, z: 0 };
+  private readonly predictTarget = { x: 0, y: 0, z: 0, height: 0, crouched: false };
+
+  /**
+   * Your own arrow is simulated here as well as on the server, so a hit is known the frame it lands. Show it right away
+   * instead of a network round trip later; the server's confirmation for the same target then adds nothing twice.
+   */
+  private predictHit(id: string | number, arrow: LocalArrow | ArrowState, fromX: number, fromY: number, fromZ: number, to: { x: number; y: number; z: number }): void {
+    if (this.predictedArrows.has(id) || (arrow.kind !== "arrow" && arrow.kind !== "scatter")) return;
+    const me = this.me.state, freeForAll = this.room.state.mode === "ffa";
+    this.predictFrom.x = fromX; this.predictFrom.y = fromY; this.predictFrom.z = fromZ;
+    for (const [targetId, player] of this.room.state.players) {
+      if (targetId === this.sessionId || !player.alive || (!freeForAll && player.team === me.team)) continue;
+      const target = this.predictTarget;
+      target.x = this.predict.value(player, "x"); target.y = this.predict.value(player, "y"); target.z = this.predict.value(player, "z");
+      target.height = this.predict.value(player, "height"); target.crouched = target.height < EYE_STAND;
+      const hit = sweepArrowVsTarget(this.predictFrom, to, target, arrow.kind);
+      if (!hit) continue;
+      this.predictedArrows.add(id);
+      this.predictedTargets.set(targetId, performance.now());
+      const headshot = hit.kind === "head", damage = arrow.damage * hit.damageMultiplier;
+      this.hud.hit(headshot);
+      this.sounds.play("hit", damage);
+      const point = this.renderer.screenPoint(target.x, headshot ? headCenterY(target) : target.y + target.height * 0.6, target.z);
+      if (point) this.hud.damageNumber(point.x, point.y, damage, headshot);
+      return;
+    }
+  }
+
   private onHitConfirm(message: HitConfirmMessage): void {
+    const predictedAt = this.predictedTargets.get(message.target);
+    if (predictedAt !== undefined && performance.now() - predictedAt <= HIT_FEEL.predictedConfirmMs) { this.predictedTargets.delete(message.target); return; }
     this.hud.hit(message.headshot);
     this.sounds.play("hit", message.damage);
     const target = this.room.state.players.get(message.target);
@@ -851,6 +910,8 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
   }
 
   private tickPings(timeMs: number): void {
+    // Pings are off for launch: no Z or middle mouse input, and the callout wheel never opens.
+    if (!featureEnabled("pingsWheel")) { this.pingLayer.prune(timeMs); return; }
     const z = this.keysDown.has("KeyZ");
     const middle = this.keysDown.has("Mouse1");
     if (z && !this.zWasDown) this.zHeldMs = timeMs;

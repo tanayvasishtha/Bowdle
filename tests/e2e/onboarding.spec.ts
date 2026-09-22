@@ -3,8 +3,9 @@ import { collectErrors } from "./helpers.ts";
 
 type CourseState = { active: boolean; index: number; station: string; finished: boolean; skipped: boolean; reward: { granted: boolean; ink: number } | null };
 type CourseApi = { courseState(): CourseState; courseSignal(signal: string): void };
-const SIGNALS = ["reach", "vineHop", "slide", "wallJump", "mantle", "swing", "headshot", "swat"];
-const STATIONS = ["move", "hop", "slide", "wall", "mantle", "swing", "headshot", "swat"];
+// The launch course: move, jump, shoot (src/client/game/course.ts LAUNCH_COURSE).
+const SIGNALS = ["reach", "vineHop", "headshot"];
+const STATIONS = ["move", "hop", "headshot"];
 
 const state = (page: Page) => page.evaluate(() => (window as unknown as { __bowdleTest: CourseApi }).__bowdleTest.courseState());
 const signal = (page: Page, name: string) => page.evaluate((value) => (window as unknown as { __bowdleTest: CourseApi }).__bowdleTest.courseSignal(value), name);
@@ -16,7 +17,7 @@ async function walkCourse(page: Page, shots: string): Promise<void> {
     await expect(page.locator("[data-testid=course]")).toContainText(`${index + 1} / ${SIGNALS.length}`);
     const later = SIGNALS[(index + 1) % SIGNALS.length]!;
     if (later !== SIGNALS[index]) { await signal(page, later); expect((await state(page)).index).toBe(index); }
-    if (index === 4) await page.screenshot({ path: `test-results/qa/g5/${shots}-station.png` });
+    if (index === 1) await page.screenshot({ path: `test-results/qa/g5/${shots}-station.png` });
     await signal(page, SIGNALS[index]!);
   }
 }

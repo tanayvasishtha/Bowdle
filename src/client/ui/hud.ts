@@ -3,7 +3,7 @@ import { featureEnabled } from "../../shared/features.ts";
 import type { MatchState } from "../../net/schema.ts";
 import type { KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage } from "../../net/messages.ts";
 import { HIT_FEEL as HIT, HUD_END_MAX_HEIGHT_VH, RETENTION_LOOK as L } from "../render/look.ts";
-import { DODGE, GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS, KILL_FEEDBACK, MEDAL_LIMITS } from "../../shared/constants.ts";
+import { DODGE, GRAPPLE_COOLDOWN_MS, INK_CLOUD_COOLDOWN_MS, KILL_FEEDBACK, MAX_HP, MEDAL_LIMITS } from "../../shared/constants.ts";
 import type { KillFeedback } from "../../shared/killFeedback.ts";
 import { PostMatchSequence } from "./PostMatchSequence.ts";
 import type { MapData } from "../../shared/maps/types.ts";
@@ -90,6 +90,14 @@ export class MatchHud {
     this.ticker.className = "bowdle-xp-ticker"; this.ticker.dataset.testid = "xp-ticker";
     this.streakLine.className = "bowdle-streak"; this.streakLine.dataset.testid = "kill-streak";
     this.root.append(this.ticker, this.streakLine, this.tipLine);
+    // Health and the bow draw, the two numbers a player checks most, above the ability cards.
+    this.vitals.className = "bowdle-vitals";
+    this.vitals.innerHTML = `<div data-testid="health"><div class="bowdle-vitals-fill"></div><span></span></div><div data-testid="draw-meter"><div class="bowdle-vitals-fill"></div></div>`;
+    this.healthFill = this.vitals.querySelector<HTMLDivElement>("[data-testid=health] .bowdle-vitals-fill")!;
+    this.healthText = this.vitals.querySelector<HTMLSpanElement>("[data-testid=health] span")!;
+    this.drawFill = this.vitals.querySelector<HTMLDivElement>("[data-testid=draw-meter] .bowdle-vitals-fill")!;
+    this.root.append(this.vitals);
+    style.textContent += ".bowdle-vitals{position:absolute;left:24px;bottom:160px;width:240px;pointer-events:none}.bowdle-vitals>div{position:relative;margin-top:6px;border:3px solid #4a3527;background:#efe3c6cc;transform:rotate(-1deg);overflow:hidden}.bowdle-vitals [data-testid=health]{height:26px}.bowdle-vitals [data-testid=draw-meter]{height:10px}.bowdle-vitals-fill{height:100%;width:0;background:#5e8c3a}.bowdle-vitals [data-testid=draw-meter] .bowdle-vitals-fill{background:#e3b23c}.bowdle-vitals [data-testid=health].low .bowdle-vitals-fill{background:#d2531f}.bowdle-vitals span{position:absolute;inset:0;display:grid;place-items:center;font:18px 'Permanent Marker';color:#4a3527}";
     this.pingLine.dataset.testid = "region-ping";
     this.pingLine.style.cssText = "position:absolute;right:24px;bottom:24px;padding:4px 10px;background:#efe3c6dd;border:2px solid #4a3527;font:20px 'Gochi Hand';display:none";
     this.root.append(this.pingLine);
@@ -136,11 +144,36 @@ export class MatchHud {
       this.scoreboard.append(row);
     }
     const me = state.players.get(sessionId);
+    this.showHealth(me?.alive ? me.hp : 0);
     if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS, me.grappleActive ? (me.grappleReeling ? "REELING" : "SWINGING") : "")}${featureEnabled("inkCloud") ? this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS) : ""}${this.ability("SHIFT", "DODGE", me.dodgeCooldownMs, DODGE.cooldownMs)}`;
     if (state.phase === "end" || this.endPinned) { this.sequence.countdown(seconds); return; }
     this.sequence.stop();
     this.endPanel.style.display = "none";
     this.center.textContent = me && !me.alive && !expedition ? `INKED!\n${this.endedStreak >= MEDAL_LIMITS.onARoll ? `Streak ended at ${this.endedStreak}\n` : ""}Back in ${Math.ceil(Math.max(0, me.respawnAtMs - serverNow) / 1000)}` : "";
+  }
+
+  private readonly vitals = document.createElement("div");
+  private readonly healthFill: HTMLDivElement;
+  private readonly healthText: HTMLSpanElement;
+  private readonly drawFill: HTMLDivElement;
+  private shownHealth = -1;
+  private shownDraw = -1;
+
+  private showHealth(hp: number): void {
+    const rounded = Math.max(0, Math.round(hp));
+    if (rounded === this.shownHealth) return;
+    this.shownHealth = rounded;
+    this.healthFill.style.width = `${Math.min(100, rounded / MAX_HP * 100)}%`;
+    this.healthText.textContent = String(rounded);
+    this.healthFill.parentElement!.classList.toggle("low", rounded <= MAX_HP * 0.3);
+  }
+
+  /** Called every frame with the draw from 0 to 1; only touches the page when it visibly changes. */
+  setDraw(fraction: number): void {
+    const percent = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+    if (percent === this.shownDraw) return;
+    this.shownDraw = percent;
+    this.drawFill.style.width = `${percent}%`;
   }
 
   hit(headshot: boolean): void { this.marker.textContent = headshot ? "HEADSHOT!" : "✕"; this.marker.classList.remove("kill"); this.flash(this.marker); }
@@ -232,6 +265,25 @@ Damage taken ${Math.round(run.damageTaken)} - revives ${run.revives}${run.beatBe
   /** Rewards arrive just after the end screen, once the server has stored them. */
   rewards(reward: RewardMessage): void {
     this.sequence.reward(reward);
+  }
+
+  /** Village Defense end screen: today's top runs, so there is a number to beat on the next one. */
+  dailyBoard(rows: ReadonlyArray<{ name: string; wave: number }>, myName: string): void {
+    if (this.endPanel.style.display === "none" || rows.length === 0) return;
+    this.endPanel.querySelector("[data-testid=daily-board]")?.remove();
+    const board = document.createElement("ol"); board.dataset.testid = "daily-board";
+    board.style.cssText = "margin:8px auto;padding:0 0 0 28px;text-align:left;max-width:320px;font-size:20px";
+    const title = document.createElement("p"); title.textContent = "Today's best runs"; title.style.cssText = "margin:10px 0 2px;font:22px 'Permanent Marker'";
+    for (const row of rows.slice(0, 5)) {
+      const item = document.createElement("li");
+      // Names are typed by players: text only, never markup.
+      item.textContent = `${row.name} - wave ${row.wave}`;
+      if (row.name === myName) item.style.color = "#d2531f";
+      board.append(item);
+    }
+    const footer = this.endPanel.querySelector("[data-testid=postmatch-footer]");
+    const holder = document.createElement("div"); holder.dataset.testid = "daily-board-holder"; holder.append(title, board);
+    if (footer) this.endPanel.insertBefore(holder, footer); else this.endPanel.append(holder);
   }
   matchStats(message: MatchStatsMessage): void {
     this.sequence.stats(message);

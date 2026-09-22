@@ -6,6 +6,8 @@ export const VILLAGE = {
   totemRadius: 1.4,
   /** Raiders prefer the totem when no living player is closer than this. */
   totemAggroM: 28,
+  /** Runners ignore players for the totem unless one is this close. */
+  runnerPlayerM: 8,
   shopMs: 10_000,
   coinKill: 3,
   coinWave: 12,

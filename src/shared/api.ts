@@ -21,6 +21,8 @@ export type Profile = {
 
 export type LeaderboardRow = { rank: number; name: string; kills: number; wins: number; matches: number; level: number };
 export type Leaderboard = { season: string; rows: LeaderboardRow[] };
+/** One row of the Village Defense daily board: a player's best wave today. */
+export type DailyRunRow = { name: string; wave: number };
 export type GuestSession = { token: string; profile: Profile };
 
 export type Locker = { ink: number; owned: string[]; loadout: import("./cosmetics.ts").Loadout };

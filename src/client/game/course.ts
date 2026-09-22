@@ -1,4 +1,5 @@
 import type { Vec3Tuple } from "../../shared/maps/types.ts";
+import { featureEnabled } from "../../shared/features.ts";
 
 /** What the course watches for. "reach" means standing at the station marker. */
 export type CourseSignal = "reach" | "vineHop" | "slide" | "wallJump" | "mantle" | "swing" | "headshot" | "swat";
@@ -15,6 +16,15 @@ export const COURSE_STATIONS: readonly CourseStation[] = [
   { id: "headshot", text: "Hold the mouse to draw, release · hit a target in the head", signal: "headshot", marker: [0, 0, -10] },
   { id: "swat", text: "V just as the red arrow reaches you · swat it", signal: "swat", marker: [0, 0, -3] },
 ];
+
+/**
+ * The launch course is three steps: move, jump, shoot. The full course stays for the legacy menu; its swat station
+ * needs the dagger, which is off at launch, so a new player could never have finished it.
+ */
+export const LAUNCH_COURSE: readonly CourseSignal[] = ["reach", "vineHop", "headshot"];
+export function courseStations(): readonly CourseStation[] {
+  return featureEnabled("legacyMenu") ? COURSE_STATIONS : COURSE_STATIONS.filter((station) => LAUNCH_COURSE.includes(station.signal));
+}
 
 export const COURSE_REACH_M = 1.5;
 const DONE_KEY = "bowdle.course.done";
@@ -63,6 +73,7 @@ export type CourseResult = { skipped: boolean };
 
 /** The course card: one line per station, a counter, and a skip button. Stations complete in order only. */
 export class CourseGuide {
+  private readonly stations = courseStations();
   readonly root = document.createElement("div");
   private index = 0;
   private running: boolean;
@@ -81,21 +92,21 @@ export class CourseGuide {
   }
 
   get active(): boolean { return this.running; }
-  get station(): CourseStation | undefined { return this.running ? COURSE_STATIONS[this.index] : undefined; }
+  get station(): CourseStation | undefined { return this.running ? this.stations[this.index] : undefined; }
   get stationIndex(): number { return this.index; }
 
   observe(signal: CourseSignal): void {
-    if (!this.running || COURSE_STATIONS[this.index]?.signal !== signal) return;
+    if (!this.running || this.stations[this.index]?.signal !== signal) return;
     this.index += 1;
     this.root.animate([{ transform: "translateX(-50%) rotate(-1deg) scale(1.06)" }, { transform: "translateX(-50%) rotate(-1deg) scale(1)" }], { duration: 250 });
-    if (this.index >= COURSE_STATIONS.length) this.finish(false); else this.render();
+    if (this.index >= this.stations.length) this.finish(false); else this.render();
   }
 
   private render(): void {
     this.root.style.display = this.running ? "block" : "none";
-    const station = COURSE_STATIONS[this.index];
+    const station = this.stations[this.index];
     if (!station) return;
-    this.root.querySelector("[data-part=count]")!.textContent = `Field course ${this.index + 1} / ${COURSE_STATIONS.length}`;
+    this.root.querySelector("[data-part=count]")!.textContent = `Field course ${this.index + 1} / ${this.stations.length}`;
     this.root.querySelector("[data-part=text]")!.textContent = station.text;
   }
 

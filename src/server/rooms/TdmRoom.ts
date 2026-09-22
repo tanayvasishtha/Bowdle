@@ -300,16 +300,21 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       if (this.spectators.has(sessionId)) continue;
       const player = this.state.players.get(sessionId);
       if (!player) continue;
+      let applied = 0;
       for (const frame of frames) {
         if (frame.moveX || frame.moveZ || frame.buttons) {
           this.lastInputAtMs.set(sessionId, nowMs);
           this.afkPrompted.delete(sessionId);
         }
+        this.heldFrame.set(sessionId, { moveX: frame.moveX, moveZ: frame.moveZ, yaw: frame.yaw, pitch: frame.pitch, buttons: frame.buttons });
+        applied += 1;
         if (!player.alive) continue;
-        player.spawnProtectMs = Math.max(0, player.spawnProtectMs - context.dtMs);
-        this.tryLever(sessionId, player, frame, nowMs);
-        const beforeZip = player.zipId; this.applyEvents(sessionId, player, stepPlayer(player, frame, this.playMap, { nowMs, matchTimeMs: nowMs, geyserLaunches: this.geyserLaunches, geyserPlayerId: sessionId, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() })); this.noteZipRide(sessionId, beforeZip, player.zipId);
+        this.stepHuman(sessionId, player, frame, nowMs, context.dtMs);
       }
+      // A client only sends input when it changes, so a player who holds still (drawing the bow, waiting on a ledge)
+      // would stop being simulated here while their own screen keeps predicting. Repeat the last frame instead.
+      const held = applied === 0 ? this.heldFrame.get(sessionId) : undefined;
+      if (held && player.alive) this.stepHuman(sessionId, player, held, nowMs, context.dtMs);
     }
     for (const [id, controller] of this.bots) {
       const player = this.state.players.get(id); if (!player?.alive) continue;
@@ -725,6 +730,18 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       if (count > high) { high = count; winner = candidate.id; tied = false; } else if (count === high && count > 0) tied = true;
     }
     return tied || high === 0 ? rotation : mapById(winner) ?? rotation;
+  }
+
+  /** The last input each human sent, repeated on ticks where no new frame arrives. */
+  private readonly heldFrame = new Map<string, PlayerInputFrame>();
+
+  /** One simulated frame for a human: lever, movement and whatever the frame set off. */
+  private stepHuman(sessionId: string, player: PlayerState, frame: PlayerInputFrame, nowMs: number, dtMs: number): void {
+    player.spawnProtectMs = Math.max(0, player.spawnProtectMs - dtMs);
+    this.tryLever(sessionId, player, frame, nowMs);
+    const beforeZip = player.zipId;
+    this.applyEvents(sessionId, player, stepPlayer(player, frame, this.playMap, { nowMs, matchTimeMs: nowMs, geyserLaunches: this.geyserLaunches, geyserPlayerId: sessionId, zipLines: this.tetherZips, gravityMult: this.expedition?.gravityMult() }));
+    this.noteZipRide(sessionId, beforeZip, player.zipId);
   }
 
   private respawnDelayMs(): number { return this.state.mode === "ffa" ? LOBBY_RESPAWN_MS : RESPAWN_MS; }

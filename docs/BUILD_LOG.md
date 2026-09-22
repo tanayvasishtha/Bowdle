@@ -1,3 +1,24 @@
+## v3.0.1: the release to deploy (2026-09-23)
+
+`v3.0.0` was tagged before the gates were green and nine map commits landed after it. Do not deploy it. `v3.0.1` is
+the first tag cut from a commit where every gate passed on one machine, in one sitting:
+
+- `npm run check`: 392 of 392.
+- Playwright: 61 of 61.
+- `npm run soak`: Lobby and Village Defense pass.
+- `npm run build` and `npm run smoke`: pass.
+
+`docs/DEPLOY.md` now says which tag to deploy, replaces the invented per process capacity numbers with a ceiling worked
+out from the tick budget (about 5 busy rooms per process, then measure), and asks for the 150 ms latency check, which
+has still never been run for v3.
+
+Left before players arrive:
+- Deploy it. Nothing is live yet: hosting, domain, HTTPS and database environment variables are still to do.
+- Play the 150 ms latency check from far away. It is the only check that shows whether shooting and the grapple feel
+  right for players who are not next to the server.
+- Lobby with only bots on Wild Crossing seed 101 stays quiet (a couple of kills in 5 minutes); other seeds are lively.
+- Team deathmatch, Relic Run, ranked, pings, the locker and the shop stay behind feature flags.
+
 ## Fix 4: the bow charges while you stand still, clear crosshair, instant hit feedback, health bar (2026-09-23)
 
 Tag `fix4`.

@@ -246,6 +246,8 @@ export const QUIVER = {
 export const SWAT = { rangeM: 1.8, arcDeg: 70, windowMs: 180, minArrowAgeMs: 60 } as const;
 
 export const HEAD_RADIUS = 0.2875;
+/** Launch-angle compensation from the hand origin to the head hit sphere. */
+export const HEAD_AIM_OFFSET = HEAD_RADIUS * 1.05;
 
 export const BODY_RADIUS = 0.437;
 

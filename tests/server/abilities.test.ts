@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { server } from "../../src/server/app.config.ts";
 import type { TdmRoom } from "../../src/server/rooms/TdmRoom.ts";
 import { BTN } from "../../src/shared/input.ts";
+import { setFeatureOverride } from "../../src/shared/features.ts";
 import { sunTempleMap } from "../../src/shared/maps/sunTemple.ts";
 import { kitMap } from "../../src/shared/maps/fixtures/kit.ts";
 import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
@@ -98,6 +99,8 @@ describe("authoritative online abilities", () => {
   }, 15_000);
 
   it("spawns an expiring cloud when an ink lob hits the world", async () => {
+    setFeatureOverride("inkCloud", true);
+    try {
     const client = await colyseus.sdk.joinOrCreate("tdm", { name: "Inker", test: true, testMapId: "sun-temple" });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId); room.state.phase = "live"; room.state.phaseEndsAtMs = Number.MAX_SAFE_INTEGER;
@@ -108,5 +111,6 @@ describe("authoritative online abilities", () => {
     expect(room.state.inkClouds.size).toBe(1);
     const cloud = [...room.state.inkClouds.values()][0]!;
     expect(cloud.expiresAtMs).toBeGreaterThan(room.clock.elapsedTime);
+    } finally { setFeatureOverride("inkCloud", undefined); }
   });
 });

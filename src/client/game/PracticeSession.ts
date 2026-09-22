@@ -1,7 +1,6 @@
 import { platform } from "../platform/sdk.ts";
 import type { Group } from "three";
 import {
-  ARROW_GRAVITY,
   ARROW_LIFETIME_MS,
   ARROW_RADIUS,
   EYE_STAND,
@@ -24,7 +23,7 @@ import {
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { campMap, campTargets, type CampTarget } from "../../shared/maps/camp.ts";
 import type { Vec3 } from "../../shared/math/vec3.ts";
-import { spawnArrow, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
+import { aimRangeAlongLook, spawnArrow, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { ARROW_SLOTS, arrowSpeed, bodyDamage, drawFraction, fullDrawMs, type FireEvent } from "../../shared/sim/bow.ts";
 import { QuiverStrip } from "../ui/quiver.ts";
 import { Crosshair } from "../ui/crosshair.ts";
@@ -281,7 +280,9 @@ export class PracticeSession {
   courseSignal(signal: CourseSignal): void { this.course.observe(signal); }
 
   private fire(event: FireEvent): void {
-    for (const arrow of spawnVolley(event, this.player.crouched)) {
+    const targets = this.targets.filter((target) => target.alive).map((target) => ({ x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false }));
+    const aimed = { ...event, aimRange: aimRangeAlongLook(event, this.player.crouched, campMap, targets) };
+    for (const arrow of spawnVolley(aimed, this.player.crouched)) {
       this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow, arrow.kind, this.trailId), stuckAtMs: 0, trail: new Float32Array(PRACTICE_TRAIL_POINTS * 3), trailCount: 0, captureStep: 0 });
     }
     this.sounds.play("release");
@@ -350,11 +351,10 @@ export class PracticeSession {
     const horizontal = Math.hypot(dx, dz);
     const targetY = headCenterY({ x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false }) + HEAD_RADIUS + ARROW_RADIUS / 2;
     const vertical = targetY - (this.player.y + EYE_STAND);
-    const speedSquared = speed * speed;
-    const discriminant = speedSquared * speedSquared - ARROW_GRAVITY * (ARROW_GRAVITY * horizontal * horizontal + 2 * vertical * speedSquared);
-    const pitch = Math.atan((speedSquared - Math.sqrt(Math.max(0, discriminant))) / (ARROW_GRAVITY * horizontal));
+    // spawnArrow applies the shared gravity correction from the selected aim range.
+    const pitch = Math.atan2(vertical, horizontal);
     const yaw = Math.atan2(-dx, -dz);
-    const event: FireEvent = { type: "fire", kind: "arrow", x: this.player.x, y: this.player.y, z: this.player.z, yaw, pitch, fraction, speed, damage: bodyDamage(fraction) };
+    const event: FireEvent = { type: "fire", kind: "arrow", x: this.player.x, y: this.player.y, z: this.player.z, yaw, pitch, fraction, speed, damage: bodyDamage(fraction), aimRange: horizontal };
     const shot = spawnArrow(event);
     const trail = new Float32Array(PRACTICE_TRAIL_POINTS * 3); let trailCount = 0;
     const dt = 1 / (TICK_HZ * SUBSTEPS);

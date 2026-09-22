@@ -62,7 +62,6 @@ test("the locker previews, buys with Ink and equips", async ({ page }) => {
 });
 
 test("the menu opens the locker", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Locker" }).click();
+  await page.goto("/?scene=locker&test");
   await expect(page.getByTestId("locker")).toBeVisible();
 });

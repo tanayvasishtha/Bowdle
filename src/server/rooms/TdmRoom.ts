@@ -47,7 +47,7 @@ import { canQueueRanked } from "../../shared/rating.ts";
 import { DEFAULT_LOADOUT } from "../../shared/cosmetics.ts";
 import { botDifficultyFor, type BotDifficulty, type HumanSkill } from "../../shared/bots/difficulty.ts";
 import { isPartyCode } from "../../shared/party.ts";
-import { headMultiplier, spawnVolley, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
+import { aimRangeAlongLook, headMultiplier, spawnVolley, stepArrow, sweepArrowVsTarget } from "../../shared/sim/arrows.ts";
 import type { FireEvent } from "../../shared/sim/bow.ts";
 import { tetherLine } from "../../shared/sim/tether.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
@@ -83,6 +83,15 @@ const RELIC_CARRY_HEIGHT_M = 2.1;
 /** Falling out of the world in an Expedition costs this much health. */
 const EXPEDITION_FALL_DAMAGE = 25;
 
+/**
+ * Test harness options (bot wipe, duel lane, fixed seeds, later start waves) are for the test runner only. A client that
+ * talks to the production server directly must not be able to switch them on, so every entry point strips them.
+ */
+export function launchSafeOptions<T extends JoinOptions | undefined>(options: T): T {
+  if (!options || process.env.NODE_ENV !== "production" || process.env.ALLOW_TEST_JOINS === "1") return options;
+  return { ...options, test: false, testStartWave: undefined, testMapId: undefined, testBotSeed: undefined, seed: undefined, botPlayers: undefined } as T;
+}
+
 type JoinOptions = { spectator?: boolean; mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number; ranked?: boolean ; weekly?: boolean; handicaps?: string | readonly string[]; seed?: number };
 type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage ; pingEvent: PingEventMessage; afkPrompt: AfkPromptMessage; afkRemoved: AfkRemovedMessage; playOfTheMatch: PlayOfTheMatchMessage; spectator: { ok: boolean } };
 type GameClient = Client<{ messages: ServerMessages }>;
@@ -91,6 +100,8 @@ type ArrowOrigin = { x: number; y: number; z: number };
 
 /** Arrows that hurt players, clash, cut ropes and can be swatted. Grapple hooks and ink lobs do none of that. */
 function isDamaging(kind: string): boolean { return kind === "arrow" || kind === "scatter" || kind === "tether"; }
+
+type HitboxTargetRow = { x: number; y: number; z: number; height: number; crouched: boolean };
 
 export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; client: GameClient }> {
   maxClients = TEAM_SIZE * 2;
@@ -177,10 +188,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   skillsLoaded: Promise<void> = Promise.resolve();
 
   onCreate(options: JoinOptions): void {
-    // Launch safety: never honor client test harness options in production.
-    if (process.env.NODE_ENV === "production") {
-      options = { ...options, test: false, testStartWave: undefined, testMapId: undefined, testBotSeed: undefined };
-    }
+    options = launchSafeOptions(options);
     this.rankedMode = this.roomName === "ranked";
     this.partyCode = isPartyCode(options.party) ? options.party : "";
     // Public rooms are named after their mode; a party room takes the mode its leader picked.
@@ -209,6 +217,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     if (this.state.mode === "expedition" && !selected?.creatureSpawns) selected = mapById("home-grove") ?? defaultMatchMap;
     this.fixedMap = selected !== undefined;
     this.loadMap(selected ?? defaultMatchMap, 0);
+    this.expedition?.prepare();
     this.state.phase = "warmup";
     this.state.phaseEndsAtMs = WARMUP_MS;
     this.rewindState = this.allowRewindState({ maxRewindMs: MAX_REWIND_MS });
@@ -353,30 +362,21 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     } else this.auditMovement.zipRides += 1;
   }
 
-  private aimRangeAlongLook(owner: string, event: FireEvent): number {
-    const crouched = this.state.players.get(owner)?.crouched ?? false;
-    const eye = crouched ? EYE_CROUCH : EYE_STAND;
-    const lookX = -Math.sin(event.yaw) * Math.cos(event.pitch);
-    const lookY = Math.sin(event.pitch);
-    const lookZ = -Math.cos(event.yaw) * Math.cos(event.pitch);
-    const from = { x: event.x, y: event.y + eye, z: event.z };
-    const to = { x: event.x + lookX * 200, y: event.y + eye + lookY * 200, z: event.z + lookZ * 200 };
-    let best = 200;
+  private readonly aimTargets: HitboxTargetRow[] = [];
+
+  /** The crosshair range for a shot: map geometry and every other living player, the same raycast the client predicts with. */
+  private aimRangeFor(owner: string, event: FireEvent): number {
+    const targets = this.aimTargets; targets.length = 0;
     for (const [id, target] of this.state.players) {
       if (id === owner || !target.alive) continue;
-      this.hitTarget.x = target.x;
-      this.hitTarget.y = target.y;
-      this.hitTarget.z = target.z;
-      this.hitTarget.height = target.height;
-      this.hitTarget.crouched = this.hitTarget.height < STAND_HEIGHT;
-      const hit = sweepArrowVsTarget(from, to, this.hitTarget, "arrow");
-      if (hit && hit.t * 200 < best) best = Math.max(2, hit.t * 200);
+      targets.push({ x: target.x, y: target.y, z: target.z, height: target.height, crouched: target.height < STAND_HEIGHT });
     }
-    return best;
+    return aimRangeAlongLook(event, this.state.players.get(owner)?.crouched ?? false, this.playMap, targets);
   }
 
   private createArrow(owner: string, team: number, event: FireEvent): void {
-    const aimed = { ...event, aimRange: event.aimRange ?? this.aimRangeAlongLook(owner, event) };
+    // The server always decides the range itself; a client never supplies it.
+    const aimed = { ...event, aimRange: this.aimRangeFor(owner, event) };
     const buffs = this.expedition?.buffsFor(owner);
     const shots = (this.villageShotCount.get(owner) ?? 0) + 1;
     this.villageShotCount.set(owner, shots);
@@ -1069,13 +1069,15 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   /** Party rooms need a well-formed code; public rooms never take one. Ranked joins need a linked level-10 account. */
   async onAuth(_client: GameClient, options?: JoinOptions): Promise<boolean> {
+    const requestedTest = options?.test === true;
+    options = launchSafeOptions(options);
     const partyRoom = this.roomName === PARTY_ROOM;
     if (partyRoom && !isPartyCode(options?.party)) throw new ServerError(400, "invalid party code");
     if (!partyRoom && options?.party !== undefined) throw new ServerError(400, "party codes join the party room");
     if (this.roomName === "ranked") {
       const token = options?.token;
       if (!token) throw new ServerError(401, "sign_in_required");
-      if (options?.test && process.env.ALLOW_TEST_JOINS !== "1" && process.env.NODE_ENV !== "test") {
+      if (requestedTest && process.env.ALLOW_TEST_JOINS !== "1" && process.env.NODE_ENV !== "test") {
         throw new ServerError(403, "test_joins_disabled");
       }
       const db = await gameDatabase();
@@ -1111,6 +1113,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   onJoin(client: GameClient, options?: JoinOptions): void {
+    options = launchSafeOptions(options);
     if (options?.spectator) {
       if (!this.partyCode) throw new Error("spectator_party_only");
       this.spectators.add(client.sessionId);

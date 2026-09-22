@@ -13,15 +13,17 @@ import { canopyMap } from "../shared/maps/canopy.ts";
 import { defaultMatchMap, mapById } from "../shared/maps/registry.ts";
 import { loadName, loadSettings, saveSettings } from "./settings.ts";
 import { platform } from "./platform/sdk.ts";
-import { fetchLocker } from "./account.ts";
+import { ensureAccount, fetchLocker } from "./account.ts";
 import { installMenuStyles, showMainMenu } from "./ui/menu.ts";
+import { showLeaderboard, showProfile } from "./ui/profile.ts";
+import { showPartyPanel } from "./ui/party.ts";
 import { runGraphicsBenchmark } from "./graphicsBenchmark.ts";
 import { wantsTouchControls, TouchControls, ensureTouchSettingDefault } from "./ui/touchControls.ts";
 import { loadRejoinTicket, showRejoinBanner, clearRejoinTicket } from "./ui/rejoin.ts";
 import { attachPauseMenu } from "./ui/pause.ts";
 import { attachControlsHelp } from "./ui/controls.ts";
 import { installAudioMix } from "./audio/mixer.ts";
-import { isGameMode, type GameMode } from "../shared/sim/modes.ts";
+import { isGameMode, onlineSearch, type GameMode } from "../shared/sim/modes.ts";
 import { attachPadNavigation } from "./ui/padNav.ts";
 import { attachUiSounds } from "./audio/uiSounds.ts";
 import { isPartyCode, normalizePartyCode } from "../shared/party.ts";
@@ -37,6 +39,9 @@ declare global {
       aimAt?(sessionId: string): void;
       placeNear?(sessionId: string, distance?: number): void;
       drawMs?(): number;
+      spawnProtectMsForTest?(): number;
+      releaseForTest?(): void;
+      setLookForTest?(yaw: number, pitch?: number): void;
       killFeed?(): string;
       cloudCount?(): number;
       grappleActive?(): boolean;
@@ -99,7 +104,7 @@ if (params.get("scene") === "online") {
     setLoad("Joining the match…", 70);
     return (params.get("rejoin") === "1" && params.get("token")
     ? OnlineSession.reconnect(renderer, sampler, params.get("token")!)
-    : OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm", params.has("checkpoint"), params.has("startWave") ? Number(params.get("startWave")) : undefined, params.has("ranked"), params.has("weekly"), (params.get("handicaps") ?? "").split(",").filter(Boolean), params.has("spectator"))
+    : OnlineSession.connect(renderer, sampler, loadName() || "Player", params.has("test"), requestedMapId, party, params.get("room") ?? undefined, isGameMode(params.get("mode")) ? params.get("mode") as GameMode : "tdm", params.has("checkpoint"), params.has("startWave") ? Number(params.get("startWave")) : undefined, params.has("ranked"), params.has("weekly"), (params.get("handicaps") ?? "").split(",").filter(Boolean), params.has("spectator"), params.has("seed") ? Number(params.get("seed")) : undefined)
   ).then((session) => {
     loading.remove();
     attachPauseMenu(app, sampler, party);
@@ -112,6 +117,9 @@ if (params.get("scene") === "online") {
       aimAt: (sessionId: string) => session.aimAt(sessionId),
       placeNear: (sessionId, distance) => session.placeNear(sessionId, distance),
       drawMs: () => session.drawMs(),
+      spawnProtectMsForTest: () => session.spawnProtectMsForTest(),
+      releaseForTest: () => session.releaseForTest(),
+      setLookForTest: (yaw, pitch) => session.setLookForTest(yaw, pitch),
       killFeed: () => session.killFeed(),
       cloudCount: () => session.cloudCount(),
       grappleActive: () => session.grappleActive(),
@@ -173,6 +181,14 @@ if (params.get("scene") === "online") {
   };
 } else if (params.get("scene") === "locker") {
   startLocker(app);
+} else if (params.get("scene") === "profile") {
+  void showProfile(app, () => location.assign("/"));
+} else if (params.get("scene") === "leaderboard") {
+  void showLeaderboard(app, () => location.assign("/"));
+} else if (params.get("scene") === "party") {
+  const playerName = loadName() || "Explorer";
+  void ensureAccount(playerName);
+  showPartyPanel(app, (code, mode) => { location.search = onlineSearch(mode ?? "tdm", code); });
 } else if (params.get("scene") === "characters") {
   const renderer = new Renderer(app, params.has("debug"), lineupMap);
   const lineup: readonly Partial<CharacterMotion>[] = [

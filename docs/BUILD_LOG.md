@@ -1,3 +1,25 @@
+## Fix 1 and 2: browser suite back to green, production holes closed (2026-09-22)
+
+Tags `fix1` and `fix2` (the older `c1` tag belongs to the September character milestone and was left alone).
+
+Built:
+- Menu stays three buttons. Profile, leaderboard and party open from `?scene=profile`, `?scene=leaderboard` and `?scene=party`; the browser specs use those paths. Privacy and Terms links are back under the menu buttons.
+- Village Defense places its totem from a new `MapData.totem` field (Home Grove: the plinth at the origin) and sets totem health when the room is created, so the totem bar shows from the moment players arrive. Home Grove herbs no longer spawn inside the totem pillar.
+- One crosshair raycast, `aimRangeAlongLook` in `src/shared/sim/arrows.ts`, finds the first wall, ramp or player along the look ray. The server, client prediction and the practice camp all launch arrows at that point. Before, only the server ran it, it ignored walls, and the camp and client always aimed at a point 200 m out, which put close shots low and right of the crosshair.
+- `launchSafeOptions` strips every test harness join option (`test`, `testStartWave`, `testMapId`, `testBotSeed`, `seed`, `botPlayers`) in production for `onCreate`, `onAuth` and `onJoin`. `onJoin` used to read the raw `test` flag, so a client connecting straight to the server could wipe bots and lock rooms. `ALLOW_TEST_JOINS=1` still allows them for staging.
+- Ink cloud is off at launch behind the new `inkCloud` feature flag, like scatter, tether and the dagger. The HUD no longer offers it.
+- The online browser test that fired an ink cloud now asserts Q does nothing and the HUD shows no ink cloud, which is the launch design.
+- The mire and tender browser tests pass a fixed test seed (`&seed=`, honoured only in test mode). They depended on a clock-seeded spawn and failed roughly one run in six (mire) and one in four (tender).
+- The tick budget test keeps all twenty load arrows alive for the whole timed window; they used to expire halfway through it. Budget unchanged at 3 ms.
+- `npm run soak` runs the modes players can reach at launch (Lobby and Village Defense) by default; `node scripts/bot-soak.ts <seeds> all` still runs every mode.
+
+Verified: `npm run check` 387 of 387 (including the tick budget); `npm run build` and `npm run smoke`; Playwright 59 of 60, then the one failure (the clock-seeded mire test) fixed and its spec plus `online` and `gamepad` rerun, 11 of 11; `npm run soak` passes. Break it: removing the sanitizer from `onJoin` fails the new production join test in `tests/server/launch-safety.test.ts`; restored.
+
+Left:
+- Team deathmatch on Wild Crossing scores 0 kills in 7 minutes in `all` soak: the two teams spawn about 150 m apart and the bots never meet. It is hidden at launch and must be fixed before it returns.
+- Lobby on Wild Crossing varies a lot between runs, from 99 kills in 3.4 minutes to 1 kill in 7 minutes, because bots roam without seeking each other on the big map. Fixed next.
+- Village Defense respawns about 167 stuck creatures at their next waypoint over a 20 wave Home Grove soak.
+
 ## Soak harden: 20-wave Home Grove (2026-09-19)
 
 - Expedition soak gate raised from 8 to 20 waves on \home-grove\ (7 min per-wave cap).
@@ -2361,4 +2383,3 @@ Verify by hand:
 - Fixed the Mycelium Tender selecting itself as its ally anchor, which left it stationary until the director repeatedly respawned it. Added a regression test for a Tender with no nearby ally.
 - Verified: `npm run check` 383/383, production build, smoke, 20-wave soak for seeds 101, 202 and 303, and portal builds pass.
 - Browser suite is intentionally carried into C1: 38/60 pass, with menu entry points, legal links, Expedition routing, camp combat and interaction flows requiring the C1 repairs.
-

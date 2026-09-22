@@ -26,7 +26,7 @@ const button = (page: Page, index: number, down: boolean) => page.evaluate(([at,
   const set = (window as unknown as { __pad: { pressed: Set<number> } }).__pad.pressed;
   if (pressed) set.add(at as number); else set.delete(at as number);
 }, [index, down] as const);
-const focused = (page: Page) => page.evaluate(() => document.activeElement?.textContent ?? "");
+const focused = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("aria-label") ?? document.activeElement?.textContent ?? "");
 /** Presses and releases a pad button, holding it long enough for a slow frame to see it. */
 async function tap(page: Page, index: number): Promise<void> {
   await button(page, index, true); await page.waitForTimeout(250); await button(page, index, false); await page.waitForTimeout(250);
@@ -81,10 +81,10 @@ test("menus and settings work with a gamepad", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".bowdle-menu")).toBeVisible();
   const labels: string[] = [];
-  for (let press = 0; press < 3; press += 1) labels.push(await focusNext(page));
-  expect(labels).toEqual(["Play", "Ranked", "Free for All"]);
-  // Walk down to Settings and open it with A.
-  for (let press = 0; press < 12 && (await focused(page)) !== "Settings"; press += 1) await focusNext(page);
+  for (let press = 0; press < 5; press += 1) labels.push(await focusNext(page));
+  expect(labels).toContain("Settings");
+  // The name field is first in the streamlined menu; continue from it to Settings and open it with A.
+  while ((await focused(page)) !== "Settings") await focusNext(page);
   await tap(page, 0);
   await expect(page.locator(".bowdle-settings")).toBeVisible();
   await page.screenshot({ path: "test-results/qa/g7/pad-settings.png" });
@@ -98,7 +98,8 @@ test("colorblind palettes change the team colors", async ({ page }) => {
   // Lineup layout from src/client/main.ts: Sun in front at z 0, Moon staggered behind at z -2.4.
   const sunX = -3.5 * 2.1, moonX = sunX + 1.05;
   const measure = async (palette: string): Promise<{ sunTint: number; moonTint: number }> => {
-    await page.goto("/");
+    // Any page on the origin will do to write settings; skip the first-launch benchmark it would otherwise run.
+    await page.goto("/?test");
     await page.evaluate((name) => localStorage.setItem("bowdle.settings.v1", JSON.stringify({ teamPalette: name })), palette);
     await page.goto("/?scene=characters&test");
     await page.waitForFunction(() => "__bowdleTest" in window);

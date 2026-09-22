@@ -1,4 +1,5 @@
 import { lockPointer } from "../game/pointerLock.ts";
+import { featureEnabled } from "../../shared/features.ts";
 import type { MatchState } from "../../net/schema.ts";
 import type { KillMessage, MatchEndMessage, MatchStatsMessage, RewardMessage } from "../../net/messages.ts";
 import { HIT_FEEL as HIT, HUD_END_MAX_HEIGHT_VH, RETENTION_LOOK as L } from "../render/look.ts";
@@ -135,7 +136,7 @@ export class MatchHud {
       this.scoreboard.append(row);
     }
     const me = state.players.get(sessionId);
-    if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS, me.grappleActive ? (me.grappleReeling ? "REELING" : "SWINGING") : "")}${this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS)}${this.ability("SHIFT", "DODGE", me.dodgeCooldownMs, DODGE.cooldownMs)}`;
+    if (me) this.abilities.innerHTML = `${this.ability("E", "GRAPPLE", me.grappleCooldownMs, GRAPPLE_COOLDOWN_MS, me.grappleActive ? (me.grappleReeling ? "REELING" : "SWINGING") : "")}${featureEnabled("inkCloud") ? this.ability("Q", "INK CLOUD", me.inkCooldownMs, INK_CLOUD_COOLDOWN_MS) : ""}${this.ability("SHIFT", "DODGE", me.dodgeCooldownMs, DODGE.cooldownMs)}`;
     if (state.phase === "end" || this.endPinned) { this.sequence.countdown(seconds); return; }
     this.sequence.stop();
     this.endPanel.style.display = "none";

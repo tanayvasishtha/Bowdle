@@ -10,10 +10,7 @@ test.beforeEach(({ page }) => returningPlayer(page));
 
 test("post-match sequence finishes, shows rewards and unlocks, and click skips", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/");
-  const created = page.waitForResponse((response) => response.url().endsWith("/api/auth/guest") && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Profile", exact: true }).click();
-  const creation = await created; expect(creation.status()).toBe(201); await creation.finished();
+  await page.goto("/?scene=profile&test");
   await expect(page.getByTestId("level")).toHaveText("Level 1");
   const token = await page.evaluate(() => localStorage.getItem("bowdle.token"));
   const seed = await page.request.post("/api/dev/grant-xp", { headers: { Authorization: `Bearer ${token}` }, data: { xp: 1500 } });

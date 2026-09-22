@@ -27,7 +27,7 @@ test("the end screen saves a clip and links a share on X", async ({ page }) => {
 });
 
 test("privacy and terms pages are linked from the menu", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?test");
   await expect(page.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "privacy.html");
   const privacy = await page.request.get("/privacy.html");
   expect(privacy.ok()).toBe(true);

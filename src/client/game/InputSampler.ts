@@ -160,6 +160,7 @@ export class InputSampler {
     this.yaw = yaw;
     this.pitch = clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
   }
+  releaseForTest(): void { this.keys.clear(); this.mouseButtons = 0; this.toggles.reset(); }
   setPaused(paused: boolean): void { this.paused = paused; if (paused) { this.keys.clear(); this.mouseButtons = 0; this.toggles.reset(); } }
   actionCode(action: keyof GameSettings["keys"]): string { return this.settings.keys[action]; }
 }

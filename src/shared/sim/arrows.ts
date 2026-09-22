@@ -47,6 +47,45 @@ export function aimPointFromLook(
   };
 }
 
+const AIM_MAX_M = 200;
+const AIM_MIN_M = 2;
+const aimFrom: Vec3 = { x: 0, y: 0, z: 0 };
+const aimTo: Vec3 = { x: 0, y: 0, z: 0 };
+
+/**
+ * How far along the look ray the crosshair points: the first solid box, ramp surface or target, capped at 200 m.
+ * The arrow is launched from the bow hand toward that point, so it lands on the crosshair. Client prediction, the
+ * server and the practice camp all call this with the map they step arrows against, so they pick the same point.
+ */
+export function aimRangeAlongLook(
+  event: Pick<FireEvent, "x" | "y" | "z" | "yaw" | "pitch">,
+  crouched: boolean,
+  map: MapData,
+  targets: Iterable<HitboxTarget>,
+): number {
+  const eye = crouched ? EYE_CROUCH : EYE_STAND;
+  const cosPitch = Math.cos(event.pitch);
+  aimFrom.x = event.x; aimFrom.y = event.y + eye; aimFrom.z = event.z;
+  aimTo.x = event.x - Math.sin(event.yaw) * cosPitch * AIM_MAX_M;
+  aimTo.y = aimFrom.y + Math.sin(event.pitch) * AIM_MAX_M;
+  aimTo.z = event.z - Math.cos(event.yaw) * cosPitch * AIM_MAX_M;
+  let nearest = 1;
+  for (const box of map.boxes) {
+    if (!box.tags.includes("solid")) continue;
+    const t = sweepExpandedBox(aimFrom, aimTo, box.min, box.max);
+    if (t !== null && t < nearest) nearest = t;
+  }
+  for (const ramp of map.ramps) {
+    const t = surfaceHit(aimFrom, aimTo, rampHeightAt(ramp, aimFrom.x, aimFrom.z), rampHeightAt(ramp, aimTo.x, aimTo.z));
+    if (t !== null && t < nearest) nearest = t;
+  }
+  for (const target of targets) {
+    const hit = sweepArrowVsTarget(aimFrom, aimTo, target, "arrow");
+    if (hit && hit.t < nearest) nearest = hit.t;
+  }
+  return Math.max(AIM_MIN_M, nearest * AIM_MAX_M);
+}
+
 export function spawnArrow(event: Omit<FireEvent, "kind">, crouched = false): ArrowSim {
   const eye = crouched ? EYE_CROUCH : EYE_STAND;
   const handY = eye - 0.22;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setFeatureOverride } from "../features.ts";
 import { GRAPPLE, GRAPPLE_COOLDOWN_MS, GRAPPLE_RANGE, INK_CLOUD_COOLDOWN_MS, VINE_HOP } from "../constants.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData } from "../maps/types.ts";
@@ -48,7 +49,9 @@ describe("grapple", () => {
     expect(stepAbilityInput(misser, input, mapAt(10, false), 0)).toHaveLength(0);
     expect(misser.grappleCooldownMs).toBe(GRAPPLE.missCooldownMs);
     player.prevButtons = 0;
+    setFeatureOverride("inkCloud", true);
     const ink = stepAbilityInput(player, { ...input, buttons: BTN.INK }, mapAt(10), 0);
+    setFeatureOverride("inkCloud", undefined);
     expect(ink[0]?.type).toBe("ink");
     expect(player.inkCooldownMs).toBe(INK_CLOUD_COOLDOWN_MS);
   });

@@ -91,6 +91,12 @@ export class ExpeditionDirector {
 
   private get run() { return this.host.state.expedition; }
 
+  /** Called once the map is loaded, so the totem and its health bar are there from the moment players arrive. */
+  prepare(): void {
+    this.placeTotem();
+    this.run.totemMaxHp = VILLAGE.totemMaxHp; this.run.totemHp = VILLAGE.totemMaxHp;
+  }
+
   /** A fresh run from a checkpoint: the first wave follows a short break. */
   reset(startWave: number): void {
     const run = this.run;
@@ -113,9 +119,8 @@ export class ExpeditionDirector {
 
   private placeTotem(): void {
     const map = this.host.map;
-    const marker = map.herbSpawns?.[0];
-    const spawn = map.spawns.sun[0]?.pos;
-    const pos = marker ?? spawn ?? ([0, 0, 0] as const);
+    // Maps built for Village Defense mark the totem; older Expedition maps fall back to their first herb or spawn.
+    const pos = map.totem ?? map.herbSpawns?.[0] ?? map.spawns.sun[0]?.pos ?? ([0, 0, 0] as const);
     this.totemX = pos[0]; this.totemY = pos[1]; this.totemZ = pos[2];
   }
 

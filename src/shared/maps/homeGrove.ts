@@ -119,9 +119,8 @@ const moonSpawns: SpawnPoint[] = sunSpawns.map((spawn) => ({
   yaw: Math.PI / 2,
 }));
 
-// Totem ground must be herbSpawns[0] for Village Defense placement.
+// Herbs sit in the village yards around the totem, never on the plinth itself.
 const herbSpawns: Vec3Tuple[] = [
-  [0, 0, 0],
   [-8, 0, 6],
   [8, 0, 6],
   [-8, 0, -6],
@@ -250,6 +249,7 @@ export const homeGroveMap: MapData = {
   landmark: [0, 4.5, 0],
   creatureSpawns,
   herbSpawns,
+  totem: [0, 0, 0],
   relic: [0, 0.4, -3.5],
   camps: {
     sun: { min: [-42, -1.5, -22], max: [-30, 4, 22] },

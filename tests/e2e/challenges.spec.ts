@@ -5,7 +5,7 @@ test.beforeEach(({ page }) => returningPlayer(page));
 
 test("Profile shows three daily and weekly challenges and one free reroll", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/"); await page.getByRole("button", { name: "Profile", exact: true }).click();
+  await page.goto("/?scene=profile&test");
   const daily = page.getByTestId("daily-challenges").locator("li");
   await expect(daily).toHaveCount(3); await expect(page.getByTestId("weekly-challenges").locator("li")).toHaveCount(3);
   await expect(page.getByTestId("play-streak")).toContainText("Tomorrow's bonus: 5 Ink");

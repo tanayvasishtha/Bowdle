@@ -1,3 +1,4 @@
+import { featureEnabled } from "../features.ts";
 import {
   EYE_CROUCH,
   EYE_STAND,
@@ -154,7 +155,7 @@ export function stepAbilityInput(state: PlayerSim, input: PlayerInputFrame, map:
     if (event) events.push(event);
     else state.grappleCooldownMs = GRAPPLE.missCooldownMs;
   }
-  if (pressed(input.buttons, state.prevButtons, BTN.INK) && state.inkCooldownMs <= 0) {
+  if (featureEnabled("inkCloud") && pressed(input.buttons, state.prevButtons, BTN.INK) && state.inkCooldownMs <= 0) {
     state.inkCooldownMs = INK_CLOUD_COOLDOWN_MS;
     events.push({ type: "ink", x: state.x, y: state.y, z: state.z, yaw: input.yaw, pitch: input.pitch, speed: INK_CLOUD_SPEED });
   }

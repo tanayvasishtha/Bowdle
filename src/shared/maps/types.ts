@@ -52,6 +52,8 @@ export type MapData = {
   /** Expedition: where creatures enter and where herbs grow between waves. */
   creatureSpawns?: readonly Vec3Tuple[];
   herbSpawns?: readonly Vec3Tuple[];
+  /** Village Defense: where the totem stands. Raiders attack it and the run ends when it falls. */
+  totem?: Vec3Tuple;
   /** Map kit v3 (G10). Omit or use empty arrays when unused. */
   anchors?: readonly SwingAnchor[];
   geysers?: readonly Geyser[];

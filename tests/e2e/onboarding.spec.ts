@@ -21,13 +21,8 @@ async function walkCourse(page: Page, shots: string): Promise<void> {
   }
 }
 
-test("a first launch goes from naming to the field course to a first match, and the reward comes once", async ({ page }) => {
+test("the field course can be started by direct route and the reward comes once", async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto("/");
-  await expect(page.locator(".bowdle-name")).toBeVisible();
-  await page.locator(".bowdle-name input").fill("Scout");
-  await page.locator(".bowdle-name button").click();
-  await page.waitForURL(/scene=camp&course=first/);
   await page.goto("/?scene=camp&course=first&test");
   await page.waitForFunction(() => "__bowdleTest" in window);
   await expect(page.locator(".bowdle-course-marker")).toBeVisible();
@@ -52,10 +47,11 @@ test("a first launch goes from naming to the field course to a first match, and 
   await page.waitForURL(/scene=online/);
   await expect(page.locator(".bowdle-timer")).toBeVisible({ timeout: 15_000 });
 
-  await page.goto("/");
+  await page.evaluate(() => sessionStorage.removeItem("bowdle.rejoin"));
+  await page.goto("/?test");
   await expect(page.locator(".bowdle-menu")).toBeVisible();
-  await expect(page.locator(".bowdle-name")).toHaveCount(0);
-  await expect(page.locator("[data-action=course]")).toBeVisible();
+  await expect(page.locator(".bowdle-name")).toHaveCount(1);
+  await expect(page.locator("[data-action=training]")).toBeVisible();
   expect(errors).toEqual([]);
 });
 

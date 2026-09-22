@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { collectErrors } from "./helpers.ts";
+import { collectErrors, returningPlayer } from "./helpers.ts";
 
 type PartyApi = { sessionId: string; players(): Array<{ id: string; team: number }> };
 
@@ -10,21 +10,17 @@ test("two friends meet in a party on the same team", async ({ browser }) => {
   const pageB = await contextB.newPage();
   const errorsA = collectErrors(pageA);
   const errorsB = collectErrors(pageB);
-  for (const [page, name] of [[pageA, "Ana"], [pageB, "Ben"]] as const) {
-    await page.goto("/");
-    await page.evaluate((value) => localStorage.setItem("bowdle.name", value), name);
-  }
-
-  await pageA.reload();
-  await pageA.getByRole("button", { name: "Play with friends" }).click();
+  await Promise.all([returningPlayer(pageA), returningPlayer(pageB)]);
+  await pageA.addInitScript(() => localStorage.setItem("bowdle.name", "Ana"));
+  await pageB.addInitScript(() => localStorage.setItem("bowdle.name", "Ben"));
+  await pageA.goto("/?scene=party&test");
   const code = (await pageA.getByTestId("party-code").textContent())!.trim();
   expect(code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
   await pageA.screenshot({ path: "test-results/qa/r5/party-panel.png" });
   await pageA.getByRole("button", { name: "Start party" }).click();
   await expect(pageA).toHaveURL(new RegExp(`party=${code}`), { timeout: 20_000 });
 
-  await pageB.reload();
-  await pageB.getByRole("button", { name: "Play with friends" }).click();
+  await pageB.goto("/?scene=party&test");
   await pageB.locator("[data-field=code]").fill(`${code.slice(0, 3).toLowerCase()}-${code.slice(3)}`);
   await pageB.getByRole("button", { name: "Join party" }).click();
   await expect(pageB).toHaveURL(new RegExp(`party=${code}`), { timeout: 20_000 });
@@ -52,8 +48,7 @@ test("two friends meet in a party on the same team", async ({ browser }) => {
 test("a bad code is refused in the panel", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => localStorage.setItem("bowdle.name", "Cal"));
-  await page.reload();
-  await page.getByRole("button", { name: "Play with friends" }).click();
+  await page.goto("/?scene=party&test");
   await page.locator("[data-field=code]").fill("OO11");
   await page.getByRole("button", { name: "Join party" }).click();
   await expect(page.locator(".bowdle-party .bowdle-error")).toContainText("6 letters and numbers");

@@ -1,13 +1,13 @@
 import { saveRejoinTicket, clearRejoinTicket, loadRejoinTicket, showRejoinBanner } from "../ui/rejoin.ts";
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
-import { ARROW_GRAVITY, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, CREATURE_TUNING, EXPEDITION, EYE_CROUCH, EYE_STAND, HEAD_RADIUS, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
+import { ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, CREATURE_TUNING, EXPEDITION, EYE_CROUCH, EYE_STAND, HEAD_AIM_OFFSET, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
 import { defaultMatchMap, mapById, matchMaps } from "../../shared/maps/registry.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { createPlayerSim, stepPlayer } from "../../shared/sim/movement.ts";
 import { mergeBreakablesIntoMap, type BreakableRuntime } from "../../shared/sim/mapFeatures.ts";
-import { spawnVolley, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
+import { aimRangeAlongLook, spawnVolley, stepArrow, type ArrowSim } from "../../shared/sim/arrows.ts";
 import { ARROW_SLOTS, fullDrawMs } from "../../shared/sim/bow.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
 import { QuiverStrip } from "../ui/quiver.ts";
@@ -171,7 +171,7 @@ export class OnlineSession {
           const events = stepPlayer(state, command, this.playMap, { nowMs: context.reckonTime, matchTimeMs: this.room.clock.serverNow(), zipLines: this.tetherZips, gravityMult: gravityMultiplier(this.room.state.expedition.modifier), geyserLaunches: this.geyserLaunches, geyserPlayerId: this.sessionId });
           if (context.isReplay) return;
           for (const event of events) {
-            if (event.type === "fire") for (const arrow of spawnVolley(event, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
+            if (event.type === "fire") for (const arrow of spawnVolley({ ...event, aimRange: aimRangeAlongLook(event, state.crouched, this.map, this.aimTargets()) }, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
             else if (event.type === "grapple" || event.type === "ink") this.arrows.spawn({ ...spawnAbilityProjectile(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: event.type });
           }
         },
@@ -238,10 +238,10 @@ export class OnlineSession {
     return session;
   }
 
-static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false, weekly = false, handicaps: readonly string[] = [], spectator = false): Promise<OnlineSession> {
+static async connect(renderer: Renderer, sampler: InputSampler, name = "Player", testing = false, testMapId?: string, party?: string, testRoom?: string, mode: GameMode = "tdm", checkpoint = false, testStartWave?: number, ranked = false, weekly = false, handicaps: readonly string[] = [], spectator = false, testSeed?: number): Promise<OnlineSession> {
     const allowTest = !import.meta.env.PROD;
     testing = allowTest && testing;
-    if (!allowTest) { testMapId = undefined; testRoom = undefined; testStartWave = undefined; }
+    if (!allowTest) { testMapId = undefined; testRoom = undefined; testStartWave = undefined; testSeed = undefined; }
     const probes = await probeRegions();
     const chosen = chooseRegion(probes);
     const endpoint = regionEndpoint(chosen);
@@ -249,7 +249,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
       ? await new Client(endpoint).joinOrCreate<MatchState>("party", { name, token: loadToken(), party, mode, spectator }, MatchState)
       : ranked
         ? await new Client(endpoint).joinOrCreate<MatchState>("ranked", { name, token: loadToken(), ranked: true, test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}) }, MatchState)
-        : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}), ...(mode === "expedition" ? { checkpoint, weekly, handicaps: handicaps.join(","), ...(testing && testStartWave !== undefined ? { testStartWave } : {}) } : {}) }, MatchState);
+        : await new Client(endpoint).joinOrCreate<MatchState>(mode, { name, token: loadToken(), test: testing, testMapId, ...(testing && testRoom ? { testRoom } : {}), ...(mode === "expedition" ? { checkpoint, weekly, handicaps: handicaps.join(","), ...(testing && testStartWave !== undefined ? { testStartWave } : {}), ...(testing && Number.isFinite(testSeed) ? { seed: testSeed } : {}) } : {}) }, MatchState);
     if (spectator) {
       await new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error("spectator_timeout")), 5000);
@@ -933,13 +933,26 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     const target = this.room.state.players.get(sessionId); if (!target) return;
     const x = this.predict.value(target, "x"), y = this.predict.value(target, "y"), z = this.predict.value(target, "z");
     const dx = x - this.me.state.x, dz = z - this.me.state.z, horizontal = Math.hypot(dx, dz);
-    const flight = horizontal / ARROW_SPEED_MAX;
     const targetHeight = this.predict.value(target, "height");
     const targetHead = headCenterY({ x, y, z, height: targetHeight, crouched: targetHeight < EYE_STAND });
     const eye = this.me.state.y + (this.me.state.crouched ? EYE_CROUCH : EYE_STAND);
-    this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(targetHead + HEAD_RADIUS - eye + ARROW_GRAVITY * flight * flight / 2, horizontal));
+    this.sampler.setLook(Math.atan2(-dx, -dz), Math.atan2(targetHead + HEAD_AIM_OFFSET - eye, horizontal));
+  }
+  private readonly aimTargetRows: Array<{ x: number; y: number; z: number; height: number; crouched: boolean }> = [];
+  /** Other living players where this client draws them, for the crosshair raycast. */
+  private aimTargets(): ReadonlyArray<{ x: number; y: number; z: number; height: number; crouched: boolean }> {
+    const rows = this.aimTargetRows; rows.length = 0;
+    for (const [id, player] of this.room.state.players) {
+      if (id === this.sessionId || !player.alive) continue;
+      const height = this.predict.value(player, "height");
+      rows.push({ x: this.predict.value(player, "x"), y: this.predict.value(player, "y"), z: this.predict.value(player, "z"), height, crouched: height < EYE_STAND });
+    }
+    return rows;
   }
   drawMs(): number { return this.me.state.drawMs; }
+  spawnProtectMsForTest(): number { return this.me.state.spawnProtectMs; }
+  releaseForTest(): void { this.sampler.releaseForTest(); }
+  setLookForTest(yaw: number, pitch = 0): void { this.sampler.setLook(yaw, pitch); }
   killFeed(): string { return this.hud.feedText(); }
   cloudCount(): number { return this.room.state.inkClouds.size; }
   /** Test helper: stand `distance` meters from another player and face them. */

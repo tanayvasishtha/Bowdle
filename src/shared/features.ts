@@ -4,6 +4,8 @@ export const features = {
   extraArrows: false,
   /** Dagger melee stays compiled but is off at launch. */
   melee: false,
+  /** Ink cloud lob stays compiled but is off at launch. */
+  inkCloud: false,
   ranked: false,
   relicRun: false,
   teamDeathmatch: false,

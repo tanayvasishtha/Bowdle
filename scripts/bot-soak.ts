@@ -11,6 +11,7 @@
 
 
 import { boot } from "@colyseus/testing";
+import { featureEnabled } from "../src/shared/features.ts";
 
 
 
@@ -43,6 +44,7 @@ const seeds = Number(process.argv[2] ?? 3);
 
 
 const onlyMode = process.argv[3];
+// Usage: node scripts/bot-soak.ts [seeds] [mode | all]
 
 
 
@@ -70,7 +72,12 @@ let failures = 0;
 
 
 
-for (const mode of GAME_MODES.filter((entry) => entry !== "expedition" && (!onlyMode || entry === onlyMode))) for (const map of matchMaps) {
+// By default only modes players can reach at launch are soaked; "all" (or naming a mode) also runs the hidden ones.
+const launchModes = new Set<string>(["ffa"]);
+if (featureEnabled("teamDeathmatch")) launchModes.add("tdm");
+if (featureEnabled("relicRun")) launchModes.add("relic");
+const pvpModes = GAME_MODES.filter((entry) => entry !== "expedition" && (onlyMode === "all" || (onlyMode ? entry === onlyMode : launchModes.has(entry))));
+for (const mode of pvpModes) for (const map of matchMaps) {
 
 
 
@@ -263,7 +270,7 @@ const CREATURE_FAR_M = 30;
 
 
 const EXPEDITION_SOAK_MAPS = new Set(["home-grove"]); // launch gate maps where bots clear early waves
-for (const map of matchMaps.filter((entry) => entry.creatureSpawns && EXPEDITION_SOAK_MAPS.has(entry.id) && (!onlyMode || onlyMode === "expedition"))) for (let seed = 1; seed <= seeds; seed += 1) {
+for (const map of matchMaps.filter((entry) => entry.creatureSpawns && EXPEDITION_SOAK_MAPS.has(entry.id) && (!onlyMode || onlyMode === "all" || onlyMode === "expedition"))) for (let seed = 1; seed <= seeds; seed += 1) {
 
 
 

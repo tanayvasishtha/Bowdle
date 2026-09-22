@@ -24,7 +24,7 @@ export function isGameMode(value: unknown): value is GameMode {
   return typeof value === "string" && (GAME_MODES as readonly string[]).includes(value);
 }
 
-export const MODE_NAMES: Record<GameMode, string> = { tdm: "Quick Play", ffa: "Free for All", relic: "Relic Run", expedition: "Village Defense" };
+export const MODE_NAMES: Record<GameMode, string> = { tdm: "Quick Play", ffa: "Lobby", relic: "Relic Run", expedition: "Village Defense" };
 
 /** The address of an online match in a mode; team deathmatch keeps the plain address. */
 export type ExpeditionSearchOptions = {

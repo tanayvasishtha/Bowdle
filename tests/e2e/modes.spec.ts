@@ -5,12 +5,12 @@ type RelicState = { mode: string; home: boolean; carrier: string; carrying: bool
 type Hooks = { relicState(): RelicState; aimAtRelic(): void; players(): Array<{ id: string; team: number }>; sessionId: string };
 const hooks = <T>(page: Page, read: (api: Hooks) => T) => page.evaluate(`(${read.toString()})(window.__bowdleTest)`) as Promise<T>;
 
-test("a party leader picks a supported mode, and Free for All remains a direct match route", async ({ page }) => {
+test("a party leader picks a supported mode, and the Lobby remains a direct match route", async ({ page }) => {
   const errors = collectErrors(page);
   await returningPlayer(page);
   await page.goto("/?scene=party&test");
   await page.screenshot({ path: "test-results/qa/g8/party-mode.png" });
-  await expect(page.locator(".bowdle-party select[data-field=mode] option")).toHaveText(["Quick Play", "Free for All", "Relic Run", "Village Defense"]);
+  await expect(page.locator(".bowdle-party select[data-field=mode] option")).toHaveText(["Quick Play", "Lobby", "Relic Run", "Village Defense"]);
   await page.locator(".bowdle-party select[data-field=mode]").selectOption("relic");
   await page.locator(".bowdle-party [data-action=start]").click();
   await page.waitForURL(/scene=online&party=[A-Z0-9]+&mode=relic/);
@@ -37,7 +37,7 @@ test("Free for All shows no teams and everyone in a neutral outfit", async ({ pa
   await expect(page.locator(".bowdle-team-symbol:visible").filter({ hasText: "◯" })).toHaveCount(1);
   await page.screenshot({ path: "test-results/qa/g8/ffa.png" });
   await page.keyboard.down("Tab");
-  await expect(page.locator(".bowdle-scoreboard, [class*=scoreboard]").first()).toContainText("FREE FOR ALL");
+  await expect(page.locator(".bowdle-scoreboard, [class*=scoreboard]").first()).toContainText("LOBBY");
   await page.keyboard.up("Tab");
   expect(errors).toEqual([]);
 });

@@ -193,7 +193,9 @@ describe("Expedition", () => {
     const client = await colyseus.sdk.joinOrCreate("expedition", { name: "Veteran", token, test: true, checkpoint: true });
     await client.waitForInitialState();
     const room = colyseus.getRoomById<TdmRoom>(client.roomId);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // The checkpoint comes from an async database lookup; wait for it instead of a fixed sleep that loses the race under load.
+    const pending = room as unknown as { startWave: number };
+    for (let wait = 0; wait < 100 && pending.startWave === 0; wait += 1) await new Promise((resolve) => setTimeout(resolve, 50));
     room.state.phaseEndsAtMs = 0;
     room.simulateTick(step, 10);
     expect(room.state.phase).toBe("live");

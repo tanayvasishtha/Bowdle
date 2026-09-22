@@ -12,11 +12,11 @@ describe("kill feedback", () => {
     tracker.death(9500);
     expect(tracker.kill(event(9600))).toMatchObject({ banner: "", streak: 1, multikill: false });
   });
-  it("shows triple and jungle thresholds, and unstoppable at six", () => {
+  it("shows triple and jungle thresholds, and the 5 and 8 streak banners", () => {
     const tracker = new KillFeedbackTracker();
-    const banners = Array.from({ length: 6 }, (_, index) => tracker.kill(event(index * 1000)).banner);
-    expect(banners).toEqual(["", "DOUBLE TAG", "TRIPLE TAG", "JUNGLE FEVER", "JUNGLE FEVER", "UNSTOPPABLE"]);
-    expect(tracker.death(7000).endedAt).toBe(6); expect(tracker.streak).toBe(0); expect(tracker.bestStreak).toBe(6);
+    const banners = Array.from({ length: 8 }, (_, index) => tracker.kill(event(index * 1000)).banner);
+    expect(banners).toEqual(["", "DOUBLE TAG", "TRIPLE TAG", "JUNGLE FEVER", "WILDFIRE", "JUNGLE FEVER", "JUNGLE FEVER", "UNSTOPPABLE"]);
+    expect(tracker.death(9000).endedAt).toBe(8); expect(tracker.streak).toBe(0); expect(tracker.bestStreak).toBe(8);
     tracker.reset(); expect(tracker.bestStreak).toBe(0);
   });
   it("shows a spread-out streak and adds arrow-only XP ticker lines", () => {

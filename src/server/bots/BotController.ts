@@ -7,6 +7,9 @@ import {
   BOT_DRAW_MIN_MS,
   BOT_REACTION_MS,
   BOT_RETREAT_HP,
+  BOT_ENGAGE_MAX_M,
+  BOT_HUNT_REPLAN_MS,
+  BOT_HUNT_REPLAN_M,
   BOT_SCENIC_ROUTE_EVERY,
   BOT_STRAFE_MS,
   EYE_CROUCH,
@@ -95,7 +98,8 @@ function sightBlocked(bounds: Float64Array, ax: number, ay: number, az: number, 
 export const AIM_HEIGHTS = new WeakMap<PlayerSim, number>();
 function aimY(target: PlayerSim): number {
   const height = AIM_HEIGHTS.get(target);
-  return height === undefined ? headCenterY(target) + HEAD_RADIUS : target.y + height;
+  // Aim at the middle of the head: aiming at its top edge let small errors graze past it.
+  return height === undefined ? headCenterY(target) : target.y + height;
 }
 
 export type RelicView = { x: number; y: number; z: number; carrier: string; carrierTeam: number };
@@ -123,6 +127,14 @@ export class BotController {
   private errorRad = 0;
   difficulty: BotDifficulty = "normal";
   private routeSerial = 0;
+  /** The nearest living enemy, known even when out of sight, so bots on big maps go and find a fight. */
+  private hunt: { x: number; y: number; z: number } | null = null;
+  private huntId = "";
+  private huntPlannedAtMs = Number.NEGATIVE_INFINITY;
+  /** Set by the room for the Lobby, where a few bots on a big map would otherwise wander without meeting. */
+  hunting = false;
+  private huntX = Number.POSITIVE_INFINITY;
+  private huntZ = Number.POSITIVE_INFINITY;
   private progressIndex = -1;
   private progressBest = Number.POSITIVE_INFINITY;
   private progressAtMs = 0;
@@ -156,8 +168,10 @@ export class BotController {
     this.objective = relic ? this.relicObjective(player, relic, map) : null;
     if (!Number.isFinite(this.lastX) || Math.hypot(player.x - this.lastX, player.z - this.lastZ) > BOT_STUCK_MOVE_M) { this.lastX = player.x; this.lastZ = player.z; this.movedAtMs = nowMs; }
     const seen = this.closestVisibleEnemy(player, players, map, clouds);
+    this.hunt = this.hunting ? this.nearestEnemy(player, players) : null;
     // With an objective to play, only close enemies are worth a fight.
-    const target = seen && this.objective && Math.hypot(seen[1].x - player.x, seen[1].z - player.z) > BOT_RELIC.engageM ? undefined : seen;
+    const seenRange = seen ? Math.hypot(seen[1].x - player.x, seen[1].z - player.z) : 0;
+    const target = seen && (seenRange > BOT_ENGAGE_MAX_M || (this.objective && seenRange > BOT_RELIC.engageM)) ? undefined : seen;
     const carrying = relic?.carrier === this.id;
     if (player.hp < BOT_RETREAT_HP && !carrying) this.mode = "retreat";
     else if (target && !carrying) this.mode = "engage";
@@ -307,13 +321,35 @@ export class BotController {
     return role === 0 || role === 2 ? point : null;
   }
 
+  /**
+   * The enemy to go looking for. Keeps the current quarry unless another is clearly closer, like combat targeting does;
+   * otherwise two enemies at similar range swap every tick and every swap throws away the route.
+   */
+  private nearestEnemy(player: PlayerSim, players: Iterable<readonly [string, PlayerSim]>): { x: number; y: number; z: number } | null {
+    let best: PlayerSim | null = null, bestId = "", bestDistance = Number.POSITIVE_INFINITY;
+    let current: PlayerSim | null = null, currentDistance = Number.POSITIVE_INFINITY;
+    for (const [id, other] of players) {
+      if (id === this.id || !other.alive || other.team === player.team) continue;
+      const distance = Math.hypot(other.x - player.x, other.z - player.z);
+      if (id === this.huntId) { current = other; currentDistance = distance; }
+      if (distance < bestDistance) { best = other; bestId = id; bestDistance = distance; }
+    }
+    if (current && currentDistance <= bestDistance * BOT_TARGET_SWITCH_RATIO) return current;
+    this.huntId = bestId;
+    return best;
+  }
+
   private navigate(player: PlayerSim, target: PlayerSim | undefined, map: MapData, nowMs: number): void {
     const objective = this.objective;
+    const hunt = !objective && !target && this.mode === "roam" ? this.hunt : null;
+    if (hunt && nowMs - this.huntPlannedAtMs >= BOT_HUNT_REPLAN_MS && Math.hypot(hunt.x - this.huntX, hunt.z - this.huntZ) > BOT_HUNT_REPLAN_M) { this.path = []; this.pathIndex = 0; }
     if (objective && this.mode === "roam") {
       if (Math.hypot(objective.x - this.objectiveX, objective.z - this.objectiveZ) > BOT_RELIC.replanM) { this.path = []; this.pathIndex = 0; }
       this.objectiveX = objective.x; this.objectiveZ = objective.z;
     }
-    if (this.path.length === 0 || this.pathIndex >= this.path.length - 1) {
+    // A hunter at the end of its route walks straight at the quarry; it only replans once the quarry has moved on.
+    const closingIn = hunt !== null && this.path.length > 0;
+    if (this.path.length === 0 || (this.pathIndex >= this.path.length - 1 && !closingIn)) {
       const start = nearestWaypoint(map, player.x, player.y, player.z, true);
       let goal: Waypoint;
       if (this.mode === "retreat") {
@@ -323,6 +359,7 @@ export class BotController {
         else { const spawn = player.team === 0 ? map.spawns.sun[0]! : map.spawns.moon[0]!; goal = nearestWaypoint(map, ...spawn.pos); }
       } else if (objective) goal = nearestWaypoint(map, objective.x, objective.y, objective.z);
       else if (target) goal = nearestWaypoint(map, target.x, target.y, target.z);
+      else if (hunt) { goal = nearestWaypoint(map, hunt.x, hunt.y, hunt.z); this.huntX = hunt.x; this.huntZ = hunt.z; this.huntPlannedAtMs = nowMs; }
       else {
         this.routeSerial += 1;
         if (this.routeSerial % BOT_SCENIC_ROUTE_EVERY === 0) goal = map.waypoints[Math.floor(this.rng() * map.waypoints.length)]!;
@@ -334,6 +371,10 @@ export class BotController {
       this.path = findPath(map, start.id, goal.id); this.pathIndex = 0;
     }
     this.pathIndex = followPath(player, this.path, this.pathIndex, this.rng, this.input);
+    // The route ends at the waypoint nearest the quarry, which can still leave a wall between them. Close the rest directly.
+    if (hunt && this.pathIndex >= this.path.length - 1) {
+      this.input.yaw = Math.atan2(-(hunt.x - player.x), -(hunt.z - player.z)); this.input.moveX = 0; this.input.moveZ = 1;
+    }
     if (objective && this.mode === "roam" && Math.abs(objective.y - player.y) < BOT_RELIC.directRiseM && Math.hypot(objective.x - player.x, objective.z - player.z) < BOT_RELIC.directM) {
       this.input.yaw = Math.atan2(-(objective.x - player.x), -(objective.z - player.z)); this.input.moveX = 0; this.input.moveZ = 1;
     }

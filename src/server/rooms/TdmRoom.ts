@@ -19,6 +19,7 @@ import {
   BOULDER_RADIUS,
   PLAYER_WIDTH,
   RESPAWN_MS,
+  LOBBY_RESPAWN_MS,
   RECONNECT_WINDOW_S,
   STAND_HEIGHT,
   EYE_STAND,
@@ -215,6 +216,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     let selected = options.mapId === kitMap.id ? kitMap : options.testMapId ? mapById(options.testMapId) : undefined;
     // Expeditions need creature spawns and always keep their map.
     if (this.state.mode === "expedition" && !selected?.creatureSpawns) selected = mapById("home-grove") ?? defaultMatchMap;
+    // Lobby rounds always play on Wild Crossing, so the next round starts on the same map.
+    if (this.state.mode === "ffa" && !selected) selected = mapById("wild-crossing");
     this.fixedMap = selected !== undefined;
     this.loadMap(selected ?? defaultMatchMap, 0);
     this.expedition?.prepare();
@@ -557,7 +560,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     this.clientById(attackerId)?.send("hitConfirm", { target: targetId, damage: actual, headshot });
     this.clientById(targetId)?.send("damaged", { fromX, fromZ, damage: actual });
     if (!killed) return;
-    target.deaths += 1; target.respawnAtMs = this.simulationNowMs + RESPAWN_MS; attacker.kills += 1;
+    target.deaths += 1; target.respawnAtMs = this.simulationNowMs + this.respawnDelayMs(); attacker.kills += 1;
     for (const record of ledger.values()) if (record.attacker !== attackerId && record.damage >= ASSIST_MIN_DAMAGE && this.simulationNowMs - record.atMs <= ASSIST_WINDOW_MS) this.state.players.get(record.attacker)!.assists += 1;
     this.damage.delete(targetId);
     const distance = origin ? Math.hypot(target.x - origin.x, target.z - origin.z) : Math.hypot(target.x - attacker.x, target.z - attacker.z);
@@ -724,6 +727,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     return tied || high === 0 ? rotation : mapById(winner) ?? rotation;
   }
 
+  private respawnDelayMs(): number { return this.state.mode === "ffa" ? LOBBY_RESPAWN_MS : RESPAWN_MS; }
+
   voteMap(sessionId: string, mapId: string): void { if (this.state.phase === "end" && mapById(mapId)) this.mapVotes.set(sessionId, mapId); }
 
   private loadMap(map: MapData, nowMs: number): void {
@@ -845,7 +850,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
 
   private killByWorld(targetId: string, killer: string, weapon: "boulder" | "fall", fromX: number, fromZ: number): void {
     const target = this.state.players.get(targetId); if (!target || !applyDamage(target, MAX_HP, this.simulationNowMs)) return;
-    target.deaths += 1; target.respawnAtMs = this.simulationNowMs + RESPAWN_MS;
+    target.deaths += 1; target.respawnAtMs = this.simulationNowMs + this.respawnDelayMs();
     const stats = this.humanStats.get(targetId); if (stats) recordDeath(stats);
     this.damage.delete(targetId);
     this.noteAuditKill(weapon, "", false, -1, targetId, target.team);
@@ -998,7 +1003,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const player = source ?? new PlayerState(); player.name = `Doodle ${this.botSerial}`; player.team = team; player.isBot = true;
     if (!source) respawnPlayer(player, spawn);
     else { player.look.bowSkin = DEFAULT_LOADOUT.bow; player.look.arrowTrail = DEFAULT_LOADOUT.trail; player.look.outfit = DEFAULT_LOADOUT.outfit; player.look.killEffect = DEFAULT_LOADOUT.effect; }
-    this.state.players.set(id, player); this.bots.set(id, new BotController(id, this.botSeedBase + this.botSerial, this.botDifficulty));
+    this.state.players.set(id, player); const controller = new BotController(id, this.botSeedBase + this.botSerial, this.botDifficulty); controller.hunting = this.state.mode === "ffa"; this.bots.set(id, controller);
   }
 
   private fillBots(): void {

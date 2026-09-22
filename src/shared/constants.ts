@@ -19,7 +19,7 @@ export const FUNNEL_EVENTS = ["menuOpened", "tutorialDone", "firstMatch", "secon
 /** FFA lobby keeps at least this many seats filled with bots until humans arrive. */
 export const LOBBY_FILL_BOTS = 6;
 
-export const MODE_TUNING = { ffaKillLimit: 20, ffaTimeLimitS: 420, ffaPlayers: 10, relicCaptureLimit: 3, relicTimeLimitS: 480 } as const;
+export const MODE_TUNING = { ffaKillLimit: 20, ffaTimeLimitS: 300, ffaPlayers: 10, relicCaptureLimit: 3, relicTimeLimitS: 480 } as const;
 
 /** The relic: touch reach, how long it waits on the ground, and what carrying it costs. */
 
@@ -102,6 +102,8 @@ export const LEVEL_INK = { firstLevel: 2, base: 50, perLevel: 5 } as const;
 export const DEV_GRANT_MAX = 100000;
 
 export const KILL_FEEDBACK = { windowMs: 4000, double: 2, triple: 3, jungle: 4, streakVisible: 2, tickerLines: 4 } as const;
+/** Kill streak banners without dying: 3, 5 and 8. Separate from the medal thresholds. */
+export const STREAK_BANNERS = { onARoll: 3, wildfire: 5, unstoppable: 8 } as const;
 
 export const TICK_HZ = 30;
 
@@ -330,6 +332,8 @@ export const TIME_LIMIT_S = 420;
 export const WARMUP_MS = 5000;
 
 export const RESPAWN_MS = 3000;
+/** Lobby (free for all) keeps the action moving with a shorter wait. */
+export const LOBBY_RESPAWN_MS = 2000;
 
 export const SPAWN_PROTECT_MS = 1500;
 
@@ -412,6 +416,12 @@ export const BOT_WAYPOINT_REACHED_M = 0.8;
 export const TEAM_COUNT = 2;
 
 export const BOT_SCENIC_ROUTE_EVERY = 3;
+/** A hunting bot replans once its quarry has moved this far from where the route was aimed. */
+export const BOT_HUNT_REPLAN_M = 12;
+/** And at most this often, since bots flip between fighting and roaming several times a second. */
+export const BOT_HUNT_REPLAN_MS = 1000;
+/** Bots stand and shoot only inside this range; farther enemies they close in on first. On the big maps they used to trade hopeless 180 m shots forever. */
+export const BOT_ENGAGE_MAX_M = 60;
 
 export const REPLAY_BUFFER_MS = 3000;
 

@@ -103,7 +103,9 @@ export function spawnArrow(event: Omit<FireEvent, "kind">, crouched = false): Ar
   let dz = aim.z - hz;
   const horiz = Math.hypot(dx, dz) || 1;
   const flight = horiz / Math.max(1, event.speed);
-  dy += 0.5 * ARROW_GRAVITY * flight * flight;
+  // Lift for drop only when the crosshair is on something at a known range. With nothing under the crosshair the range
+  // is just the 200 m cap, and lifting for that sent close shots about 0.4 m over whatever was just past the crosshair.
+  if (range < AIM_MAX_M) dy += 0.5 * ARROW_GRAVITY * flight * flight;
   const len = Math.hypot(dx, dy, dz) || 1;
   dx /= len; dy /= len; dz /= len;
   return {

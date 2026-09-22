@@ -1,3 +1,23 @@
+## Fix 3: Lobby is a real mode, bots find fights, close shots stop flying high (2026-09-22)
+
+Tag `fix3`.
+
+Built:
+- Lobby is the free for all room under its player-facing name: menus, party picker and scoreboard say Lobby. Kept the internal mode id `ffa` so the schema, challenges and soak did not need to change.
+- Lobby rounds are 5 minutes (from 7), always on Wild Crossing, so the next round starts on the same map; the end screen offers no map vote there. Respawn is 2 seconds (`LOBBY_RESPAWN_MS`); other modes keep 3.
+- Streak banners at 3, 5 and 8 kills without dying: ON A ROLL, WILDFIRE, UNSTOPPABLE (`STREAK_BANNERS`). The Unstoppable medal threshold is separate and unchanged.
+- Bots in the Lobby hunt the nearest enemy when nobody is in sight, keep the same quarry unless another is clearly closer, replan at most once a second, and walk the last stretch straight at the quarry when the route ends. They used to walk to the "enemy spawn", which in a free for all sent nine bots to the same corner.
+- Bots only stand and shoot inside 60 m (`BOT_ENGAGE_MAX_M`); farther enemies they close in on. On Wild Crossing they used to trade 180 m shots across the meadow forever.
+- Arrows lift for drop only when the crosshair is on something at a known range. With nothing under the crosshair the range was the 200 m cap, and lifting for 200 m made close shots fly about 0.4 m high. This is likely part of why shooting felt off. Bots aim at the middle of the head, not its top edge.
+- The Expedition checkpoint test waits for its async database lookup instead of sleeping 300 ms, which lost the race under load. Same assertions.
+
+Verified: `npm run check` (390 tests; the tick budget and the checkpoint test both varied with machine load during the session, see Left); `tests/server/lobby.test.ts` (Lobby name, 5 minute rounds, Wild Crossing, fill to six, a bot seat per joining player, an eleventh player gets a new room, 2 second respawn); `node scripts/bot-soak.ts 3 ffa` passes, Wild Crossing seeds 202 and 303 about 90 kills in 3.5 minutes. Break it: Lobby respawn back to 3 seconds fails the respawn test; restored.
+
+Left:
+- Lobby seed 101 on Wild Crossing still has only a couple of kills in 5 minutes with bots only: pairs of bots duel at 13 to 18 m while strafing and miss on normal aim error. Real players break these standoffs; tune bot aim or strafing before relying on bot-only lobbies.
+- The 3 ms tick budget test sat right at the line on this machine during the session (Chrome and Cursor busy): the committed code before this change measured 3.1 to 3.4 ms in the same runs. Run it on a quiet machine before release.
+- Hunting is on only in the Lobby. Team deathmatch on Wild Crossing still stalls (hidden at launch).
+
 ## Fix 1 and 2: browser suite back to green, production holes closed (2026-09-22)
 
 Tags `fix1` and `fix2` (the older `c1` tag belongs to the September character milestone and was left alone).

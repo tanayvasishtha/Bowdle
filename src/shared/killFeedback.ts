@@ -1,4 +1,4 @@
-import { KILL_FEEDBACK as F, LONG_SHOT_M, MEDAL_LIMITS, RETENTION_XP } from "./constants.ts";
+import { KILL_FEEDBACK as F, LONG_SHOT_M, RETENTION_XP, STREAK_BANNERS as S } from "./constants.ts";
 
 export type KillFeedback = { banner: string; ticker: string[]; streak: number; multikill: boolean; unstoppable: boolean; endedAt: number };
 export class KillFeedbackTracker {
@@ -12,8 +12,9 @@ export class KillFeedbackTracker {
     const ticker = [`+${RETENTION_XP.kill} Tagged`];
     if (event.weapon === "arrow" && event.headshot) ticker.push(`+${RETENTION_XP.headshot} Headshot`);
     if (event.weapon === "arrow" && event.distance >= LONG_SHOT_M) ticker.push(`+${RETENTION_XP.longShot} Long shot`);
-    const unstoppable = this.streak === MEDAL_LIMITS.unstoppable;
-    const banner = unstoppable ? "UNSTOPPABLE" : this.chain >= F.jungle ? "JUNGLE FEVER" : this.chain === F.triple ? "TRIPLE TAG" : this.chain === F.double ? "DOUBLE TAG" : this.streak === MEDAL_LIMITS.onARoll ? "ON A ROLL" : "";
+    const unstoppable = this.streak === S.unstoppable;
+    // Streak milestones at 8 and 5 outrank the quick multikill callouts; 3 in a row is the smallest cheer.
+    const banner = unstoppable ? "UNSTOPPABLE" : this.streak === S.wildfire ? "WILDFIRE" : this.chain >= F.jungle ? "JUNGLE FEVER" : this.chain === F.triple ? "TRIPLE TAG" : this.chain === F.double ? "DOUBLE TAG" : this.streak === S.onARoll ? "ON A ROLL" : "";
     return { banner, ticker, streak: this.streak, multikill: this.chain >= F.double, unstoppable, endedAt: 0 };
   }
   death(_atMs: number): KillFeedback {

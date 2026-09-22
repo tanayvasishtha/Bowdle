@@ -210,7 +210,7 @@ export class OnlineSession {
     });
     room.onMessage<HitConfirmMessage>("hitConfirm", (payload) => { const parsed = HitConfirmMessage.safeParse(payload); if (parsed.success) this.onHitConfirm(parsed.data); });
     room.onMessage<DamagedMessage>("damaged", (payload) => { const parsed = DamagedMessage.safeParse(payload); if (parsed.success) { this.hud.damaged(parsed.data.fromX - this.me.state.x, parsed.data.fromZ - this.me.state.z); this.lastDamageAtMs = performance.now(); this.cameraRig.hurt(parsed.data.damage); } });
-    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); if (parsed.data.playOf) this.playOfTheMatch = parsed.data.playOf; this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, matchMaps, this.runSummary(), this.playOfTheMatch); });
+    room.onMessage<MatchEndMessage>("matchEnd", (payload) => { const parsed = MatchEndMessage.safeParse(payload); const me = room.state.players.get(room.sessionId); if (!parsed.success || !me) return; platform().setPlaying(false); if (parsed.data.playOf) this.playOfTheMatch = parsed.data.playOf; this.hud.end(parsed.data, this.names, { kills: me.kills, deaths: me.deaths, bestShot: this.bestShot, bestStreak: this.feedback.bestStreak }, this.votableMaps(), this.runSummary(), this.playOfTheMatch); });
     room.onMessage<RewardMessage>("rewards", (payload) => { const parsed = RewardMessage.safeParse(payload); if (parsed.success) this.hud.rewards(parsed.data); });
     room.onMessage<MatchStatsMessage>("matchStats", (payload) => { const parsed = MatchStatsMessage.safeParse(payload); if (parsed.success) this.hud.matchStats(parsed.data); });
     room.onMessage<RopeCutMessage>("ropeCut", (payload) => { const parsed = RopeCutMessage.safeParse(payload); if (parsed.success) this.onRopeCut(parsed.data); });
@@ -949,6 +949,8 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     }
     return rows;
   }
+  /** Lobby rounds keep their map, so there is nothing to vote on. */
+  private votableMaps(): readonly MapData[] { return this.room.state.mode === "ffa" ? [] : matchMaps; }
   drawMs(): number { return this.me.state.drawMs; }
   spawnProtectMsForTest(): number { return this.me.state.spawnProtectMs; }
   releaseForTest(): void { this.sampler.releaseForTest(); }

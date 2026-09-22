@@ -119,7 +119,7 @@ export class MatchHud {
     this.timer.textContent = state.phase === "warmup" ? `DRAW IN ${seconds}` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
     // Expedition shows its own wave line in place of the score and clock.
     if (expedition) { this.score.textContent = ""; if (state.phase !== "warmup") this.timer.textContent = ""; }
-    let board = expedition ? `EXPEDITION · WAVE ${state.expedition.wave}\n` : freeForAll ? "FREE FOR ALL\n" : "SUN                         MOON\n";
+    let board = expedition ? `EXPEDITION · WAVE ${state.expedition.wave}\n` : freeForAll ? "LOBBY\n" : "SUN                         MOON\n";
     const rows = [...state.players].sort(([, left], [, right]) => freeForAll ? right.kills - left.kills : 0);
     for (const [id, player] of rows) board += expedition ? `● ${player.name}${player.rank?.tier ? ` [${player.rank.tier}]` : ""}  ${player.kills} creatures${player.downed ? "  DOWN" : ""}${id === sessionId ? "  YOU" : ""}\n` : `${freeForAll ? "◯" : player.team === 0 ? "●" : "                         ●"} ${player.name}${player.rank?.tier ? ` [${player.rank.tier}]` : ""}  ${player.kills}/${player.deaths}/${player.assists}${player.relicCarrier ? "  ◆" : ""}${id === sessionId ? "  YOU" : ""}\n`;
     this.scoreboardSelfId = sessionId;
@@ -186,7 +186,7 @@ Damage taken ${Math.round(run.damageTaken)} - revives ${run.revives}${run.beatBe
     }
     this.summaryLine = run ? undefined : summary; this.summaryMvp = names.get(message.mvp) ?? message.mvp;
     const footer = document.createElement("div"); footer.dataset.testid = "postmatch-footer";
-    const vote = document.createElement("p"); vote.textContent = run ? "" : "Vote for the next expedition";
+    const vote = document.createElement("p"); vote.textContent = run || maps.length === 0 ? "" : "Vote for the next expedition";
     this.rewardLine.textContent = ""; this.rewardLine.dataset.testid = "rewards";
     this.medalList.replaceChildren(); this.medalList.dataset.testid = "medals";
     if (playOf) {

@@ -109,7 +109,7 @@ export function stepCombat(state: PlayerSim, input: PlayerInputFrame, tickMs: nu
       if (kind) {
         const fraction = drawFraction(state.drawMs, kind === "scatter" ? QUIVER.scatter.drawFullMs : DRAW_FULL_MS);
         const damage = bodyDamage(fraction) * (kind === "scatter" ? QUIVER.scatter.damageMult : 1);
-        events.push({ type: "fire", kind, x: state.x, y: state.y, z: state.z, yaw: state.yaw, pitch: state.pitch, fraction, speed: arrowSpeed(fraction), damage });
+        events.push({ type: "fire", kind, x: state.x, y: state.y, z: state.z, yaw: state.yaw, pitch: state.pitch, fraction, speed: arrowSpeed(fraction), damage, ...(input.aimRange && input.aimRange > 0 ? { aimRange: input.aimRange } : {}) });
         state.releaseCooldownMs = RELEASE_COOLDOWN_MS;
       }
     }

@@ -9,6 +9,9 @@ const DEG = Math.PI / 180;
 export type MoveKind = "doubleJump" | "wallJump" | "mantle" | "dodge";
 const JUMP_KICK_MIN_DELTA_VY = 3;
 
+/** Where the camera is drawn from this frame: interpolated position and the live look angles. */
+export type CameraView = { x: number; y: number; z: number; yaw: number; pitch: number };
+
 export class CameraRig {
   private eyeHeight = EYE_STAND;
   private settings: GameSettings = loadSettings();
@@ -42,7 +45,8 @@ export class CameraRig {
   hurt(damage: number): void { this.feel.hurt(damage); }
   shake(amount: number): void { this.feel.addShake(amount); }
 
-  update(camera: PerspectiveCamera, previous: PlayerSim, current: PlayerSim, alpha: number, dtMs: number): void {
+  /** view, when given, places and turns the camera instead of previous/current: a smooth render pose between fixed steps. */
+  update(camera: PerspectiveCamera, previous: PlayerSim, current: PlayerSim, alpha: number, dtMs: number, view?: CameraView): void {
     const targetEye = current.crouched ? EYE_CROUCH : EYE_STAND;
     const eyeStep = Math.min(1, dtMs / CAMERA_CROUCH_MS);
     this.eyeHeight += (targetEye - this.eyeHeight) * eyeStep;
@@ -70,13 +74,13 @@ export class CameraRig {
     const fovStep = Math.min(1, dtMs / AIM_FOV_MS);
     this.fov += (targetFov - this.fov) * fovStep;
 
-    const cos = Math.cos(current.yaw), sin = Math.sin(current.yaw);
-    camera.position.set(
-      previous.x + (current.x - previous.x) * alpha + cos * out.offsetX,
-      previous.y + (current.y - previous.y) * alpha + this.eyeHeight + out.offsetY,
-      previous.z + (current.z - previous.z) * alpha - sin * out.offsetX,
-    );
-    camera.rotation.set(current.pitch + out.shakePitchDeg * DEG, current.yaw + out.shakeYawDeg * DEG, out.rollDeg * DEG);
+    const yaw = view ? view.yaw : current.yaw, pitch = view ? view.pitch : current.pitch;
+    const cos = Math.cos(yaw), sin = Math.sin(yaw);
+    const x = view ? view.x : previous.x + (current.x - previous.x) * alpha;
+    const y = view ? view.y : previous.y + (current.y - previous.y) * alpha;
+    const z = view ? view.z : previous.z + (current.z - previous.z) * alpha;
+    camera.position.set(x + cos * out.offsetX, y + this.eyeHeight + out.offsetY, z - sin * out.offsetX);
+    camera.rotation.set(pitch + out.shakePitchDeg * DEG, yaw + out.shakeYawDeg * DEG, out.rollDeg * DEG);
     if (Math.abs(camera.fov - this.fov) > 0.01) {
       camera.fov = this.fov;
       camera.updateProjectionMatrix();

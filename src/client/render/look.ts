@@ -31,7 +31,7 @@ export const CHARACTER_LOOK = {
 export const DYNAMIC_RESOLUTION = { frameBudgetMs: 20, sampleWindowMs: 2000, step: 0.1, minScale: 0.6 } as const;
 export const HUD_END_MAX_HEIGHT_VH = 90;
 export const RETENTION_LOOK = { countSteps: 30, percent: 100, medalStartMs: 400, medalStepMs: 120, breakdownMs: 700, xpMs: 650, challengeMs: 500, footerMs: 250, tickerFadeMs: 2500, transitionMs: 180, bannerMs: 1800, panelWidthVw: 88, panelWidthPx: 760, bodyPx: 18, gapPx: 8, tickerBottomPx: 28, tickerRightPx: 24, streakLeftPx: 280, streakBottomPx: 48 } as const;
-export const MULTIKILL_CHIME = { notes: [523.25, 659.25, 783.99], stepS: 0.08, decayS: 0.16, tailS: 0.2, peak: 0.12, floor: 0.001 } as const;
+export const MULTIKILL_CHIME = { notes: [523.25, 659.25, 783.99], stepS: 0.08, decayS: 0.16, tailS: 0.2, peak: 0.08, floor: 0.001 } as const;
 
 /** Camera feel (V2-DESIGN.md section 2). Distances in metres, angles in degrees, rates per second. */
 export const CAMERA_FEEL = {
@@ -53,11 +53,12 @@ export const ROPE_LOOK = { radius: 0.025, points: 13, wobble: 0.07, swingSag: 0.
 
 /** Audio mix (v2): bus ramps, music layers and intensity, enemy footsteps and screen-edge sound cues. */
 export const AUDIO_MIX = {
-  busRampS: 0.05, crossfadeS: 1.5, exploreIntensity: 0.4, combatAfterDamageMs: 4000, padFloor: 0.35,
-  bpm: 92, padGain: 0.05, kickGain: 0.22, shakerGain: 0.05, melodyGain: 0.06, melodyChance: 0.55,
+  busRampS: 0.05, crossfadeS: 1.5, exploreIntensity: 0.4, combatAfterDamageMs: 4000, padFloor: 0.15,
+  bpm: 92, padGain: 0.05, kickGain: 0.18, shakerGain: 0.02, melodyGain: 0.05, melodyChance: 0.45,
+  masterShelfHz: 6000, masterShelfDb: -5, limiterThresholdDb: -18, attackS: 0.006, pitchJitter: 0.04,
   footstepRangeM: 18, footstepMinSpeed: 1, footstepRunSpeed: 6, footstepWalkGain: 0.45, walkStrideM: 2, runStrideM: 2.8,
   enemyViewM: 35, shotCueRangeM: 30, cueMs: 900, cueRadius: 0.38,
-  defaultMusic: 0.5, defaultEffects: 1, defaultAmbience: 1,
+  defaultMusic: 0.25, defaultEffects: 0.9, defaultAmbience: 0.6,
 } as const;
 
 /** Relic Run: the relic's size and spin, and the gold halo around its carrier. Free for All name rings. */
@@ -72,5 +73,8 @@ export const CREATURE_LOOK = {
   herbBobHz: 0.6, herbBobM: 0.08, herbLiftM: 0.1, herbSpinPerS: 0.8,
   bossBursts: 4, nightFadeMs: 1500,
 } as const;
+
+/** Arrows in flight: hide the world arrow for its first metre (the bow in your hands is still drawing it there), and how long an arrow stays visible in whoever it hit. */
+export const ARROW_LOOK = { showAfterM: 1, hitHideMs: 150, correctionSmoothMs: 60, pairWindowMs: 300, recentDeathMs: 600, restingMs: 60 } as const;
 
 export const HIT_FEEL = { predictedConfirmMs: 600, damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;

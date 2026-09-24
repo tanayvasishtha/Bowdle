@@ -139,6 +139,6 @@ export type MatchState = SchemaType<typeof MatchState>;
 
 export const PlayerInput = schema({
   moveX: t.number().default(0), moveZ: t.number().default(0),
-  yaw: t.number().default(0), pitch: t.number().default(0), buttons: t.uint16().default(0),
+  yaw: t.number().default(0), pitch: t.number().default(0), buttons: t.uint16().default(0), aimRange: t.number().default(0),
 }, "PlayerInput");
 export type PlayerInput = SchemaType<typeof PlayerInput>;

@@ -134,6 +134,7 @@ export class InputSampler {
     }
     out.yaw = this.yaw;
     out.pitch = this.pitch;
+    out.aimRange = this.aimRange;
     let buttons = this.paused ? 0 : this.pad.buttons;
     if (!this.paused && this.bound("jump")) buttons |= BTN.JUMP;
     if (!this.paused && this.bound("crouch")) buttons |= BTN.CROUCH;
@@ -160,6 +161,8 @@ export class InputSampler {
     this.yaw = yaw;
     this.pitch = clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
   }
+  /** Metres to whatever is under the crosshair, set by the session every frame and sent with each input. */
+  aimRange = 0;
   releaseForTest(): void { this.keys.clear(); this.mouseButtons = 0; this.toggles.reset(); }
   setPaused(paused: boolean): void { this.paused = paused; if (paused) { this.keys.clear(); this.mouseButtons = 0; this.toggles.reset(); } }
   actionCode(action: keyof GameSettings["keys"]): string { return this.settings.keys[action]; }

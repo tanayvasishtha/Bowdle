@@ -4,6 +4,9 @@ import { join } from "node:path";
 const roots = ["src", "tests"];
 // Replacement char, or classic UTF-8-as-Latin1 double-encoding markers.
 const bad = [/\uFFFD/, /Â·/, /Â /, /â€/, /Ã¢/, /Ã—/, /Ã©/, /Ã¨/, /Ã /];
+// A byte order mark, or raw control characters (other than tab, newline and carriage return) that scripted edits can
+// leave behind: a literal NUL once slipped into a string in OnlineSession.ts.
+bad.push(/\uFEFF/, /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/);
 const hits = [];
 
 function walk(dir) {

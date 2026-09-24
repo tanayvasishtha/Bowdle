@@ -20,6 +20,8 @@ export type PlayerInputFrame = {
   moveX: number;
   moveZ: number;
   yaw: number;
+  /** Metres to whatever is under the crosshair (0 when unknown). A shot converges on that point; see aimRangeAlongLook. */
+  aimRange?: number;
   pitch: number;
   buttons: number;
 };

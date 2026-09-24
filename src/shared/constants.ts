@@ -208,6 +208,9 @@ export const DRAW_FULL_MS = 400;
 export const RELEASE_COOLDOWN_MS = 200;
 
 export const ARROW_SPEED_MIN = 70;
+/** Limits on the crosshair range a client sends with a shot. */
+export const AIM_RANGE_MIN_M = 2;
+export const AIM_RANGE_MAX_M = 200;
 
 export const ARROW_SPEED_MAX = 140;
 

@@ -31,7 +31,12 @@ export function audioBuses(): AudioBuses | null {
   if (typeof AudioContext === "undefined") return null;
   const context = new AudioContext();
   registerAudioContext(context);
-  const master = context.createGain(); master.connect(context.destination);
+  const master = context.createGain();
+  // Soften the top end (where the ear is most sensitive) and catch peaks when many sounds stack, e.g. hit + kill + chime.
+  const shelf = context.createBiquadFilter(); shelf.type = "highshelf"; shelf.frequency.value = AUDIO_MIX.masterShelfHz; shelf.gain.value = AUDIO_MIX.masterShelfDb;
+  const limiter = context.createDynamicsCompressor();
+  limiter.threshold.value = AUDIO_MIX.limiterThresholdDb; limiter.knee.value = 12; limiter.ratio.value = 4; limiter.attack.value = 0.003; limiter.release.value = 0.15;
+  master.connect(shelf).connect(limiter).connect(context.destination);
   const bus = (): GainNode => { const gain = context.createGain(); gain.connect(master); return gain; };
   shared = { context, master, music: bus(), effects: bus(), ambience: bus() };
   if (pendingMix) applyMix(pendingMix);

@@ -1,5 +1,5 @@
 import { audioBuses } from "./bus.ts";
-import { MULTIKILL_CHIME } from "../render/look.ts";
+import { AUDIO_MIX, MULTIKILL_CHIME } from "../render/look.ts";
 
 import { HIT_PITCH_PER_DAMAGE, RECIPES, type RecipeName, type Voice } from "./recipes.ts";
 
@@ -30,17 +30,23 @@ export class SoundEffects {
     }
   }
 
-  private voice(context: AudioContext, master: AudioNode, voice: Voice, now: number, pitch: number): void {
+  /**
+   * One voice of a recipe. It fades in over a few milliseconds instead of starting at full volume (which clicks), and
+   * scale nudges the pitch so a sound never repeats exactly.
+   */
+  private voice(context: AudioContext, master: AudioNode, voice: Voice, now: number, pitch: number, scale = 1): void {
     const start = now + voice.delay, end = start + voice.duration;
+    const attack = Math.min(AUDIO_MIX.attackS, voice.duration / 3);
     const gain = context.createGain();
-    gain.gain.setValueAtTime(voice.gain, start);
+    gain.gain.setValueAtTime(MIN_GAIN, start);
+    gain.gain.exponentialRampToValueAtTime(voice.gain, start + attack);
     gain.gain.exponentialRampToValueAtTime(MIN_GAIN, end);
     gain.connect(master);
     if (voice.kind === "tone") {
       const oscillator = context.createOscillator();
       oscillator.type = voice.wave;
-      oscillator.frequency.setValueAtTime(voice.from + pitch, start);
-      oscillator.frequency.exponentialRampToValueAtTime(voice.to + pitch, end);
+      oscillator.frequency.setValueAtTime((voice.from + pitch) * scale, start);
+      oscillator.frequency.exponentialRampToValueAtTime((voice.to + pitch) * scale, end);
       oscillator.connect(gain); oscillator.start(start); oscillator.stop(end + 0.02);
       return;
     }
@@ -48,10 +54,14 @@ export class SoundEffects {
     source.buffer = this.noise;
     const filter = context.createBiquadFilter();
     filter.type = voice.filter;
-    filter.frequency.setValueAtTime(voice.from, start);
-    filter.frequency.exponentialRampToValueAtTime(voice.to, end);
-    source.connect(filter).connect(gain); source.start(start); source.stop(end + 0.02);
+    filter.frequency.setValueAtTime(voice.from * scale, start);
+    filter.frequency.exponentialRampToValueAtTime(voice.to * scale, end);
+    // A random point in the noise, so the same sound is never the same sample.
+    source.connect(filter).connect(gain); source.start(start, Math.random() * 0.7); source.stop(end + 0.02);
   }
+
+  /** A small random pitch change per play. */
+  private jitter(): number { return 1 + (Math.random() * 2 - 1) * AUDIO_MIX.pitchJitter; }
 
   /** Moves the ear to the camera. Yaw 0 faces -z. */
   setListener(x: number, y: number, z: number, yaw: number): void {
@@ -78,7 +88,8 @@ export class SoundEffects {
     const level = context.createGain(); level.gain.value = loudness;
     level.connect(panner).connect(master);
     const now = context.currentTime;
-    for (const voice of RECIPES[name]) this.voice(context, level, voice, now, 0);
+    const scale = this.jitter();
+    for (const voice of RECIPES[name]) this.voice(context, level, voice, now, 0, scale);
     window.setTimeout(() => { level.disconnect(); panner.disconnect(); }, 1500);
   }
 
@@ -91,7 +102,8 @@ export class SoundEffects {
     const now = context.currentTime;
     if (name in RECIPES) {
       const pitch = name === "hit" ? amount * HIT_PITCH_PER_DAMAGE : 0;
-      for (const voice of RECIPES[name as RecipeName]) this.voice(context, master, voice, now, pitch);
+      const scale = this.jitter();
+      for (const voice of RECIPES[name as RecipeName]) this.voice(context, master, voice, now, pitch, scale);
       return;
     }
     if (name === "multikill") {
@@ -99,7 +111,7 @@ export class SoundEffects {
         const start = now + note * MULTIKILL_CHIME.stepS;
         const oscillator = context.createOscillator(); const gain = context.createGain(); oscillator.type = "triangle";
         oscillator.frequency.setValueAtTime(MULTIKILL_CHIME.notes[note]!, start);
-        gain.gain.setValueAtTime(MULTIKILL_CHIME.peak, start); gain.gain.exponentialRampToValueAtTime(MULTIKILL_CHIME.floor, start + MULTIKILL_CHIME.decayS);
+        gain.gain.setValueAtTime(MULTIKILL_CHIME.floor, start); gain.gain.exponentialRampToValueAtTime(MULTIKILL_CHIME.peak, start + AUDIO_MIX.attackS); gain.gain.exponentialRampToValueAtTime(MULTIKILL_CHIME.floor, start + MULTIKILL_CHIME.decayS);
         oscillator.connect(gain).connect(master); oscillator.start(start); oscillator.stop(start + MULTIKILL_CHIME.tailS);
       }
       return;
@@ -111,21 +123,25 @@ export class SoundEffects {
       filter.type = name === "draw" ? "bandpass" : "lowpass";
       filter.frequency.setValueAtTime(name === "draw" ? 700 : name === "dagger" ? 1800 : name === "paper" ? 2400 : 420, now);
       const gain = context.createGain();
-      gain.gain.setValueAtTime(name === "draw" ? 0.06 : name === "paper" ? 0.2 : 0.14, now);
+      gain.gain.setValueAtTime(MIN_GAIN, now);
+      gain.gain.exponentialRampToValueAtTime(name === "draw" ? 0.05 : name === "paper" ? 0.12 : 0.12, now + AUDIO_MIX.attackS);
       gain.gain.exponentialRampToValueAtTime(0.001, now + (name === "draw" ? 0.28 : name === "paper" ? 0.22 : 0.12));
       source.connect(filter).connect(gain).connect(master);
-      source.start(now);
+      source.start(now, Math.random() * 0.7);
       source.stop(now + 0.3);
       return;
     }
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = name === "headshot" ? "square" : "triangle";
+    // Headshot is a bright ding, but a filtered triangle rather than a raw square wave.
+    oscillator.type = "triangle";
     oscillator.frequency.setValueAtTime(name === "headshot" ? 880 : 180, now);
     oscillator.frequency.exponentialRampToValueAtTime(name === "headshot" ? 1320 : 70, now + 0.12);
-    gain.gain.setValueAtTime(0.16, now);
+    gain.gain.setValueAtTime(MIN_GAIN, now);
+    gain.gain.exponentialRampToValueAtTime(name === "headshot" ? 0.09 : 0.12, now + AUDIO_MIX.attackS);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-    oscillator.connect(gain).connect(master);
+    const soften = context.createBiquadFilter(); soften.type = "lowpass"; soften.frequency.value = 2500;
+    oscillator.connect(soften).connect(gain).connect(master);
     oscillator.start(now);
     oscillator.stop(now + 0.2);
   }

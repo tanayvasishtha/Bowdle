@@ -19,6 +19,8 @@ import { headCenterY } from "../../shared/sim/hitboxes.ts";
 import { CreatureDownMessage, CreatureHitMessage, DamagedMessage, DownedMessage, WaveMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RelicMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import { ropeSag, type Renderer } from "../render/Renderer.ts";
+import { type CameraView } from "./CameraRig.ts";
+import { creatureHit } from "../../shared/sim/creatures.ts";
 import { MatchHud, type RunSummary } from "../ui/hud.ts";
 import { chooseRegion, probeRegions, regionEndpoint } from "../regions.ts";
 import { ExpeditionHud, MODIFIER_NAMES, type ReviveView } from "../ui/expeditionHud.ts";
@@ -45,7 +47,7 @@ import { isInWater } from "../../shared/sim/volumes.ts";
 import { gravityMultiplier } from "../../shared/sim/waves.ts";
 import { motionFromSim, stabProgress } from "../render/characters/motion.ts";
 import { createMotion } from "../render/characters/pose.ts";
-import { AUDIO_MIX, ROPE_LOOK, HIT_FEEL } from "../render/look.ts";
+import { AUDIO_MIX, ROPE_LOOK, ARROW_LOOK, HIT_FEEL } from "../render/look.ts";
 import { music } from "../audio/music.ts";
 import { busTarget } from "../audio/bus.ts";
 import { cueAngle, footstepGain, musicIntensity, strideLength } from "../audio/spatial.ts";
@@ -62,7 +64,8 @@ export type ExpeditionView = {
   creatures: Array<{ kind: string; x: number; y: number; z: number; yaw: number }>; drawn: Record<string, number>;
   herbs: number; herbsDrawn: number; downed: boolean; night: number; hud: string; me: { x: number; y: number; z: number };
 };
-type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number; placed: boolean };
+/** hitAtMs is when this arrow was seen to hit someone on this screen (0 if not); from then on it stays at the hit point. */
+type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number; placed: boolean; hitAtMs: number; gone: boolean; startX: number; startY: number; startZ: number; movedAtMs: number; pinned: boolean };
 
 export class OnlineSession {
   private spectator = false;
@@ -161,8 +164,11 @@ export class OnlineSession {
       this.arrows = this.predict.spawns<"arrows", LocalArrow>("arrows", {
         owned: (arrow) => arrow.owner === room.sessionId,
         spawnTime: (arrow) => arrow.bornMs,
-        step: (arrow, dt) => { stepArrow(arrow, this.map, dt, arrow.kind === "grapple" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined); },
+        step: (arrow, dt) => { stepArrow(arrow, this.playMap, dt, arrow.kind === "grapple" || arrow.kind === "spit" ? 0 : arrow.kind === "ink" ? INK_CLOUD_GRAVITY : undefined, this.room.clock.serverNow()); },
         fields: ["x", "y", "z"],
+        smoothMs: ARROW_LOOK.correctionSmoothMs,
+        // A shot the server dropped (it hit something before the first update went out) must not claim the next shot's server copy.
+        correlate: (local, server) => local.kind === server.kind && Math.abs(local.bornMs - server.bornMs) <= ARROW_LOOK.pairWindowMs,
       });
       this.me = this.predict.reconciler(local, {
         input: this.input,
@@ -172,7 +178,11 @@ export class OnlineSession {
           const events = stepPlayer(state, command, this.playMap, { nowMs: context.reckonTime, matchTimeMs: this.room.clock.serverNow(), zipLines: this.tetherZips, gravityMult: gravityMultiplier(this.room.state.expedition.modifier), geyserLaunches: this.geyserLaunches, geyserPlayerId: this.sessionId });
           if (context.isReplay) return;
           for (const event of events) {
-            if (event.type === "fire") for (const arrow of spawnVolley({ ...event, aimRange: aimRangeAlongLook(event, state.crouched, this.map, this.aimTargets()) }, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
+            if (event.type === "fire") {
+              // Your own shot needs a sound; online it used to be silent (only enemy twangs played).
+              this.sounds.play("release");
+              for (const arrow of spawnVolley(event, state.crouched)) this.arrows.spawn({ ...arrow, owner: room.sessionId, team: state.team, bornMs: context.reckonTime });
+            }
             else if (event.type === "grapple" || event.type === "ink") this.arrows.spawn({ ...spawnAbilityProjectile(event, state.crouched), owner: room.sessionId, team: state.team, bornMs: context.reckonTime, kind: event.type });
           }
         },
@@ -366,6 +376,11 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     const elapsed = Math.min(100, timeMs - this.lastFrameMs);
     this.lastFrameMs = timeMs;
     this.sampler.frame(elapsed);
+    if (!this.spectator) {
+      const me = this.me.state;
+      this.aimLook.x = me.x; this.aimLook.y = me.y; this.aimLook.z = me.z; this.aimLook.yaw = this.sampler.yaw; this.aimLook.pitch = this.sampler.pitch;
+      this.sampler.aimRange = aimRangeAlongLook(this.aimLook, me.crouched, this.playMap, this.aimTargets());
+    }
     const steps = this.predict.tick(timeMs);
     for (let step = 0; step < steps; step += 1) {
       if (!this.spectator) {
@@ -385,7 +400,11 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
         this.freeCam.z += this.input.data.moveZ * 0.35;
       }
     }
-    if (!this.spectator) this.cameraRig.update(this.renderer.camera, this.me.state, this.me.state, 1, elapsed);
+    if (!this.spectator) {
+      const view = this.cameraView;
+      view.x = this.me.value("x"); view.y = this.me.value("y"); view.z = this.me.value("z"); view.yaw = this.sampler.yaw; view.pitch = this.sampler.pitch;
+      this.cameraRig.update(this.renderer.camera, this.me.state, this.me.state, 1, elapsed, view);
+    }
     this.renderer.setFeel(this.cameraRig.output.hurt, this.cameraRig.output.streaks);
     this.renderer.setDebugMovement(this.me.state);
     const serverNow = this.room.clock.serverNow();
@@ -394,6 +413,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     this.enemyUnderCrosshair = false;
     for (const [id, player] of this.room.state.players) {
       this.names.set(id, player.name);
+      if (player.alive) this.diedAtMs.delete(id); else if (!this.diedAtMs.has(id)) this.diedAtMs.set(id, performance.now());
       if (id !== this.sessionId) this.listenTo(id, player, this.predict.value(player, "x"), this.predict.value(player, "y"), this.predict.value(player, "z"));
       this.renderer.setPlayerPosition(
         id,
@@ -463,27 +483,53 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
       const source = entry.server ?? entry.local;
       if (!source) continue;
       if (!render) {
-        const sim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
-        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.look.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0, placed: false }; this.arrowRenders.set(entry.id, render);
+        // Place the visual where the arrow is before creating it, so a trail never starts at the map origin.
+        const x = this.arrows.value(entry, "x"), y = this.arrows.value(entry, "y"), z = this.arrows.value(entry, "z");
+        const sim = { x, y, z, vx: source.vx, vy: source.vy, vz: source.vz, damage: 0, ageMs: 0, stuck: false };
+        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.look.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0, placed: false, hitAtMs: 0, gone: false, startX: x, startY: y, startZ: z, movedAtMs: timeMs, pinned: false };
+        this.arrowRenders.set(entry.id, render);
       }
+      // Once it has hit someone on this screen it stays at the hit point, even while the server copy is still in flight.
+      if (render.hitAtMs > 0) continue;
       const fromX = render.sim.x, fromY = render.sim.y, fromZ = render.sim.z;
       render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
       // The first frame only places the arrow; from then on each frame sweeps the stretch it just flew.
-      if (source.owner === this.sessionId && render.placed) this.predictHit(entry.id, source, fromX, fromY, fromZ, render.sim);
+      if (render.placed) {
+        const t = this.arrowHit(entry.id, source, fromX, fromY, fromZ, render.sim);
+        if (t >= 0) {
+          render.sim.x = fromX + (render.sim.x - fromX) * t; render.sim.y = fromY + (render.sim.y - fromY) * t; render.sim.z = fromZ + (render.sim.z - fromZ) * t;
+          render.hitAtMs = timeMs;
+        }
+      }
       render.placed = true;
+      if (Math.abs(render.sim.x - fromX) + Math.abs(render.sim.y - fromY) + Math.abs(render.sim.z - fromZ) > 0.01) render.movedAtMs = timeMs;
       if (!this.heardShots.has(entry.id) && this.hearShot(source, render.sim)) this.heardShots.add(entry.id);
       render.sim.vx = source.vx; render.sim.vy = source.vy; render.sim.vz = source.vz; this.renderer.updateArrowVisual(render.visual, render.sim);
+      // The bow in your hands is still drawing the arrow for its first metre; showing both reads as a double arrow.
+      render.visual.visible = Math.hypot(render.sim.x - render.startX, render.sim.y - render.startY, render.sim.z - render.startZ) >= ARROW_LOOK.showAfterM;
       if (capture) this.replay.arrow(entry.id, render.sim.x, render.sim.y, render.sim.z);
     }
     for (const [id, render] of this.arrowRenders) {
+      // An arrow that stopped in someone disappears after a moment, unless it killed them and stays in the body.
+      if (render.hitAtMs > 0 && !render.gone && timeMs - render.hitAtMs >= (render.pinned ? BODY_ARROW_STUCK_MS : ARROW_LOOK.hitHideMs)) { this.renderer.removeVisual(render.visual); render.gone = true; }
       if (this.arrows.alive(id)) continue;
-      if (render.removedAtMs === 0) render.removedAtMs = timeMs;
+      if (render.gone) { this.arrowRenders.delete(id); this.heardShots.delete(id); this.predictedArrows.delete(id); continue; }
+      if (render.removedAtMs === 0) {
+        render.removedAtMs = timeMs;
+        // Removed while still flying (it hit someone here first, or was swatted or ran out): never leave it hanging in the
+        // air. Only an arrow resting in a wall or the ground stays for a while.
+        const resting = timeMs - render.movedAtMs >= ARROW_LOOK.restingMs;
+        if (!resting && !render.pinned) render.stuckForMs = Math.min(render.stuckForMs, ARROW_LOOK.hitHideMs);
+      }
       if (timeMs - render.removedAtMs >= render.stuckForMs) { this.renderer.removeVisual(render.visual); this.arrowRenders.delete(id); this.heardShots.delete(id); this.predictedArrows.delete(id); }
     }
     } catch (error) {
       console.error("OnlineSession.renderArrows", error);
     }
   }
+
+  private readonly aimLook = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
+  private readonly cameraView: CameraView = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
 
   private readonly lookScratch = { bow: "", outfit: "" };
   private lookFor(player: PlayerState): { bow: string; outfit: string } {
@@ -566,7 +612,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
   }
 
 
-  private brokenKey = " ";
+  private brokenKey = "\u0000";
   private playMapSource: MapData | null = null;
 
   /**
@@ -832,26 +878,57 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
    * Your own arrow is simulated here as well as on the server, so a hit is known the frame it lands. Show it right away
    * instead of a network round trip later; the server's confirmation for the same target then adds nothing twice.
    */
-  private predictHit(id: string | number, arrow: LocalArrow | ArrowState, fromX: number, fromY: number, fromZ: number, to: { x: number; y: number; z: number }): void {
-    if (this.predictedArrows.has(id) || (arrow.kind !== "arrow" && arrow.kind !== "scatter")) return;
-    const me = this.me.state, freeForAll = this.room.state.mode === "ffa";
+  private readonly creaturePose = { kind: "", x: 0, y: 0, z: 0, yaw: 0 };
+  /** When each player was first seen dead, so the arrow that killed them still stops in them. */
+  private readonly diedAtMs = new Map<string, number>();
+
+  /**
+   * Where along this frame's stretch an arrow hits someone, as a fraction 0 to 1, or -1. Every screen stops arrows at
+   * the target, because the server removes an arrow on a hit and a removal only arrives a round trip later, which used
+   * to leave arrows flying on metres past whoever they hit. Your own hits also show on the HUD right away.
+   */
+  private arrowHit(id: string | number, arrow: LocalArrow | ArrowState, fromX: number, fromY: number, fromZ: number, to: { x: number; y: number; z: number }): number {
+    const damaging = arrow.kind === "arrow" || arrow.kind === "scatter";
+    if (!damaging && arrow.kind !== "spit") return -1;
     this.predictFrom.x = fromX; this.predictFrom.y = fromY; this.predictFrom.z = fromZ;
+    let nearest = -1, hitPlayer = "", headshot = false, damage = 0;
     for (const [targetId, player] of this.room.state.players) {
-      if (targetId === this.sessionId || !player.alive || (!freeForAll && player.team === me.team)) continue;
+      // Team numbers are unique per player in the Lobby, so this skips only the shooter there and teammates elsewhere.
+      if (targetId === arrow.owner || player.team === arrow.team) continue;
+      // The killing blow reaches this screen before this screen's own copy of the arrow gets there, so a player who
+      // just died still stops arrows for a moment. Otherwise the arrow you watch kill someone flies on past them.
+      if (!player.alive && performance.now() - (this.diedAtMs.get(targetId) ?? 0) > ARROW_LOOK.recentDeathMs) continue;
       const target = this.predictTarget;
       target.x = this.predict.value(player, "x"); target.y = this.predict.value(player, "y"); target.z = this.predict.value(player, "z");
       target.height = this.predict.value(player, "height"); target.crouched = target.height < EYE_STAND;
       const hit = sweepArrowVsTarget(this.predictFrom, to, target, arrow.kind);
-      if (!hit) continue;
+      if (!hit || (nearest >= 0 && hit.t >= nearest)) continue;
+      nearest = hit.t; hitPlayer = targetId; headshot = hit.kind === "head"; damage = arrow.damage * hit.damageMultiplier;
+    }
+    if (damaging && this.room.state.mode === "expedition") {
+      const dx = to.x - fromX, dy = to.y - fromY, dz = to.z - fromZ, lengthSq = dx * dx + dy * dy + dz * dz;
+      for (const creature of this.room.state.creatures.values()) {
+        const pose = this.creaturePose;
+        pose.kind = creature.kind; pose.yaw = creature.yaw;
+        pose.x = this.predict.value(creature, "x"); pose.y = this.predict.value(creature, "y"); pose.z = this.predict.value(creature, "z");
+        if (!creatureHit(pose as unknown as Parameters<typeof creatureHit>[0], this.predictFrom, to)) continue;
+        // Stop at the point of the stretch nearest the creature's centre.
+        const t = lengthSq > 0 ? Math.max(0, Math.min(1, ((pose.x - fromX) * dx + (pose.y + 0.6 - fromY) * dy + (pose.z - fromZ) * dz) / lengthSq)) : 0;
+        if (nearest < 0 || t < nearest) { nearest = t; hitPlayer = ""; }
+      }
+    }
+    if (hitPlayer && damaging && arrow.owner === this.sessionId && !this.predictedArrows.has(id)) {
       this.predictedArrows.add(id);
-      this.predictedTargets.set(targetId, performance.now());
-      const headshot = hit.kind === "head", damage = arrow.damage * hit.damageMultiplier;
+      this.predictedTargets.set(hitPlayer, performance.now());
+      const target = this.predictTarget;
+      const player = this.room.state.players.get(hitPlayer)!;
+      target.x = this.predict.value(player, "x"); target.y = this.predict.value(player, "y"); target.z = this.predict.value(player, "z"); target.height = this.predict.value(player, "height"); target.crouched = target.height < EYE_STAND;
       this.hud.hit(headshot);
       this.sounds.play("hit", damage);
       const point = this.renderer.screenPoint(target.x, headshot ? headCenterY(target) : target.y + target.height * 0.6, target.z);
       if (point) this.hud.damageNumber(point.x, point.y, damage, headshot);
-      return;
     }
+    return nearest;
   }
 
   private onHitConfirm(message: HitConfirmMessage): void {
@@ -906,7 +983,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
   private markBodyArrow(x: number, y: number, z: number): void {
     let nearest: ArrowRender | undefined, distance = Number.POSITIVE_INFINITY;
     for (const render of this.arrowRenders.values()) { const candidate = Math.hypot(render.sim.x - x, render.sim.y - y, render.sim.z - z); if (candidate < distance) { distance = candidate; nearest = render; } }
-    if (nearest) nearest.stuckForMs = BODY_ARROW_STUCK_MS;
+    if (nearest) { nearest.stuckForMs = BODY_ARROW_STUCK_MS; nearest.pinned = true; }
   }
 
   private tickPings(timeMs: number): void {

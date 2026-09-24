@@ -140,6 +140,9 @@ function phaseFor(id: string): number {
   return hash / 97;
 }
 
+/** Distance from the arrow model's centre to its tip. */
+const ARROW_TIP_M = 0.54;
+
 export type ArrowVisualKind = "arrow" | "scatter" | "tether" | "grapple" | "ink" | "spit";
 
 function createArrowVisual(kind: ArrowVisualKind = "arrow"): Group {
@@ -152,6 +155,8 @@ function createArrowVisual(kind: ArrowVisualKind = "arrow"): Group {
   featherA.position.y = -0.34;
   const featherB = new Mesh(new BoxGeometry(0.015, 0.12, 0.14), material);
   featherB.position.y = -0.34;
+  // Children are laid out with the tip at +0.54 m; shift them so the tip is the group origin, which is the sim point.
+  for (const part of [shaft, head, featherA, featherB]) part.position.y -= ARROW_TIP_M;
   group.add(shaft, head, featherA, featherB);
   return group;
 }
@@ -653,6 +658,7 @@ export class Renderer {
   /** Compile every material once so the first real frame does not hitch. */
   /** Drop the WebGL context and canvas. Attract / benchmark must call this. */
   dispose(): void {
+    this.ambience.dispose();
     this.renderer.dispose();
     this.canvas.remove();
   }

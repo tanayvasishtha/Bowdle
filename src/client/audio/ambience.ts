@@ -3,7 +3,7 @@ import { ZIP_SPEED } from "../../shared/constants.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { mulberry32, type SeededRng } from "../../shared/math/rng.ts";
 
-const AUDIO = { noiseSeconds: 2, jungleGain: 0.035, windGain: 0.022, waterGain: 0.08, waterRange: 35, rumbleGain: 0.1, rollGain: 0.13, zipGain: 0.045, birdMinMs: 2000, birdRangeMs: 5000 } as const;
+const AUDIO = { noiseSeconds: 2, jungleGain: 0.015, windGain: 0.02, waterGain: 0.08, waterRange: 35, rumbleGain: 0.1, rollGain: 0.13, zipGain: 0.03, birdGain: 0.018, birdMinMs: 3000, birdRangeMs: 7000 } as const;
 
 export class Ambience {
   private readonly map: MapData;
@@ -70,13 +70,13 @@ export class Ambience {
     const context = buses.context; this.context = context; this.master = context.createGain(); this.master.connect(buses.ambience);
     this.noise = context.createBuffer(1, context.sampleRate * AUDIO.noiseSeconds, context.sampleRate); const samples = this.noise.getChannelData(0);
     let seed = this.map.look.stainSeed ^ 0x4f1bbcdc; for (let index = 0; index < samples.length; index += 1) { seed = Math.imul(seed ^ seed >>> 15, 1 | seed); samples[index] = (seed >>> 0) / 2147483648 - 1; }
-    const jungle = this.loopNoise("bandpass", 3800), jungleGain = context.createGain(); jungleGain.gain.value = AUDIO.jungleGain; jungle.connect(jungleGain).connect(this.master);
+    const jungle = this.loopNoise("bandpass", 1800), jungleGain = context.createGain(); jungleGain.gain.value = AUDIO.jungleGain; jungle.connect(jungleGain).connect(this.master);
     const tremolo = context.createOscillator(), tremoloDepth = context.createGain(); tremolo.frequency.value = 0.12; tremoloDepth.gain.value = AUDIO.jungleGain * 0.35; tremolo.connect(tremoloDepth).connect(jungleGain.gain); tremolo.start(); this.running.push(tremolo);
     const wind = this.loopNoise("lowpass", 520), windGain = context.createGain(); windGain.gain.value = AUDIO.windGain; wind.connect(windGain).connect(this.master);
     this.water = context.createGain(); this.water.gain.value = 0; this.loopNoise("lowpass", 900).connect(this.water).connect(this.master);
     this.rumble = context.createGain(); this.rumble.gain.value = 0; this.loopNoise("lowpass", 110).connect(this.rumble).connect(this.master);
     this.roll = context.createGain(); this.roll.gain.value = 0; this.loopNoise("bandpass", 280).connect(this.roll).connect(this.master);
-    this.zip = context.createGain(); this.zip.gain.value = 0; this.zipTone = context.createOscillator(); this.zipTone.type = "triangle"; this.zipTone.connect(this.zip).connect(this.master); this.zipTone.start(); this.running.push(this.zipTone);
+    this.zip = context.createGain(); this.zip.gain.value = 0; this.zipTone = context.createOscillator(); this.zipTone.type = "triangle"; const zipSoften = context.createBiquadFilter(); zipSoften.type = "lowpass"; zipSoften.frequency.value = 1000; this.zipTone.connect(zipSoften).connect(this.zip).connect(this.master); this.zipTone.start(); this.running.push(this.zipTone);
     this.scheduleBird();
   }
 
@@ -91,7 +91,7 @@ export class Ambience {
   private chirp(): void {
     if (!this.context || !this.master) return;
     const tone = this.context.createOscillator(), gain = this.context.createGain(), now = this.context.currentTime, start = 1700 + this.rng() * 900;
-    tone.type = "sine"; tone.frequency.setValueAtTime(start, now); tone.frequency.exponentialRampToValueAtTime(start * 1.45, now + 0.11); gain.gain.setValueAtTime(0.035, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    tone.type = "sine"; tone.frequency.setValueAtTime(start, now); tone.frequency.exponentialRampToValueAtTime(start * 1.45, now + 0.11); gain.gain.setValueAtTime(0.0001, now); gain.gain.exponentialRampToValueAtTime(AUDIO.birdGain, now + 0.012); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
     tone.connect(gain).connect(this.master); tone.start(now); tone.stop(now + 0.22);
   }
 }

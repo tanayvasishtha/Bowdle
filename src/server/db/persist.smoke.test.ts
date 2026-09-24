@@ -1,4 +1,4 @@
-﻿import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { GameDatabase, closeGameDatabase } from "./GameDatabase.ts";

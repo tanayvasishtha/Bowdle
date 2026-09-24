@@ -18,6 +18,8 @@ import {
   MAX_REWIND_MS,
   BOULDER_RADIUS,
   PLAYER_WIDTH,
+  AIM_RANGE_MAX_M,
+  AIM_RANGE_MIN_M,
   RESPAWN_MS,
   LOBBY_RESPAWN_MS,
   RECONNECT_WINDOW_S,
@@ -357,7 +359,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const sim = spawnAbilityProjectile(event, crouched);
     const arrow = new ArrowState(); Object.assign(arrow, sim);
     arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
-    arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs; arrow.kind = event.type;
+    arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs - 1000 / TICK_HZ; arrow.kind = event.type;
     this.state.arrows.set(`${owner}-${this.arrowSerial += 1}`, arrow);
   }
 
@@ -383,8 +385,10 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
   }
 
   private createArrow(owner: string, team: number, event: FireEvent): void {
-    // The server always decides the range itself; a client never supplies it.
-    const aimed = { ...event, aimRange: this.aimRangeFor(owner, event) };
+    // The shooter's own crosshair range, so the server launches exactly what the shooter saw. It can only move the
+    // convergence point along their own look ray, so the worst a bad value does is aim that player's own shot badly.
+    const sent = event.aimRange;
+    const aimed = { ...event, aimRange: sent !== undefined && Number.isFinite(sent) && sent > 0 ? Math.min(AIM_RANGE_MAX_M, Math.max(AIM_RANGE_MIN_M, sent)) : this.aimRangeFor(owner, event) };
     const buffs = this.expedition?.buffsFor(owner);
     const shots = (this.villageShotCount.get(owner) ?? 0) + 1;
     this.villageShotCount.set(owner, shots);
@@ -394,7 +398,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         const arrow = new ArrowState(); Object.assign(arrow, sim);
         if (buffs && buffs.fireBonus > 0) arrow.damage = (arrow.damage || 0) + buffs.fireBonus;
         arrow.prevX = arrow.x; arrow.prevY = arrow.y; arrow.prevZ = arrow.z;
-        arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs;
+        // Stepped once more in this same tick (stepArrows runs after the players), so it has already flown one tick
+        // when clients first see it. Stamp it a tick earlier so its age matches its flight; otherwise it pops forward.
+        arrow.owner = owner; arrow.team = team; arrow.bornMs = this.simulationNowMs - 1000 / TICK_HZ;
         const id = `${owner}-${this.arrowSerial += 1}`;
         this.state.arrows.set(id, arrow); this.arrowOrigins.set(id, { x: event.x, y: event.y, z: event.z });
       }

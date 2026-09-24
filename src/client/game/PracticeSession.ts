@@ -34,7 +34,7 @@ import { createPlayerSim, stepPlayer, type PlayerSim } from "../../shared/sim/mo
 import { JOURNAL_LOOK } from "../render/look.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { ropeSag, type Renderer } from "../render/Renderer.ts";
-import { CameraRig } from "./CameraRig.ts";
+import { CameraRig, type CameraView } from "./CameraRig.ts";
 import type { InputSampler } from "./InputSampler.ts";
 import { COURSE_REACH_M, CourseGuide, courseDone, emptySnapshot, moveSignals, snapshotOf, type CourseResult, type CourseSignal } from "./course.ts";
 import { completeTutorial, ensureAccount } from "../account.ts";
@@ -44,7 +44,8 @@ import { musicIntensity } from "../audio/spatial.ts";
 import { stabProgress } from "../render/characters/motion.ts";
 
 type TargetState = CampTarget & { x: number; hp: number; alive: boolean; lastDamageAtMs: number; respawnAtMs: number };
-type ArrowEntry = { sim: ArrowSim; visual: Group; stuckAtMs: number; trail: Float32Array; trailCount: number; captureStep: number };
+/** fromX/Y/Z is where the arrow was at the start of the last tick, so frames between ticks can draw it in between. */
+type ArrowEntry = { sim: ArrowSim; visual: Group; stuckAtMs: number; trail: Float32Array; trailCount: number; captureStep: number; fromX: number; fromY: number; fromZ: number };
 export type PracticeShotResult = { headshot: boolean; killed: boolean; targetId: string };
 /** auto starts the course only for players who have not finished it; replay always starts it; first also leads into a first match. */
 export type CourseMode = "auto" | "replay" | "first";
@@ -72,6 +73,8 @@ export class PracticeSession {
   private readonly sounds = new SoundEffects();
   private readonly targets = campTargets.map(targetState);
   private readonly arrows: ArrowEntry[] = [];
+  private readonly cameraView: CameraView = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
+  private readonly arrowPose: ArrowSim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
   private readonly crosshair: Crosshair;
   private readonly hitText: HTMLDivElement;
   private readonly replayCard: HTMLDivElement;
@@ -283,7 +286,7 @@ export class PracticeSession {
     const targets = this.targets.filter((target) => target.alive).map((target) => ({ x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false }));
     const aimed = { ...event, aimRange: aimRangeAlongLook(event, this.player.crouched, campMap, targets) };
     for (const arrow of spawnVolley(aimed, this.player.crouched)) {
-      this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow, arrow.kind, this.trailId), stuckAtMs: 0, trail: new Float32Array(PRACTICE_TRAIL_POINTS * 3), trailCount: 0, captureStep: 0 });
+      this.arrows.push({ sim: arrow, visual: this.renderer.spawnArrowVisual(arrow, arrow.kind, this.trailId), stuckAtMs: 0, trail: new Float32Array(PRACTICE_TRAIL_POINTS * 3), trailCount: 0, captureStep: 0, fromX: arrow.x, fromY: arrow.y, fromZ: arrow.z });
     }
     this.sounds.play("release");
   }
@@ -308,6 +311,7 @@ export class PracticeSession {
       else this.melee();
     }
     const subDt = 1 / (TICK_HZ * SUBSTEPS);
+    for (const entry of this.arrows) { entry.fromX = entry.sim.x; entry.fromY = entry.sim.y; entry.fromZ = entry.sim.z; }
     for (let step = 0; step < SUBSTEPS; step += 1) { this.stepProjectiles(subDt); this.stepDrill(subDt); }
     this.updateTargets();
     this.simTimeMs += 1000 / TICK_HZ;
@@ -321,7 +325,21 @@ export class PracticeSession {
     const tickMs = 1000 / TICK_HZ;
     while (this.accumulatorMs >= tickMs) { this.tick(); this.accumulatorMs -= tickMs; }
     const alpha = this.accumulatorMs / tickMs;
-    this.cameraRig.update(this.renderer.camera, this.previous, this.player, alpha, elapsed);
+    // Turn with the live mouse, not the angle the last tick stored, so looking around is smooth above 30 Hz.
+    const view = this.cameraView;
+    view.x = this.previous.x + (this.player.x - this.previous.x) * alpha;
+    view.y = this.previous.y + (this.player.y - this.previous.y) * alpha;
+    view.z = this.previous.z + (this.player.z - this.previous.z) * alpha;
+    view.yaw = this.sampler.yaw; view.pitch = this.sampler.pitch;
+    this.cameraRig.update(this.renderer.camera, this.previous, this.player, alpha, elapsed, view);
+    // Arrows fly 2 to 5 m per tick; draw them part way between ticks so they glide instead of jumping.
+    for (const entry of this.arrows) {
+      if (entry.sim.stuck) continue;
+      const pose = this.arrowPose;
+      pose.x = entry.fromX + (entry.sim.x - entry.fromX) * alpha; pose.y = entry.fromY + (entry.sim.y - entry.fromY) * alpha; pose.z = entry.fromZ + (entry.sim.z - entry.fromZ) * alpha;
+      pose.vx = entry.sim.vx; pose.vy = entry.sim.vy; pose.vz = entry.sim.vz;
+      this.renderer.updateArrowVisual(entry.visual, pose);
+    }
     this.renderer.setFeel(this.cameraRig.output.hurt, this.cameraRig.output.streaks);
     this.cameraRig.onMove ??= (kind) => this.sounds.play(kind);
     const fraction = drawFraction(this.player.drawMs, fullDrawMs(this.player.arrowSlot));

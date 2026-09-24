@@ -33,9 +33,9 @@ export class MusicDirector {
     const { context } = buses;
     const layer = (): GainNode => { const gain = context.createGain(); gain.gain.value = 0; gain.connect(buses.music); return gain; };
     this.layers = { pad: layer(), percussion: layer(), melody: layer() };
-    const padFilter = context.createBiquadFilter(); padFilter.type = "lowpass"; padFilter.frequency.value = 900; padFilter.connect(this.layers.pad);
+    const padFilter = context.createBiquadFilter(); padFilter.type = "lowpass"; padFilter.frequency.value = 600; padFilter.connect(this.layers.pad);
     for (const frequency of CHORDS_HZ[0]!) {
-      const oscillator = context.createOscillator(); oscillator.type = "sawtooth"; oscillator.frequency.value = frequency;
+      const oscillator = context.createOscillator(); oscillator.type = "triangle"; oscillator.frequency.value = frequency;
       const voice = context.createGain(); voice.gain.value = AUDIO_MIX.padGain;
       oscillator.connect(voice).connect(padFilter); oscillator.start(); this.pads.push(oscillator);
     }
@@ -75,10 +75,10 @@ export class MusicDirector {
       const at = this.nextBeatS, bar = Math.floor(this.beat / 4);
       if (this.beat % 8 === 0) {
         const chord = CHORDS_HZ[Math.floor(bar / 2) % CHORDS_HZ.length]!;
-        this.pads.forEach((pad, index) => pad.frequency.setTargetAtTime(chord[index]!, at, 0.4));
+        this.pads.forEach((pad, index) => pad.frequency.setTargetAtTime(chord[index]!, at, 0.03));
       }
       if (this.beat % 2 === 0) this.kick(at);
-      this.shaker(at + beatS / 2);
+      if (this.beat % 2 === 1) this.shaker(at + beatS / 2);
       if (this.rng() < AUDIO_MIX.melodyChance) this.note(at, SCALE_HZ[Math.floor(this.rng() * SCALE_HZ.length)]!, beatS * (this.rng() < 0.3 ? 2 : 1));
       this.beat += 1;
       this.nextBeatS += beatS;
@@ -96,9 +96,9 @@ export class MusicDirector {
   private shaker(at: number): void {
     const { context } = this.buses!;
     const source = context.createBufferSource(), filter = context.createBiquadFilter(), gain = context.createGain();
-    source.buffer = this.noise; filter.type = "highpass"; filter.frequency.value = 5000;
+    source.buffer = this.noise; filter.type = "bandpass"; filter.frequency.value = 6000; filter.Q.value = 0.8;
     gain.gain.setValueAtTime(AUDIO_MIX.shakerGain, at); gain.gain.exponentialRampToValueAtTime(0.001, at + 0.07);
-    source.connect(filter).connect(gain).connect(this.layers!.percussion); source.start(at); source.stop(at + 0.08);
+    source.connect(filter).connect(gain).connect(this.layers!.percussion); source.start(at, this.rng() * 0.15); source.stop(at + 0.08);
   }
 
   private note(at: number, frequency: number, length: number): void {

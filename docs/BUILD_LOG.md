@@ -1,3 +1,33 @@
+## Fix 5: softer audio, arrows land where they are drawn, smooth camera (2026-09-25)
+
+Tag `fix5`.
+
+Built, audio (players found it irritating):
+- The jungle bed was noise through a 3.8 kHz band, the range hearing is most sensitive to, playing forever at full ambience volume. It now sits at 1.8 kHz and less than half the level.
+- Master chain: a gentle high shelf (6 kHz, -5 dB) and a compressor, so a hit, a kill and a streak chime landing together no longer spike.
+- Every effect used to start at full volume in the first sample, which clicks. They now fade in over 6 ms. Each play takes a random slice of noise and a small pitch change, so the same sound never repeats exactly.
+- Square and sawtooth voices (headshot, UI click, rope snap, reel, the music pad) became filtered triangles and sines. The music pad no longer glides between chords, the shaker plays half as often and softer, and bird chirps fade in.
+- Defaults: music 0.5 to 0.25, ambience 1 to 0.6, effects 1 to 0.9 (new players only; saved settings are kept).
+- The first launch graphics check left its jungle bed playing under the menu's, so two stacked. Disposing a renderer now stops its ambience.
+- Your own shot plays the bow release sound online; it used to be silent.
+
+Built, arrows (the one you watch and where it lands were far apart):
+- Arrows stop where they hit. The server removes an arrow on a hit, but the removal only arrives a round trip later, so every screen drew the arrow flying 5 to 17 m past the target and then hanging there for 8 s. Each screen now sweeps its drawn arrows against players (and raiders) and parks one at the hit point; the arrow that kills someone stops too, even though the death arrives first.
+- An arrow removed while still in flight never hangs in the air; only one resting in a wall or the ground stays.
+- Client and server launch identically: the client sends the crosshair range it aimed with, and the server uses it (clamped to 2 to 200 m). They used to raycast separately against different player positions, which could move the landing point by up to 2 m at range.
+- The server stamped a new arrow at the start of the tick but also moved it a full tick, so every arrow popped 2 to 5 m forward when the server copy arrived. It is now stamped one tick earlier, matching its flight.
+- The client steps arrows against the same map (with breakable walls) and the same gravity as the server; small corrections fade over 60 ms instead of snapping; a shot the server never confirmed can no longer claim the next shot's server copy.
+- The arrow model's tip is its position, so stuck arrows are not half buried, and the world arrow is hidden for its first metre while the bow in your hands still draws it.
+- Camera: online it followed the raw 30 Hz simulation, so flying arrows juddered and even mouse look turned in 30 Hz steps. It now uses the smooth interpolated position and the live mouse angles. The practice camp gets the same camera fix, and its arrows are drawn between ticks instead of jumping 2 to 5 m per tick.
+
+Also: a literal NUL character had slipped into a string in `OnlineSession.ts` in fix 4. It is now an escape, and `npm run check` fails on control characters and byte order marks (which found and removed two more byte order marks).
+
+Verified: `npm run check` 392 of 392; Playwright 61 of 61. The duel test cannot watch an arrow fly: two WebGL pages in software rendering draw about 2 frames a second, so an assertion on where the arrow is drawn was tried and removed rather than kept as a check that cannot see what it claims. The flight changes were verified by instrumenting that run (local arrow correctly paired with its server copy) and by the code paths above.
+
+Left:
+- Watch it on a real screen: fire at a bot in the Lobby and at a raider in Village Defense, and listen for a few minutes with music on.
+- `tests/server/party.test.ts` fails with a network error under heavy machine load on the unchanged code too (5 of 8 runs at one point); it passes on an idle machine.
+
 ## v3.0.1: the release to deploy (2026-09-23)
 
 `v3.0.0` was tagged before the gates were green and nine map commits landed after it. Do not deploy it. `v3.0.1` is

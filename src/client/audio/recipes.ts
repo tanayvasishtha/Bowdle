@@ -12,16 +12,16 @@ export const RECIPES: Record<RecipeName, readonly Voice[]> = {
   hit: [tone("triangle", 900, 700, 0.06, 0.08)],
   kill: [tone("sine", 660, 660, 0.12, 0.1), tone("sine", 990, 990, 0.16, 0.1, 0.07)],
   dodge: [noise("bandpass", 2000, 600, 0.18, 0.12)],
-  doubleJump: [noise("highpass", 3000, 3000, 0.1, 0.08), tone("triangle", 500, 800, 0.1, 0.06)],
+  doubleJump: [noise("bandpass", 1500, 1200, 0.1, 0.07), tone("triangle", 500, 800, 0.1, 0.05)],
   wallJump: [noise("lowpass", 700, 700, 0.08, 0.2), tone("triangle", 300, 600, 0.12, 0.1)],
   mantle: [noise("bandpass", 900, 500, 0.2, 0.1)],
-  reel: [tone("sawtooth", 180, 260, 0.25, 0.04)],
-  ropeSnap: [noise("highpass", 2500, 2500, 0.12, 0.2), tone("square", 1200, 200, 0.15, 0.06)],
+  reel: [tone("triangle", 180, 260, 0.25, 0.04)],
+  ropeSnap: [noise("bandpass", 1500, 900, 0.12, 0.1), tone("triangle", 900, 200, 0.15, 0.06)],
   footstep: [noise("lowpass", 520, 260, 0.07, 0.22), tone("sine", 90, 60, 0.05, 0.08)],
-  zip: [noise("bandpass", 1400, 3200, 0.35, 0.08), tone("triangle", 300, 700, 0.35, 0.04)],
+  zip: [noise("bandpass", 1200, 2000, 0.35, 0.06), tone("triangle", 300, 600, 0.35, 0.03)],
   twang: [tone("triangle", 520, 260, 0.12, 0.08), noise("bandpass", 900, 600, 0.08, 0.06)],
-  click: [tone("square", 1400, 1400, 0.03, 0.04)],
-  hover: [tone("sine", 900, 900, 0.02, 0.02)],
+  click: [tone("sine", 880, 760, 0.05, 0.035)],
+  hover: [tone("sine", 660, 660, 0.04, 0.012)],
 };
 
 /** Hits tick higher the harder they land: +6 Hz per point of damage. */

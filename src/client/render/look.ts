@@ -57,7 +57,7 @@ export const AUDIO_MIX = {
   bpm: 92, padGain: 0.05, kickGain: 0.18, shakerGain: 0.02, melodyGain: 0.05, melodyChance: 0.45,
   masterShelfHz: 6000, masterShelfDb: -5, limiterThresholdDb: -18, attackS: 0.006, pitchJitter: 0.04,
   footstepRangeM: 18, footstepMinSpeed: 1, footstepRunSpeed: 6, footstepWalkGain: 0.45, walkStrideM: 2, runStrideM: 2.8,
-  enemyViewM: 35, shotCueRangeM: 30, cueMs: 900, cueRadius: 0.38,
+  enemyViewM: 35, shotCueRangeM: 30, cueMs: 900, cueRadius: 0.38, landRangeM: 60,
   defaultMusic: 0.25, defaultEffects: 0.9, defaultAmbience: 0.6,
 } as const;
 
@@ -76,5 +76,8 @@ export const CREATURE_LOOK = {
 
 /** Arrows in flight: hide the world arrow for its first metre (the bow in your hands is still drawing it there), and how long an arrow stays visible in whoever it hit. */
 export const ARROW_LOOK = { showAfterM: 1, hitHideMs: 150, correctionSmoothMs: 60, pairWindowMs: 300, recentDeathMs: 600, restingMs: 60 } as const;
+
+/** The aim dot: where the drawn arrow would land. Pixel sizes, red on anything, larger with a white ring on an enemy. */
+export const AIM_DOT = { size: 7, targetSize: 11, color: "#e0241b", ring: "#fffaf0", edge: "#2a160c" } as const;
 
 export const HIT_FEEL = { predictedConfirmMs: 600, damageNumberMs: 600, damageNumberRisePx: 46, damageNumberOffsetX: 34, damageNumberOffsetY: -26, killConfirmMs: 250 } as const;

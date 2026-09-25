@@ -1,4 +1,4 @@
-import { ARROW_GRAVITY, ARROW_RADIUS, ARROW_SPAWN_FORWARD, EYE_CROUCH, EYE_STAND, HEAD_MULT, QUIVER } from "../constants.ts";
+import { ARROW_GRAVITY, ARROW_LIFETIME_MS, ARROW_RADIUS, ARROW_SPAWN_FORWARD, EYE_CROUCH, EYE_STAND, HEAD_MULT, QUIVER } from "../constants.ts";
 import type { MapData } from "../maps/types.ts";
 import { rampHeightAt } from "../maps/ramps.ts";
 import type { Vec3 } from "../math/vec3.ts";
@@ -210,6 +210,43 @@ export function stepArrow(arrow: ArrowSim, map: MapData, dt: number, gravity = A
   arrow.ageMs += dt * 1000 * earliest;
   arrow.stuck = hit;
   return { worldHit: hit, t: earliest, boxHit };
+}
+
+/** Where a landing prediction stopped: the world, a player's body or head, or nowhere before the arrow expires. */
+export type Landing = Vec3 & { kind: "world" | "body" | "head" | "creature" | "none" };
+
+const LANDING_STEP_S = 1 / 60;
+const LANDING_MAX_S = 3;
+const landingFrom: Vec3 = { x: 0, y: 0, z: 0 };
+
+/**
+ * Where an arrow released now would first land. It flies the same arrow the server launches (spawnArrow and stepArrow
+ * against the same map), sweeping `targets` each step, and writes the point into `out`. `creatures`, when given, returns
+ * how far along a stretch of flight (0 to 1) it hits a creature, or -1.
+ */
+export function predictLanding(event: Omit<FireEvent, "kind">, crouched: boolean, map: MapData, targets: Iterable<HitboxTarget>, out: Landing, matchTimeMs = 0, gravity = ARROW_GRAVITY, creatures?: (from: Readonly<Vec3>, to: Readonly<Vec3>) => number): Landing {
+  const arrow = spawnArrow(event, crouched);
+  out.kind = "none"; out.x = arrow.x; out.y = arrow.y; out.z = arrow.z;
+  for (let elapsed = 0; elapsed < ARROW_LIFETIME_MS / 1000; elapsed += LANDING_STEP_S) {
+    landingFrom.x = arrow.x; landingFrom.y = arrow.y; landingFrom.z = arrow.z;
+    stepArrow(arrow, map, LANDING_STEP_S, gravity, matchTimeMs);
+    let nearest = 2;
+    for (const target of targets) {
+      const hit = sweepTargetHit(landingFrom, arrow, target, ARROW_RADIUS);
+      if (hit && hit.t < nearest) { nearest = hit.t; out.kind = hit.kind; }
+    }
+    const creature = creatures ? creatures(landingFrom, arrow) : -1;
+    if (creature >= 0 && creature < nearest) { nearest = creature; out.kind = "creature"; }
+    if (nearest <= 1) {
+      out.x = landingFrom.x + (arrow.x - landingFrom.x) * nearest;
+      out.y = landingFrom.y + (arrow.y - landingFrom.y) * nearest;
+      out.z = landingFrom.z + (arrow.z - landingFrom.z) * nearest;
+      return out;
+    }
+    out.x = arrow.x; out.y = arrow.y; out.z = arrow.z;
+    if (arrow.stuck) { out.kind = "world"; return out; }
+  }
+  return out;
 }
 
 export function sweepArrowVsTarget(start: Readonly<Vec3>, end: Readonly<Vec3>, target: HitboxTarget, kind = "arrow"): (TargetHit & { damageMultiplier: number }) | null {

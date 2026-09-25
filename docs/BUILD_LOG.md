@@ -1,3 +1,20 @@
+## Fix 7: arrows go where the crosshair is, aim dot, new bow sounds (2026-09-25)
+
+Tag `fix7`.
+
+Built:
+- Arrows drifting off the crosshair. On any scaled display (Windows at 125% or 150%, a Mac Retina screen) the game canvas was shown at its pixel size, larger than the window. The view was zoomed in and its centre sat right of and below the crosshair, so arrows flew to a point that was not under it. The canvas now matches the window at every scale.
+- Aim dot. While the bow is drawn, a red dot marks where the arrow would land if released now. It flies the same arrow the server does (launch, drop, walls, players and raiders), so it shows the real landing point wherever that differs from the crosshair, for example on a long shot into open ground. On an enemy or a raider it grows a white ring. Online and in the practice camp.
+- New bow and hit sounds, all generated in code: the release is a plucked string with the bow's thump, the string slap and the arrow's whoosh; the hit is a short knock over a thud; a headshot adds a small bell; a kill is two plucked notes over a low thump. Sounds that existed but never played online now do: the limbs creaking as you draw, your arrow thunking into wood or ground (up to 60 m away), and the headshot sound. Levels were checked by rendering each sound offline; all sit near the old release level.
+- "It hangs in the middle": 60 s of Lobby and 100 s of Village Defense with long-frame tracing found no stall after loading. The disconnect fixed in fix 6 matches the report (the server stopped taking your input while your screen kept running).
+
+Tests: `predictLanding` in `aimConvergence.test.ts` (on the wall under the crosshair at full and partial draw, on a player, down on the ground far away, none for a shot that outlives the arrow); `tests/e2e/aim.spec.ts` at 125% scale (fails on the old canvas sizing).
+
+Verified: `npm run check` 397 of 397. Playwright 60 of 62; the two failures are timing tests at about 1 frame a second in software rendering, and both fail on the fix 6 code too right now (HUD draw meter 2 of 2 runs, grapple swing 1 of 4). Grapple failed 3 of 5 with this change and 1 of 4 without, which is within that noise; this change does not touch the grapple.
+
+Left:
+- Hear the new sounds on real speakers and say which ones to change.
+
 ## Fix 6: shots that never reached the server, first-shot freeze (2026-09-25)
 
 Tag `fix6`.

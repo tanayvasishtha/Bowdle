@@ -8,8 +8,8 @@ import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
 import { createPlayerSim, stepPlayer } from "../../shared/sim/movement.ts";
 import { mergeBreakablesIntoMap, type BreakableRuntime } from "../../shared/sim/mapFeatures.ts";
-import { aimRangeAlongLook, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
-import { ARROW_SLOTS, fullDrawMs } from "../../shared/sim/bow.ts";
+import { aimRangeAlongLook, predictLanding, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim, type Landing } from "../../shared/sim/arrows.ts";
+import { ARROW_SLOTS, arrowSpeed, fullDrawMs } from "../../shared/sim/bow.ts";
 import type { ZipLine } from "../../shared/maps/types.ts";
 import { QuiverStrip } from "../ui/quiver.ts";
 import { emptySnapshot, moveSignals, snapshotOf } from "./course.ts";
@@ -53,6 +53,7 @@ import { busTarget } from "../audio/bus.ts";
 import { cueAngle, footstepGain, musicIntensity, strideLength } from "../audio/spatial.ts";
 import { SoundCues, type CueKind } from "../ui/soundCues.ts";
 import { Crosshair } from "../ui/crosshair.ts";
+import { AimDot } from "../ui/aimDot.ts";
 import { PAD } from "./gamepad.ts";
 import { boulderPosition } from "../../shared/sim/hazards.ts";
 import type { GameSettings } from "../settings.ts";
@@ -65,7 +66,7 @@ export type ExpeditionView = {
   herbs: number; herbsDrawn: number; downed: boolean; night: number; hud: string; me: { x: number; y: number; z: number };
 };
 /** hitAtMs is when this arrow was seen to hit someone on this screen (0 if not); from then on it stays at the hit point. */
-type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number; placed: boolean; hitAtMs: number; gone: boolean; startX: number; startY: number; startZ: number; movedAtMs: number; pinned: boolean };
+type ArrowRender = { visual: ReturnType<Renderer["spawnArrowVisual"]>; sim: ArrowSim; removedAtMs: number; stuckForMs: number; placed: boolean; hitAtMs: number; gone: boolean; startX: number; startY: number; startZ: number; movedAtMs: number; pinned: boolean; landed: boolean };
 
 export class OnlineSession {
   private spectator = false;
@@ -133,6 +134,7 @@ export class OnlineSession {
     this.quiver = new QuiverStrip(renderer.canvas.parentElement!);
     this.cues = new SoundCues(renderer.canvas.parentElement!);
     this.crosshair = new Crosshair(renderer.canvas.parentElement!);
+    this.aimDot = new AimDot(renderer.canvas.parentElement!);
     this.indicators = loadSettings().soundIndicators;
     window.addEventListener("bowdle-settings", (event) => { this.indicators = (event as CustomEvent<GameSettings>).detail.soundIndicators; });
     this.cameraRig.onMove = (kind) => this.sounds.play(kind);
@@ -454,7 +456,10 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     for (const [id, tether] of this.room.state.tethers) this.renderer.setTether(id, tether.fromX, tether.fromY, tether.fromZ, tether.toX, tether.toY, tether.toZ);
     const drawn = drawFraction(this.me.state.drawMs, fullDrawMs(this.me.state.arrowSlot));
     this.renderer.setDrawFraction(drawn);
+    if (this.me.state.drawMs > 0 && !this.wasDrawing && this.me.state.alive) this.sounds.play("draw");
+    this.wasDrawing = this.me.state.drawMs > 0;
     this.crosshair.update(drawn);
+    this.updateAimDot(drawn);
     this.hud.setDraw(drawn);
     this.sampler.setAimSlowdown(this.enemyUnderCrosshair);
     this.renderer.setMeleeSwing(stabProgress(this.me.state.meleeCooldownMs));
@@ -486,7 +491,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
         // Place the visual where the arrow is before creating it, so a trail never starts at the map origin.
         const x = this.arrows.value(entry, "x"), y = this.arrows.value(entry, "y"), z = this.arrows.value(entry, "z");
         const sim = { x, y, z, vx: source.vx, vy: source.vy, vz: source.vz, damage: 0, ageMs: 0, stuck: false };
-        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.look.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0, placed: false, hitAtMs: 0, gone: false, startX: x, startY: y, startZ: z, movedAtMs: timeMs, pinned: false };
+        render = { visual: this.renderer.spawnArrowVisual(sim, source.kind, this.room.state.players.get(source.owner)?.look.arrowTrail ?? ""), sim, removedAtMs: 0, stuckForMs: source.kind === "arrow" || source.kind === "scatter" || source.kind === "tether" ? STUCK_ARROW_MS : 0, placed: false, hitAtMs: 0, gone: false, startX: x, startY: y, startZ: z, movedAtMs: timeMs, pinned: false, landed: false };
         this.arrowRenders.set(entry.id, render);
       }
       // Once it has hit someone on this screen it stays at the hit point, even while the server copy is still in flight.
@@ -496,6 +501,12 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
       // same spot, but its updates arrive a moment late, and following them drew the arrow jumping back and flying in again.
       const resting = entry.server !== undefined && entry.local?.stuck === true;
       if (resting) { render.sim.x = entry.local!.x; render.sim.y = entry.local!.y; render.sim.z = entry.local!.z; }
+      // Your own shot thunks into whatever it landed in.
+      if (entry.local?.stuck === true && !render.landed && (source.kind === "arrow" || source.kind === "scatter")) {
+        render.landed = true;
+        const camera = this.renderer.camera.position, distance = Math.hypot(entry.local.x - camera.x, entry.local.y - camera.y, entry.local.z - camera.z);
+        if (distance < AUDIO_MIX.landRangeM) this.sounds.playAt("wood", entry.local.x, entry.local.y, entry.local.z, 1 - distance / AUDIO_MIX.landRangeM);
+      }
       else { render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z"); }
       // The first frame only places the arrow; from then on each frame sweeps the stretch it just flew.
       if (render.placed) {
@@ -552,6 +563,45 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
   private enemyInView = false;
   private enemyUnderCrosshair = false;
   private readonly crosshair: Crosshair;
+  private readonly aimDot: AimDot;
+  private wasDrawing = false;
+  private readonly landing: Landing = { x: 0, y: 0, z: 0, kind: "none" };
+  private readonly aimShot = { type: "fire" as const, x: 0, y: 0, z: 0, yaw: 0, pitch: 0, fraction: 0, speed: 0, damage: 0, aimRange: 0 };
+  private readonly enemyRows: Array<{ x: number; y: number; z: number; height: number; crouched: boolean }> = [];
+
+  /** The red dot: where the arrow being drawn would land if released now. It lights up on an enemy or a raider. */
+  private updateAimDot(drawn: number): void {
+    const me = this.me.state;
+    if (this.spectator || !me.alive || drawn <= 0) { this.aimDot.hide(); return; }
+    const rows = this.enemyRows; let count = 0;
+    for (const [id, player] of this.room.state.players) {
+      if (id === this.sessionId || !player.alive || (this.room.state.mode !== "ffa" && player.team === me.team)) continue;
+      const row = rows[count] ?? (rows[count] = { x: 0, y: 0, z: 0, height: 0, crouched: false }); count += 1;
+      row.x = this.predict.value(player, "x"); row.y = this.predict.value(player, "y"); row.z = this.predict.value(player, "z");
+      row.height = this.predict.value(player, "height"); row.crouched = row.height < EYE_STAND;
+    }
+    rows.length = count;
+    const shot = this.aimShot;
+    shot.x = this.aimLook.x; shot.y = this.aimLook.y; shot.z = this.aimLook.z; shot.yaw = this.aimLook.yaw; shot.pitch = this.aimLook.pitch;
+    shot.fraction = drawn; shot.speed = arrowSpeed(drawn); shot.aimRange = this.sampler.aimRange;
+    predictLanding(shot, me.crouched, this.playMap, rows, this.landing, this.room.clock.serverNow(), undefined, this.room.state.mode === "expedition" ? this.creatureAlong : undefined);
+    this.aimDot.place(this.landing, this.renderer.camera, this.renderer.canvas.clientWidth, this.renderer.canvas.clientHeight);
+  }
+
+  /** How far along a stretch of flight (0 to 1) it meets a living creature, or -1. */
+  private readonly creatureAlong = (from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }): number => {
+    const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z, lengthSq = dx * dx + dy * dy + dz * dz;
+    let nearest = -1;
+    for (const creature of this.room.state.creatures.values()) {
+      const pose = this.creaturePose;
+      pose.kind = creature.kind; pose.yaw = creature.yaw;
+      pose.x = this.predict.value(creature, "x"); pose.y = this.predict.value(creature, "y"); pose.z = this.predict.value(creature, "z");
+      if (!creatureHit(pose as unknown as Parameters<typeof creatureHit>[0], from, to)) continue;
+      const t = lengthSq > 0 ? Math.max(0, Math.min(1, ((pose.x - from.x) * dx + (pose.y + 0.6 - from.y) * dy + (pose.z - from.z) * dz) / lengthSq)) : 0;
+      if (nearest < 0 || t < nearest) nearest = t;
+    }
+    return nearest;
+  };
   private readonly heard = new Map<string, { x: number; z: number; stride: number; grapple: boolean; zip: string }>();
   private readonly hazardPhases = new Map<string, string>();
   private readonly boulderPoint = { x: 0, y: 0, z: 0 };
@@ -728,7 +778,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
   private onCreatureHit(message: CreatureHitMessage): void {
     if (message.blocked) { this.sounds.play("dagger"); this.hud.tickerLine("Shield blocked"); return; }
     this.hud.hit(message.gem);
-    this.sounds.play("hit", message.damage);
+    this.sounds.play(message.gem ? "headshot" : "hit", message.damage);
     const creature = this.room.state.creatures.get(message.id) ?? this.creatureSeen.get(message.id);
     if (!creature) return;
     const stats: { height: number; gemHeightM?: number } = CREATURE_TUNING[(creature.kind in CREATURE_TUNING ? creature.kind : "beetle") as keyof typeof CREATURE_TUNING];
@@ -928,7 +978,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
       const player = this.room.state.players.get(hitPlayer)!;
       target.x = this.predict.value(player, "x"); target.y = this.predict.value(player, "y"); target.z = this.predict.value(player, "z"); target.height = this.predict.value(player, "height"); target.crouched = target.height < EYE_STAND;
       this.hud.hit(headshot);
-      this.sounds.play("hit", damage);
+      this.sounds.play(headshot ? "headshot" : "hit", damage);
       const point = this.renderer.screenPoint(target.x, headshot ? headCenterY(target) : target.y + target.height * 0.6, target.z);
       if (point) this.hud.damageNumber(point.x, point.y, damage, headshot);
     }
@@ -939,7 +989,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     const predictedAt = this.predictedTargets.get(message.target);
     if (predictedAt !== undefined && performance.now() - predictedAt <= HIT_FEEL.predictedConfirmMs) { this.predictedTargets.delete(message.target); return; }
     this.hud.hit(message.headshot);
-    this.sounds.play("hit", message.damage);
+    this.sounds.play(message.headshot ? "headshot" : "hit", message.damage);
     const target = this.room.state.players.get(message.target);
     if (!target) return;
     const point = this.renderer.screenPoint(target.x, target.y + (message.headshot ? headCenterY(target) - target.y : target.height * 0.6), target.z);

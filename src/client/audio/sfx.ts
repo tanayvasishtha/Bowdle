@@ -1,9 +1,11 @@
 import { audioBuses } from "./bus.ts";
 import { AUDIO_MIX, MULTIKILL_CHIME } from "../render/look.ts";
 
-import { HIT_PITCH_PER_DAMAGE, RECIPES, type RecipeName, type Voice } from "./recipes.ts";
+import { RECIPES, type RecipeName, type Voice } from "./recipes.ts";
+import { BOW_SOUNDS, type BowSound } from "./bowSynth.ts";
 
-export type SoundName = "draw" | "release" | "wood" | "body" | "headshot" | "dagger" | "paper" | "multikill" | RecipeName;
+export type SoundName = BowSound | "dagger" | "paper" | "multikill" | RecipeName;
+const isBowSound = (name: string): name is BowSound => name in BOW_SOUNDS;
 const MIN_GAIN = 0.001;
 
 export class SoundEffects {
@@ -77,8 +79,8 @@ export class SoundEffects {
     }
   }
 
-  /** A recipe sound at a world position, panned around the listener. The caller decides the loudness. */
-  playAt(name: RecipeName, x: number, y: number, z: number, loudness: number): void {
+  /** A sound at a world position, panned around the listener. The caller decides the loudness. */
+  playAt(name: RecipeName | BowSound, x: number, y: number, z: number, loudness: number): void {
     this.ensureContext();
     const context = this.context, master = this.master;
     if (!context || !master || loudness <= 0) return;
@@ -89,21 +91,22 @@ export class SoundEffects {
     level.connect(panner).connect(master);
     const now = context.currentTime;
     const scale = this.jitter();
-    for (const voice of RECIPES[name]) this.voice(context, level, voice, now, 0, scale);
+    if (isBowSound(name)) BOW_SOUNDS[name]({ context, out: level, noise: this.noise! }, now, scale, 0);
+    else for (const voice of RECIPES[name]) this.voice(context, level, voice, now, 0, scale);
     window.setTimeout(() => { level.disconnect(); panner.disconnect(); }, 1500);
   }
 
-  /** `amount` is damage for "hit"; other sounds ignore it. */
+  /** `amount` is damage for the hit sounds; other sounds ignore it. */
   play(name: SoundName, amount = 0): void {
     this.ensureContext();
     const context = this.context;
     const master = this.master;
     if (!context || !master) return;
     const now = context.currentTime;
+    if (isBowSound(name)) { BOW_SOUNDS[name]({ context, out: master, noise: this.noise! }, now, this.jitter(), amount); return; }
     if (name in RECIPES) {
-      const pitch = name === "hit" ? amount * HIT_PITCH_PER_DAMAGE : 0;
       const scale = this.jitter();
-      for (const voice of RECIPES[name as RecipeName]) this.voice(context, master, voice, now, pitch, scale);
+      for (const voice of RECIPES[name as RecipeName]) this.voice(context, master, voice, now, 0, scale);
       return;
     }
     if (name === "multikill") {
@@ -116,33 +119,19 @@ export class SoundEffects {
       }
       return;
     }
-    if (name === "draw" || name === "wood" || name === "body" || name === "dagger" || name === "paper") {
+    if (name === "dagger" || name === "paper") {
       const source = context.createBufferSource();
       source.buffer = this.noise;
       const filter = context.createBiquadFilter();
-      filter.type = name === "draw" ? "bandpass" : "lowpass";
-      filter.frequency.setValueAtTime(name === "draw" ? 700 : name === "dagger" ? 1800 : name === "paper" ? 2400 : 420, now);
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(name === "dagger" ? 1800 : 2400, now);
       const gain = context.createGain();
       gain.gain.setValueAtTime(MIN_GAIN, now);
-      gain.gain.exponentialRampToValueAtTime(name === "draw" ? 0.05 : name === "paper" ? 0.12 : 0.12, now + AUDIO_MIX.attackS);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + (name === "draw" ? 0.28 : name === "paper" ? 0.22 : 0.12));
+      gain.gain.exponentialRampToValueAtTime(0.12, now + AUDIO_MIX.attackS);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (name === "paper" ? 0.22 : 0.12));
       source.connect(filter).connect(gain).connect(master);
       source.start(now, Math.random() * 0.7);
       source.stop(now + 0.3);
-      return;
     }
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    // Headshot is a bright ding, but a filtered triangle rather than a raw square wave.
-    oscillator.type = "triangle";
-    oscillator.frequency.setValueAtTime(name === "headshot" ? 880 : 180, now);
-    oscillator.frequency.exponentialRampToValueAtTime(name === "headshot" ? 1320 : 70, now + 0.12);
-    gain.gain.setValueAtTime(MIN_GAIN, now);
-    gain.gain.exponentialRampToValueAtTime(name === "headshot" ? 0.09 : 0.12, now + AUDIO_MIX.attackS);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-    const soften = context.createBiquadFilter(); soften.type = "lowpass"; soften.frequency.value = 2500;
-    oscillator.connect(soften).connect(gain).connect(master);
-    oscillator.start(now);
-    oscillator.stop(now + 0.2);
   }
 }

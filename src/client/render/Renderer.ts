@@ -325,7 +325,10 @@ export class Renderer {
     const height = window.innerHeight;
     const dpr = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(dpr);
-    this.renderer.setSize(width, height, false);
+    // Size the canvas on the page too. Without it a scaled display (125%, 150%, Retina) showed the canvas at its pixel
+    // size, larger than the window, so the view was zoomed and its centre sat right of and below the crosshair.
+    this.renderer.setSize(width, height, true);
+    this.canvas.style.display = "block";
     this.camera.aspect = width / height;
     this.viewCamera.aspect = width / height;
     this.camera.updateProjectionMatrix();

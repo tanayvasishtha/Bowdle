@@ -23,15 +23,16 @@ import {
 import { BTN, type PlayerInputFrame } from "../../shared/input.ts";
 import { campMap, campTargets, type CampTarget } from "../../shared/maps/camp.ts";
 import type { Vec3 } from "../../shared/math/vec3.ts";
-import { aimRangeAlongLook, spawnArrow, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim } from "../../shared/sim/arrows.ts";
+import { aimRangeAlongLook, predictLanding, spawnArrow, spawnVolley, stepArrow, sweepArrowVsTarget, type ArrowSim, type Landing } from "../../shared/sim/arrows.ts";
 import { ARROW_SLOTS, arrowSpeed, bodyDamage, drawFraction, fullDrawMs, type FireEvent } from "../../shared/sim/bow.ts";
 import { QuiverStrip } from "../ui/quiver.ts";
 import { Crosshair } from "../ui/crosshair.ts";
+import { AimDot } from "../ui/aimDot.ts";
 import { applyDamage } from "../../shared/sim/health.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
 import { inSwatWindow, meleeHit, swatHits } from "../../shared/sim/melee.ts";
 import { createPlayerSim, stepPlayer, type PlayerSim } from "../../shared/sim/movement.ts";
-import { JOURNAL_LOOK } from "../render/look.ts";
+import { AUDIO_MIX, JOURNAL_LOOK } from "../render/look.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { ropeSag, type Renderer } from "../render/Renderer.ts";
 import { CameraRig, type CameraView } from "./CameraRig.ts";
@@ -76,6 +77,19 @@ export class PracticeSession {
   private readonly cameraView: CameraView = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
   private readonly arrowPose: ArrowSim = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, damage: 0, ageMs: 0, stuck: false };
   private readonly crosshair: Crosshair;
+  private readonly aimDot: AimDot;
+  private wasDrawing = false;
+  private readonly landing: Landing = { x: 0, y: 0, z: 0, kind: "none" };
+
+  /** The red dot: where the arrow being drawn would land if released now, lit up on a target. */
+  private updateAimDot(fraction: number): void {
+    if (fraction <= 0) { this.aimDot.hide(); return; }
+    const view = this.cameraView;
+    const targets = this.targets.filter((target) => target.alive).map((target) => ({ x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false }));
+    const shot = { type: "fire" as const, x: view.x, y: view.y, z: view.z, yaw: view.yaw, pitch: view.pitch, fraction, speed: arrowSpeed(fraction), damage: 0 };
+    predictLanding({ ...shot, aimRange: aimRangeAlongLook(shot, this.player.crouched, campMap, targets) }, this.player.crouched, campMap, targets, this.landing);
+    this.aimDot.place(this.landing, this.renderer.camera, this.renderer.canvas.clientWidth, this.renderer.canvas.clientHeight);
+  }
   private readonly hitText: HTMLDivElement;
   private readonly replayCard: HTMLDivElement;
   private readonly course: CourseGuide;
@@ -96,6 +110,7 @@ export class PracticeSession {
     this.renderer = renderer;
     this.sampler = sampler;
     this.crosshair = new Crosshair(container);
+    this.aimDot = new AimDot(container);
     this.hitText = document.createElement("div");
     this.hitText.id = "hit-marker";
     this.hitText.style.cssText = "position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font:34px 'Permanent Marker',cursive;color:#d2531f;text-shadow:1px 1px #efe3c6;pointer-events:none";
@@ -180,17 +195,20 @@ export class PracticeSession {
         const arrowStep = stepArrow(entry.sim, campMap, dt);
         if (arrowStep.worldHit) entry.stuckAtMs = this.simTimeMs;
         segmentEnd.x = entry.sim.x; segmentEnd.y = entry.sim.y; segmentEnd.z = entry.sim.z;
+        let hitTarget = false;
         for (const target of this.targets) {
           if (!target.alive) continue;
           const hit = sweepArrowVsTarget(segmentStart, segmentEnd, { x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false });
           if (!hit) continue;
-          entry.sim.stuck = true;
+          entry.sim.stuck = true; hitTarget = true;
           entry.stuckAtMs = this.simTimeMs;
           const result = this.damageTarget(target, entry.sim.damage, hit.kind === "head");
           const distance = Math.hypot(target.x - this.player.x, target.pos[2] - this.player.z);
           if (result.killed && distance > PRACTICE_REPLAY_MIN_M) this.showReplayCard(distance, entry.trail, entry.trailCount);
           break;
         }
+        // An arrow sinking into the camp scenery thunks, louder the closer it is.
+        if (arrowStep.worldHit && !hitTarget) { const distance = Math.hypot(entry.sim.x - this.player.x, entry.sim.z - this.player.z); if (distance < AUDIO_MIX.landRangeM) this.sounds.playAt("wood", entry.sim.x, entry.sim.y, entry.sim.z, 1 - distance / AUDIO_MIX.landRangeM); }
         this.renderer.updateArrowVisual(entry.visual, entry.sim);
       }
       const expired = entry.sim.ageMs >= ARROW_LIFETIME_MS || (entry.stuckAtMs > 0 && this.simTimeMs - entry.stuckAtMs >= STUCK_ARROW_MS);
@@ -343,12 +361,15 @@ export class PracticeSession {
     this.renderer.setFeel(this.cameraRig.output.hurt, this.cameraRig.output.streaks);
     this.cameraRig.onMove ??= (kind) => this.sounds.play(kind);
     const fraction = drawFraction(this.player.drawMs, fullDrawMs(this.player.arrowSlot));
+    if (this.player.drawMs > 0 && !this.wasDrawing) this.sounds.play("draw");
+    this.wasDrawing = this.player.drawMs > 0;
     this.renderer.setDrawFraction(fraction);
     this.renderer.setLocalTeam(0);
     this.renderer.setLocalArrowKind(ARROW_SLOTS[this.player.arrowSlot] ?? "arrow");
     this.quiver.update(this.player);
     this.renderer.setMeleeSwing(stabProgress(this.player.meleeCooldownMs));
     this.crosshair.update(fraction);
+    this.updateAimDot(fraction);
     this.renderer.setGrappleRope("practice", this.player.grappleActive, this.player.x, this.player.y, this.player.z, this.player.grappleX, this.player.grappleY, this.player.grappleZ, ropeSag(this.player, this.player.x, this.player.y, this.player.z), true);
     this.renderer.setGrappleHighlights(this.player.grappleCooldownMs <= 0 && !this.player.grappleActive);
     this.renderer.setDebugMovement(this.player);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ARROW_SPEED_MAX, HEAD_RADIUS } from "../constants.ts";
-import { aimPointFromLook, aimRangeAlongLook, spawnArrow, stepArrow, sweepArrowVsTarget } from "./arrows.ts";
+import { ARROW_SPEED_MAX, EYE_STAND, HEAD_RADIUS } from "../constants.ts";
+import { aimPointFromLook, aimRangeAlongLook, predictLanding, spawnArrow, stepArrow, sweepArrowVsTarget } from "./arrows.ts";
+import { arrowSpeed } from "./bow.ts";
 import type { MapData } from "../maps/types.ts";
 
 const emptyMap: MapData = {
@@ -64,6 +65,38 @@ describe("aim convergence", () => {
       expect(closestMiss(distance)).toBeLessThanOrEqual(HEAD_RADIUS + 0.05);
     });
   }
+
+  it("predicts the landing point on the wall under the crosshair, at full and partial draw", () => {
+    const wall = wallAt(-20);
+    for (const fraction of [1, 0.4]) {
+      const event = { type: "fire" as const, ...look, pitch: 0, fraction, speed: arrowSpeed(fraction), damage: 60 };
+      const landing = predictLanding({ ...event, aimRange: aimRangeAlongLook(event, false, wall, []) }, false, wall, [], { x: 0, y: 0, z: 0, kind: "none" });
+      expect(landing.kind).toBe("world");
+      // The crosshair ray from the eye (1.6 m up) meets the wall face at z = -20.
+      expect(Math.hypot(landing.x, landing.y - EYE_STAND, landing.z + 20)).toBeLessThan(0.1);
+    }
+  });
+
+  it("predicts a hit on the player under the crosshair", () => {
+    const target = standing(-25);
+    const pitch = Math.atan2(1.2 - EYE_STAND, 25);
+    const event = { type: "fire" as const, ...look, pitch, fraction: 1, speed: ARROW_SPEED_MAX, damage: 60 };
+    const landing = predictLanding({ ...event, aimRange: aimRangeAlongLook(event, false, emptyMap, [target]) }, false, emptyMap, [target], { x: 0, y: 0, z: 0, kind: "none" });
+    expect(landing.kind).toBe("body");
+    expect(landing.z).toBeGreaterThan(-25.5);
+  });
+
+  it("shows a shot with nothing under the crosshair dropping onto the ground, and none for one that outlives the arrow", () => {
+    const shot = (pitch: number) => {
+      const event = { type: "fire" as const, ...look, pitch, fraction: 1, speed: ARROW_SPEED_MAX, damage: 60 };
+      return predictLanding({ ...event, aimRange: aimRangeAlongLook(event, false, emptyMap, []) }, false, emptyMap, [], { x: 0, y: 0, z: 0, kind: "none" });
+    };
+    const level = shot(0.01);
+    expect(level.kind).toBe("world");
+    expect(level.y).toBeLessThan(0.1);
+    expect(level.z).toBeLessThan(-100);
+    expect(shot(0.2).kind).toBe("none");
+  });
 
   it("aims along the look ray", () => {
     const aim = aimPointFromLook(0, 0, 0, 0, 0, false, 25);

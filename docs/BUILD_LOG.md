@@ -1,3 +1,14 @@
+## Fix 8: a gentler first two waves (2026-09-25)
+
+Tag `fix8`.
+
+Built:
+- Village Defense waves 1 and 2 teach the mode instead of ending it. A solo player standing still used to be downed 10 to 20 seconds into wave 1: up to five beetles at once, each hitting for 15 every 0.9 s. Now at most three creatures are alive at once in waves 1 and 2, and creature hits on players land at two thirds (a beetle does 10). Hits on the totem are unchanged, and wave 3 on plays as before. In the same idle test the player now keeps full health through wave 1 and the run ends only when the undefended totem falls, about 25 s in.
+
+Test: `creatures.test.ts` (alive cap 3 in waves 1 and 2, 7 in wave 3; a beetle hits for 10 early and full damage from wave 3).
+
+Verified: the wave, creature, Village Defense and abilities tests pass (21 of 21). The full `npm run check` could not finish clean while other projects were running on the machine: database-backed tests (party, social, tutorial, retention, ranked) failed with "fetch failed" and timeouts, the same load failures seen in earlier fixes, and passed when rerun on their own except the party test, which needs an idle machine.
+
 ## Fix 7: arrows go where the crosshair is, aim dot, new bow sounds (2026-09-25)
 
 Tag `fix7`.

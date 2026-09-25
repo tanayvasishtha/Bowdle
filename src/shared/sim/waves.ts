@@ -20,7 +20,13 @@ export function waveCount(wave: number, players: number, modifier: WaveModifier 
   return Math.round(base * (modifier === "swarm" ? EXPEDITION.swarmCountMult : 1));
 }
 
-export function aliveCap(wave: number): number { return Math.min(EXPEDITION.maxAlive, EXPEDITION.aliveBase + wave); }
+export function aliveCap(wave: number): number {
+  const cap = Math.min(EXPEDITION.maxAlive, EXPEDITION.aliveBase + wave);
+  return wave <= EXPEDITION.earlyWaves ? Math.min(EXPEDITION.earlyAliveCap, cap) : cap;
+}
+
+/** Creature hits on players are softer in the first waves. */
+export function creatureDamageMult(wave: number): number { return wave <= EXPEDITION.earlyWaves ? EXPEDITION.earlyDamageMult : 1; }
 
 export function hpMultiplier(modifier: WaveModifier): number {
   return modifier === "swarm" ? EXPEDITION.swarmHpMult : modifier === "heavy" ? EXPEDITION.heavyHpMult : 1;

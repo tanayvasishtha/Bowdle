@@ -4,7 +4,7 @@ import type { MapData } from "../../shared/maps/types.ts";
 import { findPath, nearestWaypoint } from "../../shared/bots/nav.ts";
 import { mulberry32, type SeededRng } from "../../shared/math/rng.ts";
 import { createCreature, creatureDamage, creatureHit, stepCreature, type CreatureContext, type CreatureEvent, type CreatureTarget, type Heading } from "../../shared/sim/creatures.ts";
-import { aliveCap, earnsSoloLife, gravityMultiplier, hpMultiplier, isBossWave, modifierFor, pickKind, waveCount, type CreatureKind, type WaveModifier } from "../../shared/sim/waves.ts";
+import { aliveCap, creatureDamageMult, earnsSoloLife, gravityMultiplier, hpMultiplier, isBossWave, modifierFor, pickKind, waveCount, type CreatureKind, type WaveModifier } from "../../shared/sim/waves.ts";
 import {
   TOTEM_ID, VILLAGE, VILLAGE_UPGRADES, applyUpgrade, emptyBuffs, rollShop,
   type VillageBuffs, type VillageUpgradeId,
@@ -279,9 +279,9 @@ export class ExpeditionDirector {
   }
 
   private apply(id: string, event: CreatureEvent, targets: readonly CreatureTarget[]): void {
-    if (event.type === "melee") this.hurt(event.target, event.damage);
+    if (event.type === "melee") this.creatureHurt(event.target, event.damage);
     else if (event.type === "stomp") {
-      for (const target of targets) if (target.grounded && Math.hypot(target.x - event.x, target.z - event.z) <= event.radius) this.hurt(target.id, event.damage);
+      for (const target of targets) if (target.grounded && Math.hypot(target.x - event.x, target.z - event.z) <= event.radius) this.creatureHurt(target.id, event.damage);
     } else if (event.type === "summon") {
       for (let index = 0; index < event.count; index += 1) this.spawn("beetle", { x: event.x, z: event.z });
     } else if (event.type === "mire") {
@@ -340,10 +340,15 @@ export class ExpeditionDirector {
     const player = this.host.state.players.get(targetId);
     if (!player || !player.alive || player.downed) return;
     player.slowMs = CREATURE_TUNING.spitter.slowMs;
-    this.hurt(targetId, CREATURE_TUNING.spitter.damage);
+    this.creatureHurt(targetId, CREATURE_TUNING.spitter.damage);
   }
 
   /** Creature damage to a player. At zero a player goes down instead of dying; a solo player with a spare life gets straight up. */
+  /** A creature's hit: softer on players in the first waves, full on the totem. */
+  private creatureHurt(targetId: string, damage: number): void {
+    this.hurt(targetId, targetId === TOTEM_ID ? damage : damage * creatureDamageMult(this.run.wave));
+  }
+
   hurt(playerId: string, damage: number): void {
     if (playerId === TOTEM_ID) {
       const run = this.run;

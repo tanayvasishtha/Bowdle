@@ -4,7 +4,7 @@ import { CREATURE_TUNING, EXPEDITION } from "../constants.ts";
 import { mulberry32 } from "../math/rng.ts";
 import type { MapData } from "../maps/types.ts";
 import { createCreature, creatureDamage, creatureHit, stepCreature, type CreatureContext, type CreatureEvent, type CreatureTarget } from "./creatures.ts";
-import { aliveCap, bossHp, checkpointFor, earnsSoloLife, expeditionReward, hpMultiplier, isBossWave, modifierFor, pickKind, unlockedKinds, waveCount } from "./waves.ts";
+import { aliveCap, bossHp, creatureDamageMult, checkpointFor, earnsSoloLife, expeditionReward, hpMultiplier, isBossWave, modifierFor, pickKind, unlockedKinds, waveCount } from "./waves.ts";
 
 const flat: MapData = {
   id: "flat", name: "flat", bounds: { min: [-60, -2, -60], max: [60, 20, 60] }, boxes: [{ id: "floor", min: [-60, -1, -60], max: [60, 0, 60], material: "earth", tags: ["solid"] }],
@@ -141,7 +141,11 @@ describe("waves", () => {
   });
 
   it("caps the living count, unlocks creatures by wave and puts a boss on every fifth wave", () => {
-    expect(aliveCap(1)).toBe(5);
+    expect(aliveCap(1)).toBe(3);
+    expect(aliveCap(2)).toBe(3);
+    expect(aliveCap(3)).toBe(7);
+    expect(creatureDamageMult(1) * CREATURE_TUNING.beetle.damage).toBeCloseTo(10);
+    expect(creatureDamageMult(3)).toBe(1);
     expect(aliveCap(30)).toBe(18);
     expect(unlockedKinds(1)).toEqual(["beetle"]);
     expect(unlockedKinds(4)).toEqual(["beetle", "spitter", "guardian"]);

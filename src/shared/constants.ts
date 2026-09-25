@@ -57,6 +57,9 @@ export const EXPEDITION = {
 
   maxPlayers: 4, baseCount: 6, countPerWave: 2, extraPlayerMult: 1.3, maxAlive: 18, aliveBase: 4,
 
+  // The first waves teach the mode: fewer creatures at once, and their hits on players land softer (a beetle does 10).
+  earlyWaves: 2, earlyAliveCap: 3, earlyDamageMult: 2 / 3,
+
   bossEvery: 5, modifierEvery: 3, swarmCountMult: 1.35, swarmHpMult: 0.7, heavyHpMult: 1.25, lowGravityMult: 0.7,
 
   breakMs: 8000, spawnGapMs: 450, herbs: 2, herbHeal: 40, herbTouchM: 1.2,

@@ -62,7 +62,7 @@ import { checkpointFor } from "../../shared/sim/waves.ts";
 import { createPlayerSim, type PlayerSim } from "../../shared/sim/movement.ts";
 import { breakableHitBySegment, createBreakables, createHerbs, damageBreakable, mergeBreakablesIntoMap, solidBreakableBoxes, stepBreakables, tryPickHerb, type BreakableRuntime, type HerbRuntime } from "../../shared/sim/mapFeatures.ts";
 import { BreakableState, MapHerbState } from "../../net/schema.ts";
-import { tuning as creatureTuning } from "../../shared/sim/creatures.ts";
+import { tuning as creatureTuning, type CreatureTarget } from "../../shared/sim/creatures.ts";
 import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, WaveMessage } from "../../net/messages.ts";
 import { respawnPlayer, updateMatchPhase } from "../../shared/sim/match.ts";
 import { chooseSpawnFor, freeTeam, isGameMode, matchWinner, modeRules, scoreCapture, scoreKillFor } from "../../shared/sim/modes.ts";
@@ -449,7 +449,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         }
         if (breakableHit && breakableHit.t < earliest) {
           const hit = breakableHit.item;
-          const broke = damageBreakable(this.breakables, hit.id, arrow.damage, this.simulationNowMs);
+          // Hut fences stop arrows but only fire burns them down.
+          const broke = hit.burnOnly ? false : damageBreakable(this.breakables, hit.id, arrow.damage, this.simulationNowMs);
           const state = this.state.breakables.get(hit.id);
           if (state) { state.hp = hit.hp; state.broken = hit.broken; }
           if (broke) this.rebuildPlayMap();
@@ -918,6 +919,8 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     }).catch(() => undefined);
   }
 
+  private readonly hutTargets: CreatureTarget[] = [];
+
   private expeditionHost(): ExpeditionHost {
     const room = this;
     return {
@@ -930,6 +933,22 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       broadcastDowned: (message) => this.broadcast("downed", message),
       sendCreatureHit: (playerId, message) => this.clientById(playerId)?.send("creatureHit", message),
       addSpit: (arrow) => this.state.arrows.set(`spit-${this.arrowSerial += 1}`, arrow),
+      huts: () => {
+        const huts = this.hutTargets; huts.length = 0;
+        for (const item of this.breakables) {
+          if (!item.burnOnly || item.broken) continue;
+          huts.push({ id: item.id, x: (item.box.min[0] + item.box.max[0]) / 2, y: item.box.min[1], z: (item.box.min[2] + item.box.max[2]) / 2, grounded: true });
+        }
+        return huts;
+      },
+      burnHut: (id, damage) => {
+        const broke = damageBreakable(this.breakables, id, damage, this.simulationNowMs);
+        const item = this.breakables.find((entry) => entry.id === id);
+        const state = this.state.breakables.get(id);
+        if (item && state) { state.hp = item.hp; state.broken = item.broken; }
+        if (broke) this.rebuildPlayMap();
+        return broke;
+      },
       runOver: () => {
         this.state.phase = "end"; this.state.phaseEndsAtMs = this.simulationNowMs + END_SCREEN_MS;
         this.sendMatchEnd();
@@ -1030,7 +1049,9 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
     const player = source ?? new PlayerState(); player.name = `Doodle ${this.botSerial}`; player.team = team; player.isBot = true;
     if (!source) respawnPlayer(player, spawn);
     else { player.look.bowSkin = DEFAULT_LOADOUT.bow; player.look.arrowTrail = DEFAULT_LOADOUT.trail; player.look.outfit = DEFAULT_LOADOUT.outfit; player.look.killEffect = DEFAULT_LOADOUT.effect; }
-    this.state.players.set(id, player); const controller = new BotController(id, this.botSeedBase + this.botSerial, this.botDifficulty); controller.hunting = this.state.mode === "ffa"; this.bots.set(id, controller);
+    this.state.players.set(id, player); const controller = new BotController(id, this.botSeedBase + this.botSerial, this.botDifficulty);
+    // Lobby bots hunt the nearest player; Village Defense bots hunt the nearest creature, even one outside the walls.
+    controller.hunting = this.state.mode === "ffa" || this.state.mode === "expedition"; this.bots.set(id, controller);
   }
 
   private fillBots(): void {

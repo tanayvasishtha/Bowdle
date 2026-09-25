@@ -39,6 +39,32 @@ describe("creatures", () => {
     expect(Math.abs(lone.z)).toBeLessThan(0.5);
   });
 
+  it("Torch Bearers walk to the nearest hut and set it alight, fight a player right on them, and go for the totem once the huts are gone", () => {
+    const totem: CreatureTarget = { id: TOTEM_ID, x: 0, y: 0, z: 0, grounded: true };
+    const near: CreatureTarget = { id: "hut-near", x: 20, y: 0, z: 5, grounded: true };
+    const far: CreatureTarget = { id: "hut-far", x: -20, y: 0, z: 5, grounded: true };
+    const step = (creature: ReturnType<typeof createCreature>, targets: CreatureTarget[], huts: CreatureTarget[], seconds: number): CreatureEvent[] => {
+      const ctx: CreatureContext = { map: flat, targets, huts, dt: DT, gravityMult: 1 };
+      const events: CreatureEvent[] = [];
+      for (let tick = 0; tick < seconds * 30; tick += 1) events.push(...stepCreature(creature, ctx));
+      return events;
+    };
+    const torch = createCreature("mire", 30, 0, 5);
+    // 10 m at 3 m/s, then a burn every second.
+    const burns = step(torch, [totem], [near, far], 6).filter((event) => event.type === "burn");
+    expect(Math.hypot(torch.x - near.x, torch.z - near.z)).toBeLessThanOrEqual(CREATURE_TUNING.mire.burnReachM);
+    expect(burns.length).toBeGreaterThanOrEqual(2);
+    expect(burns.every((event) => event.type === "burn" && event.target === "hut-near" && event.damage === CREATURE_TUNING.mire.burnDamage)).toBe(true);
+    // A player right next to it gets its attention instead of the hut.
+    const chased = createCreature("mire", 30, 0, 5);
+    expect(step(chased, [player(30, 10), totem], [near], 2).some((event) => event.type === "burn")).toBe(false);
+    expect(chased.z).toBeGreaterThan(5.5);
+    // No huts left: it heads for the totem like any raider.
+    const homeless = createCreature("mire", 30, 0, 0);
+    step(homeless, [totem], [], 1);
+    expect(homeless.x).toBeLessThan(30);
+  });
+
   it("a walking creature hops a log and leaps up to a ledge it is heading for", () => {
     const log: MapData = { ...flat, boxes: [...flat.boxes, { id: "log", min: [4, 0, -3], max: [5, 1, 3], material: "wood", tags: ["solid"] }] };
     const beetle = createCreature("beetle", 0, 0, 0);

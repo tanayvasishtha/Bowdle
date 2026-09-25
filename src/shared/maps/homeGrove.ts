@@ -1,7 +1,7 @@
 import { jungleDressing } from "./dressing.ts";
 import { mirrorX } from "./helpers.ts";
 import { rect } from "./scatter.ts";
-import type { Box, MapData, Prop, Ramp, SpawnPoint, Vec3Tuple, Volume, Waypoint } from "./types.ts";
+import type { Box, Breakable, MapData, Prop, Ramp, SpawnPoint, Vec3Tuple, Volume, Waypoint } from "./types.ts";
 
 /** Village Defense map ~160 x 160 m. Totem village, walls, towers, jungle rim. */
 const boxes: Box[] = [
@@ -99,9 +99,17 @@ function solidProp(prop: Prop, halfWidth: number, height: number, id: string): v
   boxes.push(box, mirrorX(box, id.replace("sun", "moon")));
 }
 
-// Huts around the totem (mirrored).
+// Huts around the totem (mirrored). Each has a wooden fence on the side facing the totem, which a Torch Bearer burns.
+const breakables: Breakable[] = [];
+const HUT_FENCE = { distanceM: 2.6, lengthM: 2.4, thicknessM: 0.3, heightM: 1.3, hp: 100 } as const;
 for (const [x, z, yaw] of [[-16, 16, 0.3], [-18, -14, -0.4], [-14, -18, 0.8]] as const) {
   solidProp({ kind: "tent", pos: [x, 0, z], yaw, scale: 1.05, seed: 5200 + Math.round(z) }, 1.5, 2.3, `sun-hut-${z}`);
+  const length = Math.hypot(x, z), cx = x - x / length * HUT_FENCE.distanceM, cz = z - z / length * HUT_FENCE.distanceM;
+  // The fence runs across the line to the totem: along z when that line is mostly along x, otherwise along x.
+  const alongZ = Math.abs(x) > Math.abs(z);
+  const halfX = (alongZ ? HUT_FENCE.thicknessM : HUT_FENCE.lengthM) / 2, halfZ = (alongZ ? HUT_FENCE.lengthM : HUT_FENCE.thicknessM) / 2;
+  const fence: Breakable = { id: `sun-hut-fence-${z}`, box: { min: [cx - halfX, 0, cz - halfZ], max: [cx + halfX, HUT_FENCE.heightM, cz + halfZ] }, hp: HUT_FENCE.hp, burnOnly: true };
+  breakables.push(fence, mirrorX(fence, fence.id.replace("sun", "moon")));
 }
 for (const [x, z] of [[-26, 26], [-26, -26]] as const) {
   const torch: Prop = { kind: "torch", pos: [x, 6.5, z], yaw: 0, scale: 0.8, seed: 5300 + z };
@@ -248,6 +256,7 @@ export const homeGroveMap: MapData = {
   look: { sunShafts: false, stainSeed: 9101 },
   landmark: [0, 4.5, 0],
   creatureSpawns,
+  breakables,
   herbSpawns,
   totem: [0, 0, 0],
   relic: [0, 0.4, -3.5],

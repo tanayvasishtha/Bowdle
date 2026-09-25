@@ -691,6 +691,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
         broken: !!net?.broken,
         rebuildAtMs: 0,
         box: entry.box,
+        burnOnly: entry.burnOnly ?? false,
       };
     });
     this.playMap = mergeBreakablesIntoMap(this.map, items);

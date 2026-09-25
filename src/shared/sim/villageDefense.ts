@@ -8,6 +8,8 @@ export const VILLAGE = {
   totemAggroM: 28,
   /** Runners ignore players for the totem unless one is this close. */
   runnerPlayerM: 8,
+  /** A Torch Bearer that burns a hut down takes this much off the totem. */
+  hutBurnTotemDamage: 40,
   shopMs: 10_000,
   coinKill: 3,
   coinWave: 12,

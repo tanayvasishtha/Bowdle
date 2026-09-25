@@ -10,6 +10,8 @@ import { createMatchStats, type MatchStats } from "../../src/shared/matchStats.t
 import { gravityMultiplier, waveCount } from "../../src/shared/sim/waves.ts";
 import { createPlayerSim, stepPlayer } from "../../src/shared/sim/movement.ts";
 import { sunTempleMap } from "../../src/shared/maps/sunTemple.ts";
+import { mapById } from "../../src/shared/maps/registry.ts";
+import { VILLAGE } from "../../src/shared/sim/villageDefense.ts";
 
 const step = { dt: 1 / 30, dtMs: 1000 / 30, tick: 1, subSteps: 2, subDt: 1 / 60, subDtMs: 1000 / 60 };
 type Internals = { humanStats: Map<string, MatchStats> };
@@ -161,6 +163,31 @@ describe("Expedition", () => {
     expect(Math.abs(me.x - direct.x)).toBeLessThanOrEqual(1e-6);
     expect(Math.abs(me.y - direct.y)).toBeLessThanOrEqual(1e-6);
     expect(Math.abs(me.z - direct.z)).toBeLessThanOrEqual(1e-6);
+    await client.leave();
+  }, 30_000);
+
+  it("hut fences stop arrows unharmed, and a hut a Torch Bearer burns down costs the totem", async () => {
+    const { client, room, tick, now } = await openRun("Keeper");
+    const fences = [...room.state.breakables.keys()].filter((id) => id.includes("hut-fence"));
+    expect(fences).toHaveLength(6);
+    const fence = mapById(room.state.mapId)!.breakables!.find((item) => item.id === fences[0])!;
+    const cx = (fence.box.min[0] + fence.box.max[0]) / 2, cz = (fence.box.min[2] + fence.box.max[2]) / 2, top = fence.box.max[1] - 0.3;
+    // An arrow flown straight into the fence stops there and does it no harm.
+    room.state.creatures.clear();
+    const arrow = new ArrowState();
+    const alongZ = fence.box.max[0] - fence.box.min[0] < fence.box.max[2] - fence.box.min[2];
+    Object.assign(arrow, alongZ ? { x: cx - 3, y: top, z: cz, vx: 90 } : { x: cx, y: top, z: cz - 3, vz: 90 }, { owner: client.sessionId, team: 0, damage: 60, bornMs: now() });
+    room.state.arrows.set("fence-shot", arrow);
+    tick(3);
+    expect(room.state.arrows.has("fence-shot")).toBe(false);
+    expect(room.state.breakables.get(fence.id)!.broken).toBe(false);
+    expect(room.state.breakables.get(fence.id)!.hp).toBe(fence.hp);
+    // Fire does: once it burns down the totem loses a chunk.
+    const totemBefore = room.state.expedition.totemHp;
+    (room.expedition as unknown as { apply(id: string, event: { type: "burn"; target: string; damage: number }, targets: never[]): void })
+      .apply("torch", { type: "burn", target: fence.id, damage: fence.hp }, []);
+    expect(room.state.breakables.get(fence.id)!.broken).toBe(true);
+    expect(room.state.expedition.totemHp).toBe(totemBefore - VILLAGE.hutBurnTotemDamage);
     await client.leave();
   }, 30_000);
 

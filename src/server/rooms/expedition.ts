@@ -24,6 +24,10 @@ export type ExpeditionHost = {
   broadcastDowned(message: DownedMessage): void;
   sendCreatureHit(playerId: string, message: CreatureHitMessage): void;
   addSpit(arrow: ArrowState): void;
+  /** Standing huts a Torch Bearer can burn, as the point in front of each. */
+  huts(): readonly CreatureTarget[];
+  /** Fire damage to a hut; true when it just burned down. */
+  burnHut(id: string, damage: number): boolean;
   runOver(): void;
 };
 
@@ -200,12 +204,13 @@ export class ExpeditionDirector {
     const allies = [...creatures.entries()]
       .filter(([, creature]) => creature.hp > 0)
       .map(([allyId, creature]) => ({ id: allyId, x: creature.x, y: creature.y, z: creature.z }));
-    const ctx: CreatureContext = { map: this.host.map, targets, allies, dt, gravityMult: this.gravityMult(), steer: (creature, target) => this.steer(creature as CreatureState, target, now) };
+    const huts = this.host.huts();
+    const ctx: CreatureContext = { map: this.host.map, targets, huts, allies, dt, gravityMult: this.gravityMult(), steer: (creature, target) => this.steer(creature as CreatureState, target, now) };
     for (const [id, creature] of creatures) {
       this.currentCreature = id;
       for (const event of stepCreature(creature, ctx)) this.apply(id, event, targets);
       if (creature.y < this.host.map.bounds.min[1] - 5) this.remove(id, creature, "");
-      else this.checkStuck(id, creature, targets, now);
+      else this.checkStuck(id, creature, targets, huts, now);
     }
     this.tickMires(dt);
     run.left = this.toSpawn + creatures.size;
@@ -218,13 +223,15 @@ export class ExpeditionDirector {
    * A walking creature that has stayed near one spot for a while (hopping against a wall counts as staying) and has nobody in reach is stuck on the level;
    * it comes back in at the waypoint it was trying to reach (or a spawn point) so a wave can always be cleared.
    */
-  private checkStuck(id: string, creature: CreatureState, targets: readonly CreatureTarget[], now: number): void {
+  private checkStuck(id: string, creature: CreatureState, targets: readonly CreatureTarget[], huts: readonly CreatureTarget[], now: number): void {
     const last = this.progress.get(id);
     if (!last || Math.hypot(creature.x - last.x, creature.z - last.z) >= EXPEDITION.stuckMoveM) { this.progress.set(id, { x: creature.x, z: creature.z, atMs: now }); return; }
     if (now - last.atMs < EXPEDITION.stuckMs || creature.kind === "wisp") return;
     const stats = CREATURE_TUNING[creature.kind as CreatureKind];
     const reach = creature.kind === "spitter" ? CREATURE_TUNING.spitter.keepMaxM + 3 : creature.kind === "colossus" ? CREATURE_TUNING.colossus.stompRadiusM : stats.radius + ("reachM" in stats ? stats.reachM : 0) + 1;
     if (targets.some((target) => Math.hypot(target.x - creature.x, target.z - creature.z) <= reach)) { last.atMs = now; return; }
+    // A Torch Bearer standing at a hut is burning it, not stuck.
+    if (creature.kind === "mire" && huts.some((hut) => Math.hypot(hut.x - creature.x, hut.z - creature.z) <= CREATURE_TUNING.mire.burnReachM + 1)) { last.atMs = now; return; }
     const route = this.routes.get(id);
     const spawns = this.host.map.creatureSpawns ?? this.host.map.spawns.moon.map((spawn) => spawn.pos);
     const [x, y, z] = route?.path[route.index]?.pos ?? spawns[Math.floor(this.rng() * spawns.length)]!;
@@ -293,6 +300,9 @@ export class ExpeditionDirector {
         dps: event.dps,
         slowMult: event.slowMult,
       });
+    } else if (event.type === "burn") {
+      // A burned hut costs the village: the totem takes the hit.
+      if (this.host.burnHut(event.target, event.damage)) this.hurt(TOTEM_ID, VILLAGE.hutBurnTotemDamage);
     } else if (event.type === "heal") {
       for (const targetId of event.targets) {
         const creature = this.host.state.creatures.get(targetId);

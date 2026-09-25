@@ -2,11 +2,11 @@ import { BREAKABLE, GEYSER, MAP_HERB, MAX_HP, PLAYER_WIDTH } from "../constants.
 import type { Breakable, Geyser, Herb, MapData } from "../maps/types.ts";
 import type { PlayerSim } from "./movement.ts";
 
-export type BreakableRuntime = { id: string; hp: number; maxHp: number; broken: boolean; rebuildAtMs: number; box: Breakable["box"] };
+export type BreakableRuntime = { id: string; hp: number; maxHp: number; broken: boolean; rebuildAtMs: number; box: Breakable["box"]; burnOnly: boolean };
 export type HerbRuntime = { id: string; pos: Herb["pos"]; readyAtMs: number };
 
 export function createBreakables(map: MapData): BreakableRuntime[] {
-  return (map.breakables ?? []).map((item) => ({ id: item.id, hp: item.hp, maxHp: item.hp, broken: false, rebuildAtMs: 0, box: item.box }));
+  return (map.breakables ?? []).map((item) => ({ id: item.id, hp: item.hp, maxHp: item.hp, broken: false, rebuildAtMs: 0, box: item.box, burnOnly: item.burnOnly ?? false }));
 }
 
 export function createHerbs(map: MapData): HerbRuntime[] {

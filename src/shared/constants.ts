@@ -43,7 +43,7 @@ export const CREATURE_TUNING = {
 
   wisp: { hp: 30, speed: 8.5, radius: 0.4, height: 0.6, damage: 10, hoverM: 3.5, diveSpeed: 14, reachM: 1.2, cooldownMs: 2200, fromWave: 6 },
 
-  mire: { hp: 80, speed: 3.0, radius: 0.7, height: 1.1, damage: 0, reachM: 0, cooldownMs: 4000, mireRadiusM: 3.5, mireDurationMs: 6000, mireDps: 8, mireSlowMult: 0.55, fromWave: 5 },
+  mire: { hp: 80, speed: 3.0, radius: 0.7, height: 1.1, damage: 0, reachM: 0, cooldownMs: 4000, mireRadiusM: 3.5, mireDurationMs: 6000, mireDps: 8, mireSlowMult: 0.55, burnReachM: 2.6, burnDamage: 25, burnEveryMs: 1000, fromWave: 5 },
 
   tender: { hp: 70, speed: 3.5, radius: 0.6, height: 1.4, damage: 0, reachM: 0, cooldownMs: 3000, healRadiusM: 6, healAmount: 12, healMaxTargets: 4, holdMinM: 8, holdMaxM: 14, fromWave: 7 },
 

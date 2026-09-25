@@ -1,3 +1,15 @@
+## Fix 9: the Torch Bearer burns huts; Village Defense bots hunt (2026-09-25)
+
+Tag `fix9`.
+
+Built:
+- Torch Bearer. The launch plan had it going for huts, but Home Grove had nothing it could burn, so it played like every other raider. Each of the six huts now has a wooden fence on the side facing the totem. A Torch Bearer walks to the nearest standing fence and sets it alight (25 damage a second, 100 health, so four seconds). A burned hut costs the village totem 40 health, so it is worth stopping. A player right next to it still gets its attention, and with every fence down it goes for players and the totem like the others. Arrows stop at a fence without breaking it; only fire does. Burned fences are rebuilt after 30 seconds, as breakables already were. A Torch Bearer standing at a hut counts as busy, so the stuck check no longer sends it back to a spawn.
+- Village Defense helper bots now hunt the nearest creature through the waypoint graph, the way Lobby bots hunt players. They used to roam toward the old team-mode spawn at the east rim, so a Spear Thrower parked outside the village wall was never dealt with and the wave never cleared (bot soak seed 303 failed this way on the fix 7 code too, at wave 10).
+
+Tests: `creatures.test.ts` (walks to the nearest hut and burns it, a player right on it wins, no huts means the totem); `expedition.test.ts` (six fences, an arrow stops at one without harm, a burned hut costs the totem 40).
+
+Verified: bot soak for Village Defense, all three seeds reach wave 20 with no stuck creatures; the fences overlap no solid box, waypoint or herb. `npm run check`: 376 passed, 2 failed ("fetch failed" joining a room: the Village Defense checkpoint test and the party test), and seven database suites failed to start, all under load from other projects running on the machine. Those files pass when rerun on their own except the party test, which needs an idle machine. Playwright for the Village Defense and online specs: 11 of 12; the failing profile test fails the same way on the fix 8 code under this load.
+
 ## Fix 8: a gentler first two waves (2026-09-25)
 
 Tag `fix8`.

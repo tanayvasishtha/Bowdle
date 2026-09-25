@@ -21,6 +21,7 @@ export type CreatureEvent =
   | { type: "stomp"; x: number; z: number; radius: number; damage: number }
   | { type: "summon"; count: number; x: number; z: number }
   | { type: "mire"; x: number; z: number; radius: number; durationMs: number; dps: number; slowMult: number }
+  | { type: "burn"; target: string; damage: number }
   | { type: "heal"; targets: string[]; amount: number };
 
 /**
@@ -28,7 +29,8 @@ export type CreatureEvent =
  * Targets are the players a creature may attack: alive and not downed.
  */
 export type CreatureAlly = { id: string; x: number; y: number; z: number };
-export type CreatureContext = { map: MapData; targets: readonly CreatureTarget[]; allies?: readonly CreatureAlly[]; dt: number; gravityMult: number; steer?: (creature: CreatureSim, target: CreatureTarget) => Heading | null };
+/** huts: standing village huts a Torch Bearer can set alight (the point is the front of each hut). */
+export type CreatureContext = { map: MapData; targets: readonly CreatureTarget[]; huts?: readonly CreatureTarget[]; allies?: readonly CreatureAlly[]; dt: number; gravityMult: number; steer?: (creature: CreatureSim, target: CreatureTarget) => Heading | null };
 /** Where a creature walks next; y lets a blocked creature leap high enough for a ledge. */
 export type Heading = { x: number; y: number; z: number };
 
@@ -244,10 +246,34 @@ export function creatureDamage(creature: CreatureSim, base: number, hit: Creatur
   return { damage: base, blocked: false };
 }
 
-/** Mire Bloom: approach players and plant slowing ink pools. */
+/** The closest standing hut, if any. */
+function nearestHut(creature: CreatureSim, huts: readonly CreatureTarget[] | undefined): { target: CreatureTarget; distance: number } | null {
+  let best: CreatureTarget | null = null, bestDistance = Number.POSITIVE_INFINITY;
+  for (const hut of huts ?? []) {
+    const distance = Math.hypot(hut.x - creature.x, hut.z - creature.z);
+    if (distance < bestDistance) { best = hut; bestDistance = distance; }
+  }
+  return best ? { target: best, distance: bestDistance } : null;
+}
+
+/**
+ * Torch Bearer (Mire Bloom): walks to the nearest standing hut and sets it alight, unless a player is right on it.
+ * With no huts left it goes for players and the totem like the others. It plants slowing ink pools all the while.
+ */
 function stepMire(creature: CreatureSim, ctx: CreatureContext, found: ReturnType<typeof nearest>, events: CreatureEvent[]): void {
   const stats = CREATURE_TUNING.mire;
-  if (found) {
+  const hut = nearestHut(creature, ctx.huts);
+  const playerOnIt = found !== null && found.target.id !== TOTEM_ID && found.distance <= VILLAGE.runnerPlayerM;
+  if (hut && !playerOnIt) {
+    if (hut.distance <= stats.burnReachM) {
+      walk(creature, ctx, creature.x, creature.z, 0);
+      face(creature, hut.target);
+      if (creature.actionMs <= 0) { events.push({ type: "burn", target: hut.target.id, damage: stats.burnDamage }); creature.actionMs = stats.burnEveryMs; }
+    } else {
+      const head = headFor(creature, ctx, hut.target);
+      walk(creature, ctx, head.x, head.z, stats.speed, head.y);
+    }
+  } else if (found) {
     const head = headFor(creature, ctx, found.target);
     walk(creature, ctx, head.x, head.z, stats.speed, head.y);
     face(creature, found.target);

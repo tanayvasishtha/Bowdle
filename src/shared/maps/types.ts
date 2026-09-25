@@ -39,7 +39,8 @@ export type SwingAnchor = {
 /** Upward launch pad. */
 export type Geyser = { id: string; pos: Vec3Tuple; radius: number; launch: number };
 /** Plank wall or crate the server tracks for HP and rebuild. */
-export type Breakable = { id: string; box: { min: Vec3Tuple; max: Vec3Tuple }; hp: number };
+/** burnOnly: arrows stop at it without breaking it; only a Torch Bearer's fire does (the Home Grove hut fences). */
+export type Breakable = { id: string; box: { min: Vec3Tuple; max: Vec3Tuple }; hp: number; burnOnly?: boolean };
 /** PvP heal pickup. Distinct from Expedition herbSpawns. */
 export type Herb = { id: string; pos: Vec3Tuple };
 /** Optional flood timing for maps that override the global Lost River flood clock (Sunken Ruins tide). */

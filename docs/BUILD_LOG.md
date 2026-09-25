@@ -1,3 +1,21 @@
+## Fix 6: shots that never reached the server, first-shot freeze (2026-09-25)
+
+Tag `fix6`.
+
+Found by playing two browsers against a server with 150 ms of simulated lag and tracing every arrow frame by frame.
+
+Built:
+- Players were being disconnected mid-match without knowing it. The server's flood guard allowed 30 messages a second, exactly the rate a client sends input. Any hitch (a slow frame, a Wi-Fi stall) makes the client send a few frames at once, the count went over 30, and the server cut the player off. Their screen kept predicting, so they could still run and shoot, but the server held their last input: the bow stayed drawn, arrows were drawn on screen and never fired, nothing they did counted. In the lag test most runs lost every shot after the first. The limit is now four times the tick rate (still a flood guard). After the fix, 20 of 20 shots registered across five runs.
+- The first shot of a match froze the game for 0.2 to 0.6 s: the first sound opened the audio device, which blocks. It now opens during the loading screen and stays suspended (no audio processing) until the first click or key. That freeze was also what pushed the input over the old limit on the very first shot.
+- Your own arrow that stuck in a wall on your screen jumped back about 9 m and flew in again when the server's copy arrived (its updates run about 65 ms behind). It now stays where it stuck; the server's copy follows the same path to the same spot (launch direction and speed were checked equal to 0.01 m/s).
+
+Test: `tests/server/message-limit.test.ts` (a bunched second of input keeps the player; a real flood still disconnects). It fails on the old limit.
+
+Verified: `npm run check` 394 of 394 with no dev server running (with one running, a different database test flakes each run, as before). Playwright 60 of 61 in the full run; the HUD draw test then passed 6 of 7 alone. It runs at about 1 frame a second in software rendering, and an audio context left running from page load cost it 20% of that, which is why the context is suspended until the first click. A timing test (`abilities.test.ts`, grapple swing) failed once under load and passed 5 of 5 alone.
+
+Left:
+- A client the flood guard does disconnect is not told for 15 s (the server waits out the reconnect window before closing the socket). Only a flooding client can hit this now.
+
 ## Fix 5: softer audio, arrows land where they are drawn, smooth camera (2026-09-25)
 
 Tag `fix5`.

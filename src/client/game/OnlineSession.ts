@@ -492,7 +492,11 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
       // Once it has hit someone on this screen it stays at the hit point, even while the server copy is still in flight.
       if (render.hitAtMs > 0) continue;
       const fromX = render.sim.x, fromY = render.sim.y, fromZ = render.sim.z;
-      render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z");
+      // Your own shot that already stuck in a wall on this screen stays there. The server copy flies the same path to the
+      // same spot, but its updates arrive a moment late, and following them drew the arrow jumping back and flying in again.
+      const resting = entry.server !== undefined && entry.local?.stuck === true;
+      if (resting) { render.sim.x = entry.local!.x; render.sim.y = entry.local!.y; render.sim.z = entry.local!.z; }
+      else { render.sim.x = this.arrows.value(entry, "x"); render.sim.y = this.arrows.value(entry, "y"); render.sim.z = this.arrows.value(entry, "z"); }
       // The first frame only places the arrow; from then on each frame sweeps the stretch it just flew.
       if (render.placed) {
         const t = this.arrowHit(entry.id, source, fromX, fromY, fromZ, render.sim);

@@ -85,6 +85,8 @@ export const PARTY_ROOM = "party";
 const RELIC_CARRY_HEIGHT_M = 2.1;
 /** Falling out of the world in an Expedition costs this much health. */
 const EXPEDITION_FALL_DAMAGE = 25;
+/** Messages a client may send per second, as a multiple of the tick rate (see maxMessagesPerSecond). */
+export const MESSAGE_HEADROOM = 4;
 
 /**
  * Test harness options (bot wipe, duel lane, fixed seeds, later start waves) are for the test runner only. A client that
@@ -108,7 +110,9 @@ type HitboxTargetRow = { x: number; y: number; z: number; height: number; crouch
 
 export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; client: GameClient }> {
   maxClients = TEAM_SIZE * 2;
-  maxMessagesPerSecond = TICK_HZ;
+  // Flood guard. A client sends one input per tick, but network jitter and its catch-up after a frame hitch (up to five
+  // steps in one frame) bunch them, so a limit of exactly the tick rate disconnected ordinary players mid-match.
+  maxMessagesPerSecond = TICK_HZ * MESSAGE_HEADROOM;
   state = new MatchState();
   private map: MapData = defaultMatchMap;
   /** Collision map with unbroken breakables merged into boxes. */

@@ -1,3 +1,14 @@
+## Fix 12: rejoining after a dropped connection actually worked (2026-09-28)
+
+Tag `fix12`.
+
+Built:
+- Never played out before: rejoin a match after a dropped connection. Found by dropping the network mid-match with the browser's dev tools and clicking the "Rejoin" banner. It landed on "The trail went cold" every time, a caught crash, not a real network failure. A fresh join always resolves after the first full state has arrived; a reconnect can resolve first and deliver it a moment later, and the session read `room.state.players` before it existed. Reconnect now waits for the first state patch (capped at 5 s) before building the session.
+
+Test: `reconnect.spec.ts` drops the network with the devtools protocol, clicks Rejoin, and checks the match is live (no crash text, the timer visible and ticking). Fails on the old code, passes on the new.
+
+Verified: `npm run check` 399 of 399.
+
 ## Fix 11: touch controls no longer cover the HUD (2026-09-28)
 
 Tag `fix11`.

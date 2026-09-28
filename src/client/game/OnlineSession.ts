@@ -252,6 +252,14 @@ export class OnlineSession {
     const chosen = chooseRegion(probes);
     const endpoint = regionEndpoint(chosen);
     const room = await new Client(endpoint).reconnect(reconnectionToken);
+    // A fresh join only resolves once the first full state patch has arrived, but reconnect can resolve first and
+    // deliver it a moment later; without this the constructor below reads room.state.players before it exists.
+    if (!room.state?.players) {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 5000);
+        room.onStateChange.once(() => { clearTimeout(timer); resolve(); });
+      });
+    }
     const session = new OnlineSession(renderer, sampler, room);
     clearRejoinTicket();
     return session;

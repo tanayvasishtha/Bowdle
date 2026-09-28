@@ -10,10 +10,11 @@ test("a party leader picks a supported mode, and the Lobby remains a direct matc
   await returningPlayer(page);
   await page.goto("/?scene=party&test");
   await page.screenshot({ path: "test-results/qa/g8/party-mode.png" });
-  await expect(page.locator(".bowdle-party select[data-field=mode] option")).toHaveText(["Quick Play", "Lobby", "Relic Run", "Village Defense"]);
-  await page.locator(".bowdle-party select[data-field=mode]").selectOption("relic");
+  // Quick Play and Relic Run are behind feature flags, and Lobby has no teams, so a party there could never put
+  // friends on the same side; Village Defense is the only mode offered.
+  await expect(page.locator(".bowdle-party select[data-field=mode] option")).toHaveText(["Village Defense"]);
   await page.locator(".bowdle-party [data-action=start]").click();
-  await page.waitForURL(/scene=online&party=[A-Z0-9]+&mode=relic/);
+  await page.waitForURL(/scene=online&party=[A-Z0-9]+&mode=expedition/);
   await page.waitForFunction(() => "__bowdleTest" in window || document.querySelector(".bowdle-timer") !== null, undefined, { timeout: 20_000 });
   await page.goto(`${onlineUrl("map=wild-crossing")}&mode=ffa`);
   await expect(page.locator(".bowdle-score")).toContainText("YOU", { timeout: 20_000 });

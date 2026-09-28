@@ -1,3 +1,16 @@
+## Fix 15: the default crosshair blended into the map (2026-09-29)
+
+Tag `fix15`.
+
+Built:
+- Went looking for why the bow feels bad to use, since it wasn't a hit-registration or damage problem (both checked out earlier). Drove real mouse/keyboard input through a headless browser and screenshotted every stage of a draw. The crosshair was there the whole time, correctly centered, but its default color, sepia, is the same dark brown used for every wall, prop and outline in the game; against the tan ground and wood walls that make up most of Home Grove it all but disappears. A new player never told to change it would be aiming half-blind. New players now default to sunInk, the warm orange-red accent already used everywhere else in the UI for emphasis, which reads clearly against sky, ground, wood and foliage alike. Anyone who already picked a crosshair color keeps it; this only changes what a fresh install starts with.
+
+Also ran real driven-movement telemetry (actual mouse-look and WASD, not the test hooks) hunting for the "physics doesn't make sense" report: no position snaps, no exceeding the game's own speed caps, no errors. The movement sim itself checks out under real play. What remains is that the movement system includes deliberate arena-shooter depth, wall jump, mantle, air control, sliding, none of which a casual bow-game player is likely expecting; that is a design call, not a bug, and I have not touched it without confirming that is really what should change.
+
+Test: `settings.test.ts` (new), asserts the default.
+
+Verified: `npm run check` 400 of 400.
+
 ## Fix 14: the server-ping readout was hidden under the touch look pad (2026-09-29)
 
 Tag `fix14`.

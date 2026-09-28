@@ -85,7 +85,10 @@ const STORAGE_KEY = "bowdle.settings.v1";
 const NAME_KEY = "bowdle.name";
 
 export function defaultSettings(): GameSettings {
-  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, invertY: false, verticalSensitivity: 1, aimSensitivity: 1, gamepadSensitivity: 1, trackpadMode: false, crosshairStyle: "circle", crosshairSize: CROSSHAIR_SIZE.default, crosshairColor: "sepia", teamPalette: "default", keys: { ...DEFAULT_KEYS }, preferredRegion: "", graphicsPreset: "high", fpsCap: 60, graphicsBenchmarked: false };
+  return { sensitivity: MOUSE_SENSITIVITY, fov: DEFAULT_FOV, masterVolume: MASTER_VOLUME, boil: true, floatingNotes: true, colorblindSymbols: false, reduceMotion: false, damageNumbers: true, tips: true, musicVolume: AUDIO_MIX.defaultMusic, effectsVolume: AUDIO_MIX.defaultEffects, ambienceVolume: AUDIO_MIX.defaultAmbience, music: true, soundIndicators: false, invertY: false, verticalSensitivity: 1, aimSensitivity: 1, gamepadSensitivity: 1, trackpadMode: false, crosshairStyle: "circle", crosshairSize: CROSSHAIR_SIZE.default,
+    // sepia (the ink color used for outlines everywhere) reads as camouflage against the game's own brown wood and
+    // tan ground; sunInk is the warm accent color already used for emphasis elsewhere, and stands out reliably.
+    crosshairColor: "sunInk", teamPalette: "default", keys: { ...DEFAULT_KEYS }, preferredRegion: "", graphicsPreset: "high", fpsCap: 60, graphicsBenchmarked: false };
 }
 
 function range(value: unknown, min: number, max: number, fallback: number): number {

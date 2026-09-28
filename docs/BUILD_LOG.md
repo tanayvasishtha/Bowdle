@@ -1,3 +1,14 @@
+## Fix 10: tells players when a hut burns down (2026-09-28)
+
+Tag `fix10`.
+
+Built:
+- A Torch Bearer burning a hut down was only visible as the fence disappearing and the totem bar dropping, easy to miss mid-fight. Every player now gets a corner message ("A hut burned down! Totem -40") and a soft cue when it happens.
+
+Test: `expedition.test.ts` extended to check the broadcast message's payload and that every client receives it.
+
+Verified: `npm run check` 399 of 399 clean, no other project competing for the machine this time. Playwright's four failures from the prior full run (boss wave, wave 7 tender, grapple, first-frame budget) all passed on rerun in isolation, confirming they were load flakes from that run and not caused by fix 8/9.
+
 ## Fix 9: the Torch Bearer burns huts; Village Defense bots hunt (2026-09-25)
 
 Tag `fix9`.

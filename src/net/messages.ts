@@ -13,6 +13,8 @@ export const SwatMessage = z.object({ swatter: z.string(), shooter: z.string(), 
 export const MatchEndMessage = z.object({ winner: z.enum(["sun", "moon", "draw", "player"]), mvp: z.string(), playOf: z.object({ killerId: z.string(), victimId: z.string(), distance: z.number().nonnegative(), streak: z.number().int().nonnegative(), kind: z.enum(["longShot", "streak"]) }).optional() });
 export const RelicMessage = z.object({ event: z.enum(["pickup", "drop", "return", "capture"]), player: z.string(), team: z.number().int() });
 export const MapVoteMessage = z.object({ mapId: z.enum(["sun-temple", "canopy", "lost-river", "sky-bridges", "sunken-ruins"]) });
+/** A Torch Bearer burned a Village Defense hut down; totemDamage is what the totem just lost for it. */
+export const HutBurnedMessage = z.object({ totemDamage: z.number().nonnegative() });
 
 export type SetNameMessage = z.infer<typeof SetNameMessage>;
 export type KillMessage = z.infer<typeof KillMessage>;
@@ -28,6 +30,7 @@ export const CreatureHitMessage = z.object({ id: z.string(), damage: z.number().
 export const CreatureDownMessage = z.object({ id: z.string(), kind: z.string(), killer: z.string() });
 export const WaveMessage = z.object({ event: z.enum(["start", "clear", "over"]), wave: z.number().int(), modifier: z.string(), boss: z.boolean() });
 export const DownedMessage = z.object({ player: z.string(), event: z.enum(["down", "revived", "out", "life"]) });
+export type HutBurnedMessage = z.infer<typeof HutBurnedMessage>;
 export type CreatureHitMessage = z.infer<typeof CreatureHitMessage>;
 export type CreatureDownMessage = z.infer<typeof CreatureDownMessage>;
 export type WaveMessage = z.infer<typeof WaveMessage>;

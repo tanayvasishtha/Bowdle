@@ -10,7 +10,7 @@ import {
   type VillageBuffs, type VillageUpgradeId,
 } from "../../shared/sim/villageDefense.ts";
 import { ArrowState, CreatureState, HerbState, type MatchState, type PlayerState } from "../../net/schema.ts";
-import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, WaveMessage } from "../../net/messages.ts";
+import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, HutBurnedMessage, WaveMessage } from "../../net/messages.ts";
 import type { MatchStats } from "../../shared/matchStats.ts";
 
 /** What the director needs from its room. */
@@ -22,6 +22,7 @@ export type ExpeditionHost = {
   broadcastWave(message: WaveMessage): void;
   broadcastDown(message: CreatureDownMessage): void;
   broadcastDowned(message: DownedMessage): void;
+  broadcastHutBurned(message: HutBurnedMessage): void;
   sendCreatureHit(playerId: string, message: CreatureHitMessage): void;
   addSpit(arrow: ArrowState): void;
   /** Standing huts a Torch Bearer can burn, as the point in front of each. */
@@ -302,7 +303,10 @@ export class ExpeditionDirector {
       });
     } else if (event.type === "burn") {
       // A burned hut costs the village: the totem takes the hit.
-      if (this.host.burnHut(event.target, event.damage)) this.hurt(TOTEM_ID, VILLAGE.hutBurnTotemDamage);
+      if (this.host.burnHut(event.target, event.damage)) {
+        this.hurt(TOTEM_ID, VILLAGE.hutBurnTotemDamage);
+        this.host.broadcastHutBurned({ totemDamage: VILLAGE.hutBurnTotemDamage });
+      }
     } else if (event.type === "heal") {
       for (const targetId of event.targets) {
         const creature = this.host.state.creatures.get(targetId);

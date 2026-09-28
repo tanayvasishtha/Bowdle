@@ -63,7 +63,7 @@ import { createPlayerSim, type PlayerSim } from "../../shared/sim/movement.ts";
 import { breakableHitBySegment, createBreakables, createHerbs, damageBreakable, mergeBreakablesIntoMap, solidBreakableBoxes, stepBreakables, tryPickHerb, type BreakableRuntime, type HerbRuntime } from "../../shared/sim/mapFeatures.ts";
 import { BreakableState, MapHerbState } from "../../net/schema.ts";
 import { tuning as creatureTuning, type CreatureTarget } from "../../shared/sim/creatures.ts";
-import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, WaveMessage } from "../../net/messages.ts";
+import type { CreatureDownMessage, CreatureHitMessage, DownedMessage, HutBurnedMessage, WaveMessage } from "../../net/messages.ts";
 import { respawnPlayer, updateMatchPhase } from "../../shared/sim/match.ts";
 import { chooseSpawnFor, freeTeam, isGameMode, matchWinner, modeRules, scoreCapture, scoreKillFor } from "../../shared/sim/modes.ts";
 import { dropRelic, inCamp, relicExpired, relicTouch, resetRelic, touchesRelic } from "../../shared/sim/relic.ts";
@@ -98,7 +98,7 @@ export function launchSafeOptions<T extends JoinOptions | undefined>(options: T)
 }
 
 type JoinOptions = { spectator?: boolean; mode?: string; checkpoint?: boolean; testStartWave?: number; botPlayers?: number; name?: string; token?: string; party?: string; test?: boolean; mapId?: string; testMapId?: string; testBotSeed?: number; ranked?: boolean ; weekly?: boolean; handicaps?: string | readonly string[]; seed?: number };
-type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage ; pingEvent: PingEventMessage; afkPrompt: AfkPromptMessage; afkRemoved: AfkRemovedMessage; playOfTheMatch: PlayOfTheMatchMessage; spectator: { ok: boolean } };
+type ServerMessages = { kill: KillMessage; hitConfirm: HitConfirmMessage; damaged: DamagedMessage; matchEnd: MatchEndMessage; robinHood: RobinHoodMessage; ropeCut: RopeCutMessage; swat: SwatMessage; relic: RelicMessage; creatureHit: CreatureHitMessage; creatureDown: CreatureDownMessage; wave: WaveMessage; downed: DownedMessage; hutBurned: HutBurnedMessage; rewards: RewardMessage; matchStats: MatchStatsMessage ; pingEvent: PingEventMessage; afkPrompt: AfkPromptMessage; afkRemoved: AfkRemovedMessage; playOfTheMatch: PlayOfTheMatchMessage; spectator: { ok: boolean } };
 type GameClient = Client<{ messages: ServerMessages }>;
 type DamageRecord = { attacker: string; damage: number; atMs: number };
 type ArrowOrigin = { x: number; y: number; z: number };
@@ -931,6 +931,7 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
       broadcastWave: (message) => this.broadcast("wave", message),
       broadcastDown: (message) => this.broadcast("creatureDown", message),
       broadcastDowned: (message) => this.broadcast("downed", message),
+      broadcastHutBurned: (message) => this.broadcast("hutBurned", message),
       sendCreatureHit: (playerId, message) => this.clientById(playerId)?.send("creatureHit", message),
       addSpit: (arrow) => this.state.arrows.set(`spit-${this.arrowSerial += 1}`, arrow),
       huts: () => {

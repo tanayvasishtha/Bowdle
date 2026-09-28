@@ -182,12 +182,16 @@ describe("Expedition", () => {
     expect(room.state.arrows.has("fence-shot")).toBe(false);
     expect(room.state.breakables.get(fence.id)!.broken).toBe(false);
     expect(room.state.breakables.get(fence.id)!.hp).toBe(fence.hp);
-    // Fire does: once it burns down the totem loses a chunk.
+    // Fire does: once it burns down the totem loses a chunk, and every player is told.
     const totemBefore = room.state.expedition.totemHp;
+    const hutBurnedMessages: Array<{ totemDamage: number }> = [];
+    client.onMessage("hutBurned", (message: { totemDamage: number }) => hutBurnedMessages.push(message));
     (room.expedition as unknown as { apply(id: string, event: { type: "burn"; target: string; damage: number }, targets: never[]): void })
       .apply("torch", { type: "burn", target: fence.id, damage: fence.hp }, []);
     expect(room.state.breakables.get(fence.id)!.broken).toBe(true);
     expect(room.state.expedition.totemHp).toBe(totemBefore - VILLAGE.hutBurnTotemDamage);
+    await client.waitForNextMessage();
+    expect(hutBurnedMessages).toEqual([{ totemDamage: VILLAGE.hutBurnTotemDamage }]);
     await client.leave();
   }, 30_000);
 

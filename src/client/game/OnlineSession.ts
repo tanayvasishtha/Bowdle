@@ -16,7 +16,7 @@ import { emptySnapshot, moveSignals, snapshotOf } from "./course.ts";
 import { TIP_TEXT, TipScheduler, countMatchStart, tipsActive, type TipId } from "./tips.ts";
 import { loadSettings } from "../settings.ts";
 import { headCenterY } from "../../shared/sim/hitboxes.ts";
-import { CreatureDownMessage, CreatureHitMessage, DamagedMessage, DownedMessage, WaveMessage, HitConfirmMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RelicMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
+import { CreatureDownMessage, CreatureHitMessage, DamagedMessage, DownedMessage, WaveMessage, HitConfirmMessage, HutBurnedMessage, KillMessage, MatchEndMessage, MatchStatsMessage, RelicMessage, RewardMessage, RobinHoodMessage, RopeCutMessage, SwatMessage } from "../../net/messages.ts";
 import { MatchState, PlayerInput, type ArrowState, type PlayerState } from "../../net/schema.ts";
 import { ropeSag, type Renderer } from "../render/Renderer.ts";
 import { type CameraView } from "./CameraRig.ts";
@@ -201,6 +201,7 @@ export class OnlineSession {
     room.onMessage<CreatureDownMessage>("creatureDown", (payload) => { const parsed = CreatureDownMessage.safeParse(payload); if (parsed.success) this.onCreatureDown(parsed.data); });
     room.onMessage<WaveMessage>("wave", (payload) => { const parsed = WaveMessage.safeParse(payload); if (parsed.success) this.onWave(parsed.data); });
     room.onMessage<DownedMessage>("downed", (payload) => { const parsed = DownedMessage.safeParse(payload); if (parsed.success) this.onDowned(parsed.data); });
+    room.onMessage<HutBurnedMessage>("hutBurned", (payload) => { const parsed = HutBurnedMessage.safeParse(payload); if (parsed.success) { this.hud.tickerLine(`A hut burned down! Totem -${parsed.data.totemDamage}`); this.sounds.play("paper"); } });
     room.onMessage<RelicMessage>("relic", (payload) => { const parsed = RelicMessage.safeParse(payload); if (parsed.success) this.onRelic(parsed.data); });
     room.onMessage<SwatMessage>("swat", (payload) => { const parsed = SwatMessage.safeParse(payload); if (parsed.success) this.onSwat(parsed.data); });
     room.onMessage<KillMessage>("kill", (payload) => { const parsed = KillMessage.safeParse(payload); if (parsed.success) this.onKill(parsed.data); });

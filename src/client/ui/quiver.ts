@@ -18,7 +18,10 @@ export class QuiverStrip {
     style.textContent = ".bowdle-quiver{position:absolute;left:calc(50% + 70px);bottom:24px;transform:translateX(-50%);display:flex;gap:10px;font:18px 'Permanent Marker';color:#4a3527;pointer-events:none}"
       + ".bowdle-quiver>div{min-width:104px;padding:6px 9px;background:#efe3c6cc;border:3px solid #4a352788;transform:rotate(1deg);text-align:center}"
       + ".bowdle-quiver>div[data-selected=true]{border-color:#d2531f;color:#d2531f;background:#efe3c6f2;transform:translateY(-8px) rotate(-1deg)}"
-      + ".bowdle-quiver small{display:block;font:15px 'Gochi Hand'}";
+      + ".bowdle-quiver small{display:block;font:15px 'Gochi Hand'}"
+      // Clears the touch pads (which sit in the same bottom corners), left-aligned under the ability panel
+      // instead of centred, since the two panels together no longer fit side by side on a phone-width screen.
+      + "body[data-touch=\"true\"] .bowdle-quiver{left:24px;bottom:300px;transform:none}";
     container.append(style, this.root);
   }
 

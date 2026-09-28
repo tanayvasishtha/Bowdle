@@ -1,3 +1,14 @@
+## Fix 11: touch controls no longer cover the HUD (2026-09-28)
+
+Tag `fix11`.
+
+Built:
+- On a phone, the ability panel (grapple, dodge) and the quiver strip sat directly under the on-screen movement stick, look pad and fire button, all anchored to the same two bottom corners. Found by loading the game at a phone viewport and checking layout. The touch pads now carry a body-level flag while they are on screen; the ability panel and quiver strip read it and move up clear of every pad, stacked so they still fit on a narrow phone. Desktop and tablet, where there is room for everything side by side, are unchanged (verified: no `data-touch` flag, both panels at their original position).
+
+Test: `touch.spec.ts` gained a phone-width (375x812) case that checks all four HUD-vs-pad overlaps are false; it fails on the pre-fix layout and passes after.
+
+Verified: `npm run check` 399 of 399. The touch, HUD and online e2e specs: 5 of 6, the one failure (the draw-meter fill test) fails the same way with every touch/HUD change reverted, so it is the same load-timing flake from earlier fixes, not this change.
+
 ## Fix 10: tells players when a hut burns down (2026-09-28)
 
 Tag `fix10`.

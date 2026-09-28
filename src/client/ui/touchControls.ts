@@ -60,6 +60,8 @@ export class TouchControls {
       <button type="button" class="bowdle-touch-fire" data-testid="touch-fire">Draw</button>
       <div class="bowdle-touch-look" data-testid="touch-look"></div>`;
     host.append(this.root);
+    // The ability panel and quiver strip read this to clear the stick, look pad and fire button.
+    document.body.dataset.touch = "true";
     this.knob = this.root.querySelector(".bowdle-touch-stick > i")!;
     this.fire = this.root.querySelector(".bowdle-touch-fire")!;
     const stick = this.root.querySelector(".bowdle-touch-stick")!;
@@ -72,7 +74,7 @@ export class TouchControls {
     window.addEventListener("pointercancel", (event) => this.onUp(event));
   }
 
-  dispose(): void { this.root.remove(); }
+  dispose(): void { this.root.remove(); delete document.body.dataset.touch; }
 
   sample(): TouchSample {
     const buttons = this.holding ? BTN.FIRE : 0;

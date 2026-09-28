@@ -1,6 +1,6 @@
 # Deploy Bowdle to Render
 
-Status: `main` at `a079458` (past tag `fix13`) is the newest verified checkpoint: `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite all pass. Deploy `main`. Do not deploy `v3.0.1`: fixes 5 through 13 landed after it, including a server-side disconnect bug, a reconnect crash, and arrow aim.
+Status: `main` at tag `fix14` is the newest verified checkpoint: `npm run check` passes on it directly; `npm run smoke`, `npm run soak` and the full Playwright suite passed a few commits earlier the same day (fix14 only touches client CSS, nothing either gate exercises). Deploy `main`. Do not deploy `v3.0.1`: fixes 5 through 14 landed after it, including a server-side disconnect bug, a reconnect crash, and arrow aim.
 
 Deploy a tagged release only after `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite pass on the release commit.
 

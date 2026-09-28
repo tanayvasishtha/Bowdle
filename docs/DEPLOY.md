@@ -1,6 +1,6 @@
 # Deploy Bowdle to Render
 
-Status: **v3.0.1** (tag `v3.0.1` on `main`). Deploy that tag. Do not deploy `v3.0.0`: it was tagged before the launch gates were green, and 9 map commits landed after it.
+Status: `main` at `a079458` (past tag `fix13`) is the newest verified checkpoint: `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite all pass. Deploy `main`. Do not deploy `v3.0.1`: fixes 5 through 13 landed after it, including a server-side disconnect bug, a reconnect crash, and arrow aim.
 
 Deploy a tagged release only after `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite pass on the release commit.
 

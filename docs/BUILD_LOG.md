@@ -1,3 +1,14 @@
+## Fix 14: the server-ping readout was hidden under the touch look pad (2026-09-29)
+
+Tag `fix14`.
+
+Built:
+- fix11 cleared the touch pads for the ability panel and quiver strip but missed a third element in the same corner: the "server: Xms" readout, bottom-right, exactly where the touch look pad sits. Found by systematically checking every other bottom-corner HUD element after fix11, not by a new report. Its position was set with an inline style, which always wins over an external CSS rule no matter how specific, so the same `body[data-touch="true"]` fix that moved the ability panel and quiver strip could not reach it. Moved the position into the shared stylesheet (keeping only the show/hide toggle inline) so the touch override works the same way; it now sits above the look pad and fire button. Desktop and tablet are unchanged: same `right:24px; bottom:24px` as before.
+
+Test: `touch.spec.ts`'s overlap check now also covers the ping line against the look pad and fire button. Fails on the pre-fix layout, passes after (checked 3 clean runs).
+
+Verified: `npm run check` 399 of 399.
+
 ## Fix 13: the party invite offered modes it could not deliver (2026-09-28)
 
 Tag `fix13`.

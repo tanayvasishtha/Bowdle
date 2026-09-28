@@ -24,19 +24,23 @@ async function forceTouch(page: Page): Promise<void> {
   });
 }
 
-/** No overlap between the ability panel, the quiver strip and the three touch pads, which share their bottom corners. */
+/** No overlap between the ability panel, the quiver strip, the server-ping readout and the three touch pads, which share their bottom corners. */
 async function expectNoHudOverlap(page: Page): Promise<void> {
+  // The ping line only shows once a reading has come back; force one so its position is checkable like the others.
+  await page.waitForSelector('[data-testid="region-ping"]', { state: "attached" });
+  await page.evaluate(() => document.querySelector<HTMLElement>('[data-testid="region-ping"]')!.style.display = "block");
   const overlaps = await page.evaluate(() => {
     const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
     const collide = (a: DOMRect, b: DOMRect) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
-    const abilities = rect(".bowdle-abilities"), quiver = rect(".bowdle-quiver");
+    const abilities = rect(".bowdle-abilities"), quiver = rect(".bowdle-quiver"), ping = rect('[data-testid="region-ping"]');
     const stick = rect("[data-testid=touch-stick]"), look = rect("[data-testid=touch-look]"), fire = rect("[data-testid=touch-fire]");
     return {
       abilitiesVsStick: collide(abilities, stick), abilitiesVsQuiver: collide(abilities, quiver),
       quiverVsLook: collide(quiver, look), quiverVsFire: collide(quiver, fire),
+      pingVsLook: collide(ping, look), pingVsFire: collide(ping, fire),
     };
   });
-  expect(overlaps).toEqual({ abilitiesVsStick: false, abilitiesVsQuiver: false, quiverVsLook: false, quiverVsFire: false });
+  expect(overlaps).toEqual({ abilitiesVsStick: false, abilitiesVsQuiver: false, quiverVsLook: false, quiverVsFire: false, pingVsLook: false, pingVsFire: false });
 }
 
 test.describe("N3 touch controls", () => {

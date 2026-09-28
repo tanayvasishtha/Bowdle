@@ -1,3 +1,14 @@
+## Fix 13: the party invite offered modes it could not deliver (2026-09-28)
+
+Tag `fix13`.
+
+Built:
+- The "Play with friends" mode picker listed all four modes, including Quick Play and Relic Run, neither reachable from the main menu. Worse: it also listed Lobby, and Lobby has no teams, so a party there could never put friends on the same side, breaking the panel's own promise ("everyone lands in the same match, on the same team"). Confirmed live: starting a Lobby party put two friends in the same match but on two different teams. The picker now offers only Village Defense (the one launch-ready mode where a party is always team 0, so friends really do share a side); Quick Play and Relic Run reappear automatically once their feature flags turn on. This panel is not linked from the launch menu yet (Play with friends only exists behind `legacyMenu` or a direct `?scene=party` link), so it had no live impact for now, but it will as soon as the button is added.
+
+Test: `party.spec.ts` gained a check that the mode picker shows exactly `["Village Defense"]`. The existing two-friends test (which checks both land on the same team) passed on the corrected fix; on my first attempt at this fix, which kept Lobby in the list as the default mode, that exact test failed for the reason above, catching the mistake before it shipped.
+
+Verified: `npm run check` 399 of 399. Full `party.spec.ts` 3 of 3.
+
 ## Fix 12: rejoining after a dropped connection actually worked (2026-09-28)
 
 Tag `fix12`.

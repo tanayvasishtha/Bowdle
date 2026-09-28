@@ -45,6 +45,16 @@ test("two friends meet in a party on the same team", async ({ browser }) => {
   await Promise.all([contextA.close(), contextB.close()]);
 });
 
+test("the mode picker only offers Village Defense, the one launch-ready mode a party can share a team in", async ({ page }) => {
+  // Quick Play and Relic Run are behind feature flags. Lobby has no teams, so a party there could not put friends
+  // on the same side, and friends can already join the same Lobby match without a code.
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("bowdle.name", "Dee"));
+  await page.goto("/?scene=party&test");
+  const options = await page.locator("[data-field=mode] option").allTextContents();
+  expect(options).toEqual(["Village Defense"]);
+});
+
 test("a bad code is refused in the panel", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => localStorage.setItem("bowdle.name", "Cal"));

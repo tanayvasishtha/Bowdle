@@ -1,8 +1,19 @@
-import { GAME_MODES, MODE_NAMES, type GameMode } from "../../shared/sim/modes.ts";
+import { GAME_MODES, MODE_NAMES, modeRules, type GameMode } from "../../shared/sim/modes.ts";
 import { PARTY_CODE_LENGTH } from "../../shared/constants.ts";
 import { mulberry32 } from "../../shared/math/rng.ts";
 import { createPartyCode, isPartyCode, normalizePartyCode } from "../../shared/party.ts";
 import { portalPolicy } from "../platform/platform.ts";
+import { featureEnabled } from "../../shared/features.ts";
+
+/**
+ * Modes where the party's promise ("everyone lands on the same team") actually holds: those with teams at all
+ * (tdm, relic; every friend after the first fills the other side once one side is full) or Village Defense (the
+ * whole party is co-op, always team 0). Free for All has no teams, so a party there could not honour that promise;
+ * friends can already just join the same Lobby match without a code.
+ */
+function partyModes(): readonly GameMode[] {
+  return GAME_MODES.filter((mode) => modeRules(mode).teams && (mode !== "tdm" || featureEnabled("teamDeathmatch")) && (mode !== "relic" || featureEnabled("relicRun")));
+}
 
 export function partyLink(code: string): string {
   return `${location.origin}${location.pathname}?scene=online&party=${code}`;
@@ -25,7 +36,7 @@ export function showPartyPanel(container: HTMLElement, go: (code: string, mode?:
     <p class="bowdle-small">Share this code. Everyone who enters it lands in the same match, on the same team.</p>
     <p class="bowdle-party-code" data-testid="party-code">${code}</p>
     ${links ? `<button data-action="copy">Copy invite link</button>` : ""}
-    <label>Mode <select data-field="mode">${GAME_MODES.map((mode) => `<option value="${mode}">${MODE_NAMES[mode]}</option>`).join("")}</select></label>
+    <label>Mode <select data-field="mode">${partyModes().map((mode) => `<option value="${mode}">${MODE_NAMES[mode]}</option>`).join("")}</select></label>
     <button data-action="start">Start party</button>
     <h3>Have a code?</h3>
     <input data-field="code" maxlength="${PARTY_CODE_LENGTH + 2}" autocomplete="off" spellcheck="false" placeholder="K7P2QX">

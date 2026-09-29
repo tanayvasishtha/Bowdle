@@ -1,3 +1,17 @@
+## Fix 17: spitters no longer stall a wave from behind the village wall (2026-09-29)
+
+Tag `fix17`.
+
+Built:
+- A Spear Thrower (spitter) that has a solid wall between it and its target now keeps walking by the waypoint route until it has a clear line, and holds its fire while covered. Before, it stopped as soon as it was 15 to 25 m from the nearest player, wall or no wall.
+- The wall-sight test that only bots used now lives in `src/shared/sim/sight.ts`, so creatures and bots share one copy. `steer` in the expedition director takes a `force` flag so a covered spitter is routed even inside the 8 m direct-chase range.
+
+Why it happened: on Home Grove the village wall is 2.4 m tall. A spitter that stopped outside it at 19 to 24 m from the players inside could not hit them, and the bots' arrows hit the wall as well, so neither side could finish the wave. The stuck-creature check never moved it because a player was within its 28 m reach. It showed up as `wave N did not clear: spitter@-38,0,-27` in `npm run soak`, on seed-sensitive runs.
+
+Verified: the 10-seed Village Defense soak went from 7 of 10 to 10 of 10 (all 20 waves, 4 bosses each). New unit test in `creatures.test.ts`: behind a wall the spitter fires nothing and always asks for the route; in the open at the same range it still holds and fires. `npm run check` 404 of 404, `npm run smoke` and a 1-seed full soak pass. Full Playwright: 64 of 65; `grapple.spec.ts` failed under load in the full run (the same spec flaked in fix 16) and passes alone.
+
+Left: a spitter whose route ends before it clears the wall would still idle. No run showed that.
+
 ## Fix 16: stripped movement down to plain WASD and jump (2026-09-29)
 
 Tag `fix16`.

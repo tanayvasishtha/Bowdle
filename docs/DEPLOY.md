@@ -1,8 +1,6 @@
 # Deploy Bowdle to Render
 
-Status: `main` at tag `fix16` is the newest verified checkpoint: `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite all pass on it. Deploy `main`. Do not deploy `v3.0.1`: fixes 5 through 16 landed after it, including a server-side disconnect bug, a reconnect crash, arrow aim, and wall jump/mantle/slide going off by default.
-
-Known pre-existing issue (not new, tracked separately): `npm run soak` for Village Defense occasionally (roughly 1 in 5 runs) reports a wave that does not clear because one creature spawns near the map rim and is never engaged. Reproduces on this commit and on older ones alike; harmless to a real match (the wave just runs long) but worth fixing before relying on the soak gate's pass/fail count alone.
+Status: `main` at tag `fix17` is the newest verified checkpoint: `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite all pass on it. Deploy `main`. Do not deploy `v3.0.1`: fixes 5 through 17 landed after it, including a server-side disconnect bug, a reconnect crash, arrow aim, and wall jump/mantle/slide going off by default, and spitters no longer stall a wave from behind the village wall.
 
 Deploy a tagged release only after `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite pass on the release commit.
 

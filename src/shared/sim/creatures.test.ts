@@ -115,6 +115,22 @@ describe("creatures", () => {
     expect(Math.abs(inRange.x)).toBeLessThan(0.5);
   });
 
+  it("a spitter with a wall in front of it holds no fire and asks for the route until it has a clear line", () => {
+    const walled: MapData = { ...flat, boxes: [...flat.boxes, { id: "wall", min: [9, 0, -30], max: [11, 2.4, 30], material: "wood", tags: ["solid"] }] };
+    const spitter = createCreature("spitter", 0, 0, 0);
+    const forced: boolean[] = [];
+    const ctx: CreatureContext = { map: walled, targets: [player(20, 0)], dt: DT, gravityMult: 1, steer: (_creature, _target, force) => { forced.push(force === true); return null; } };
+    const events: CreatureEvent[] = [];
+    for (let tick = 0; tick < 90; tick += 1) events.push(...stepCreature(spitter, ctx));
+    expect(events.some((event) => event.type === "spit")).toBe(false);
+    expect(forced.length).toBeGreaterThan(0);
+    expect(forced.every(Boolean)).toBe(true);
+    // Out in the open at the same range it stays put and fires.
+    const open = createCreature("spitter", 0, 0, 0);
+    const openEvents = run(open, [player(20, 0)], 3);
+    expect(openEvents.some((event) => event.type === "spit")).toBe(true);
+  });
+
   it("guardians block arrows at their front shield but not from behind or on the gem", () => {
     const guardian = createCreature("guardian", 0, 0, 0);
     guardian.yaw = 0; // facing -z

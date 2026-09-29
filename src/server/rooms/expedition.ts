@@ -206,7 +206,7 @@ export class ExpeditionDirector {
       .filter(([, creature]) => creature.hp > 0)
       .map(([allyId, creature]) => ({ id: allyId, x: creature.x, y: creature.y, z: creature.z }));
     const huts = this.host.huts();
-    const ctx: CreatureContext = { map: this.host.map, targets, huts, allies, dt, gravityMult: this.gravityMult(), steer: (creature, target) => this.steer(creature as CreatureState, target, now) };
+    const ctx: CreatureContext = { map: this.host.map, targets, huts, allies, dt, gravityMult: this.gravityMult(), steer: (creature, target, force) => this.steer(creature as CreatureState, target, now, force) };
     for (const [id, creature] of creatures) {
       this.currentCreature = id;
       for (const event of stepCreature(creature, ctx)) this.apply(id, event, targets);
@@ -247,8 +247,8 @@ export class ExpeditionDirector {
 
   /** Creatures far from their target follow the waypoint graph, refreshed every so often. */
   private readonly heading: Heading = { x: 0, y: 0, z: 0 };
-  private steer(creature: CreatureState, target: CreatureTarget, now: number): Heading | null {
-    if (Math.hypot(target.x - creature.x, target.z - creature.z) <= EXPEDITION.directChaseM) return null;
+  private steer(creature: CreatureState, target: CreatureTarget, now: number, force = false): Heading | null {
+    if (!force && Math.hypot(target.x - creature.x, target.z - creature.z) <= EXPEDITION.directChaseM) return null;
     const id = this.currentCreature;
     let route = this.routes.get(id);
     const goal = nearestWaypoint(this.host.map, target.x, target.y, target.z);

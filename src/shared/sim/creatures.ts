@@ -2,6 +2,7 @@ import { ARROW_RADIUS, CREATURE_TUNING, EXPEDITION, GRAVITY, JUMP_VELOCITY } fro
 import type { MapData } from "../maps/types.ts";
 import { segmentDistance } from "../math/segments.ts";
 import { movePlayer, moveResult } from "./collision.ts";
+import { sightBlocked, solidBoundsFor } from "./sight.ts";
 import { bossHp, type CreatureKind } from "./waves.ts";
 import { TOTEM_ID, VILLAGE } from "./villageDefense.ts";
 
@@ -26,11 +27,12 @@ export type CreatureEvent =
 
 /**
  * steer returns where to walk next toward a far target (the next route waypoint), or null to walk straight.
+ * force asks for the route even when the target is near, for a creature with a wall in front of it.
  * Targets are the players a creature may attack: alive and not downed.
  */
 export type CreatureAlly = { id: string; x: number; y: number; z: number };
 /** huts: standing village huts a Torch Bearer can set alight (the point is the front of each hut). */
-export type CreatureContext = { map: MapData; targets: readonly CreatureTarget[]; huts?: readonly CreatureTarget[]; allies?: readonly CreatureAlly[]; dt: number; gravityMult: number; steer?: (creature: CreatureSim, target: CreatureTarget) => Heading | null };
+export type CreatureContext = { map: MapData; targets: readonly CreatureTarget[]; huts?: readonly CreatureTarget[]; allies?: readonly CreatureAlly[]; dt: number; gravityMult: number; steer?: (creature: CreatureSim, target: CreatureTarget, force?: boolean) => Heading | null };
 /** Where a creature walks next; y lets a blocked creature leap high enough for a ledge. */
 export type Heading = { x: number; y: number; z: number };
 
@@ -88,8 +90,8 @@ function face(creature: CreatureSim, target: CreatureTarget): void {
 
 /** Where to head: the route's next waypoint for far targets, otherwise the target itself. */
 const direct: Heading = { x: 0, y: 0, z: 0 };
-function headFor(creature: CreatureSim, ctx: CreatureContext, target: CreatureTarget): Heading {
-  const routed = ctx.steer?.(creature, target);
+function headFor(creature: CreatureSim, ctx: CreatureContext, target: CreatureTarget, force = false): Heading {
+  const routed = ctx.steer?.(creature, target, force);
   if (routed) return routed;
   direct.x = target.x; direct.y = target.y; direct.z = target.z;
   return direct;
@@ -132,13 +134,15 @@ function stepSpitter(creature: CreatureSim, ctx: CreatureContext, found: ReturnT
   const stats = CREATURE_TUNING.spitter;
   if (!found) { walk(creature, ctx, creature.x, creature.z, 0); return; }
   const { target, distance } = found;
+  // Behind a wall its ink hits the wall and nobody can shoot it, so it keeps coming by the route until it has a clear line.
+  const covered = distance <= stats.keepMaxM + 3 && sightBlocked(solidBoundsFor(ctx.map), creature.x, creature.y + stats.height, creature.z, target.x, target.y + 1.2, target.z);
   if (distance < stats.keepMinM) {
     walk(creature, ctx, creature.x - (target.x - creature.x), creature.z - (target.z - creature.z), stats.speed);
-  } else if (distance > stats.keepMaxM) {
-    const head = headFor(creature, ctx, target);
+  } else if (distance > stats.keepMaxM || covered) {
+    const head = headFor(creature, ctx, target, covered);
     walk(creature, ctx, head.x, head.z, stats.speed, head.y);
   } else walk(creature, ctx, creature.x, creature.z, 0);
-  if (distance <= stats.keepMaxM + 3) {
+  if (distance <= stats.keepMaxM + 3 && !covered) {
     face(creature, target);
     if (creature.cooldownMs <= 0) {
       const fromY = creature.y + stats.height, toY = target.y + 1.2;

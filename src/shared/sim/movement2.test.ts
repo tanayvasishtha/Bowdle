@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DODGE, FALL, RUN_SPEED, LANDING_GRACE, MANTLE, PLAYER_WIDTH, SLIDE_DECEL, SLIDE_JUMP_MULT, VINE_HOP, WALL_JUMP } from "../constants.ts";
+import { setFeatureOverride } from "../features.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { Box, MapData } from "../maps/types.ts";
 import { fallCreditFor, isOutOfWorld } from "./fall.ts";
@@ -43,6 +44,9 @@ describe("vine hop", () => {
 });
 
 describe("wall jump", () => {
+  // Not taught anywhere at launch and off by default; this still verifies the mechanic itself works.
+  beforeEach(() => setFeatureOverride("advancedMovement", true));
+  afterEach(() => setFeatureOverride("advancedMovement", undefined));
   const wall: Box = { id: "wall", min: [2, 0, -5], max: [2.5, 6, 5], material: "stone", tags: ["solid"] };
 
   it("kicks off a wall touched a moment ago and restores the vine hop", () => {
@@ -71,9 +75,22 @@ describe("wall jump", () => {
     tick(state, { ...east, buttons: BTN.JUMP }, world);
     expect(state.wallJumps).toBe(0);
   });
+
+  it("does nothing with advanced movement off (the launch default): the vine hop fires in its place", () => {
+    setFeatureOverride("advancedMovement", false);
+    const world = map([wall]), state = createPlayerSim(0, 3, 0);
+    state.grounded = false; state.coyoteMs = 0; state.vx = 8; state.airJumps = 1;
+    tick(state, { ...east, moveZ: 1 }, world, 8);
+    tick(state, { ...east, buttons: BTN.JUMP }, world);
+    expect(state.wallJumps).toBe(0);
+    expect(state.airJumps).toBe(0);
+  });
 });
 
 describe("mantle", () => {
+  // Not taught anywhere at launch and off by default; this still verifies the mechanic itself works.
+  beforeEach(() => setFeatureOverride("advancedMovement", true));
+  afterEach(() => setFeatureOverride("advancedMovement", undefined));
   function climb(height: number): PlayerSim {
     const ledge: Box = { id: "ledge", min: [1, 0, -3], max: [40, height, 3], material: "stone", tags: ["solid"] };
     const world = map([ledge]), state = createPlayerSim(0, 0, 0);
@@ -93,6 +110,15 @@ describe("mantle", () => {
 
   it("cannot climb a ledge too tall to reach", () => {
     const state = climb(3.6);
+    expect(state.y).toBeLessThan(0.01);
+    expect(state.x).toBeLessThan(1);
+  });
+
+  it("does not climb with advanced movement off (the launch default): the ledge just blocks like any wall", () => {
+    setFeatureOverride("advancedMovement", false);
+    // A height well inside the window mantle would otherwise climb (proven by the test above), so this is a fair
+    // apples-to-apples check that the flag, not the ledge height, is what is stopping the climb.
+    const state = climb(2.2);
     expect(state.y).toBeLessThan(0.01);
     expect(state.x).toBeLessThan(1);
   });
@@ -119,6 +145,9 @@ describe("dodge", () => {
 });
 
 describe("slide rework", () => {
+  // Not taught anywhere at launch and off by default; this still verifies the mechanic itself works.
+  beforeEach(() => setFeatureOverride("advancedMovement", true));
+  afterEach(() => setFeatureOverride("advancedMovement", undefined));
   it("keeps sliding past the old time cap and slows at the decel rate", () => {
     const world = map(), state = createPlayerSim();
     state.vx = 8.5;

@@ -1,3 +1,21 @@
+## Fix 16: stripped movement down to plain WASD and jump (2026-09-29)
+
+Tag `fix16`.
+
+Built, at the user's explicit direction after reviewing the physics complaint in depth:
+- Wall jump, ledge mantling and the crouch-slide boost (and the air-strafe acceleration that let a player exceed run speed by turning while airborne) are now off by default. None of these were taught: the launch field course only covers move, jump and shoot, and `courseStations()` already hid the wall-jump/mantle/slide tutorial stations from the launch build. A player could still stumble into one, or watch a bot do it, with no idea it was intentional. The double jump stays on: it is the one advanced move the tutorial actually teaches ("SPACE, then SPACE again in the air"), it is simple and well understood (most casual shooters have one), and removing it would have meant rewriting onboarding too, a bigger scope than a physics cleanup.
+- All four are gated by a new `advancedMovement` flag (off), following the same "old systems stay compiled, the flag hides them" pattern the codebase already uses for melee, ink cloud and the rest. Wall jump and mantle are simply not attempted without the flag; a jump press in the air always resolves to the plain double jump instead. Crouch never starts a slide, only walks slower. The air-strafe cap works by leaving the tick-by-tick air-control step completely unchanged (the same formula every ramp and ledge in the game was already tuned against) and only capping the result so turning in the air can never gain speed beyond what a player already had; a dodge or a fast running jump keeps its own speed untouched.
+
+Investigated but ruled out: real driven-movement telemetry (real mouse and WASD through headless Chrome, not the test hooks) found no bug in the raw physics; positions moved smoothly and speed never exceeded the game's own caps. What is now gone is intentional advanced-shooter depth a casual bow-game player was never told about, not broken code.
+
+Also found while diagnosing "the bow is useless": the default crosshair color (sepia, the same dark brown used for every wall and outline) blended into the ground and wood in most maps, addressed separately in fix 15.
+
+Tests: `movement2.test.ts` and `movement.test.ts` wrap every wall-jump/mantle/slide scenario in `setFeatureOverride("advancedMovement", true)`, the same pattern the file already used for `extraArrows`, so the mechanics remain directly tested; each also gained an explicit "off by default" case (wall jump does nothing near a wall and the vine hop fires instead; a ledge that mantle could climb just blocks; crouch never slides).
+
+Verified: `npm run check` 403 of 403. A 10-seed Village Defense bot-soak comparison found a pre-existing, seed-sensitive bug (a lone creature near the map rim occasionally never gets engaged, stalling a wave) on both the old code and the new; it is not something this change introduces, and is flagged separately rather than folded into this fix. Full Playwright suite 63 of 65 twice over; the 2 failures each time (grapple swing, and once the spectate/AFK/ping-wheel spec) all pass cleanly alone, matching the machine-load timing flakes seen throughout this project rather than anything caused by this change.
+
+Left: hear it for yourself. This removes what testing could show was unpredictable or untaught, not what only playing can judge as fun.
+
 ## Fix 15: the default crosshair blended into the map (2026-09-29)
 
 Tag `fix15`.

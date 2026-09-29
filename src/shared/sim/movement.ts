@@ -1,5 +1,6 @@
 import { QUIVER, RELIC, CREATURE_TUNING, EXPEDITION, ABSOLUTE_SPEED_CAP, AIM_SPEED_MULT, AIR_ACCEL, AIR_WISH_CAP, COYOTE_MS, CROUCH_HEIGHT, CROUCH_SPEED, DODGE, FRICTION, GRAVITY, GROUND_ACCEL, JUMP_BUFFER_MS, JUMP_VELOCITY, LANDING_GRACE, MANTLE, MAX_HORIZONTAL_SPEED, MAX_HP, RUN_SPEED, SLIDE_AIR_MS, SLIDE_BOOST, SLIDE_COOLDOWN_MS, SLIDE_DECEL, SLIDE_END_SPEED, SLIDE_JUMP_MULT, SLIDE_MAX_SPEED, SLIDE_MIN_SPEED, SLIDE_STEER_ACCEL, STAND_HEIGHT, STOP_SPEED, SUBSTEPS, TICK_HZ, VINE_HOP, WALL_JUMP, WATER_SPEED_MULT, GEYSER } from "../constants.ts";
 import { anchorPosAt } from "../maps/kit.ts";
+import { featureEnabled } from "../features.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData, ZipLine } from "../maps/types.ts";
 import { normalizeXZ, type Vec3 } from "../math/vec3.ts";
@@ -233,7 +234,7 @@ export function stepPlayer(state: PlayerSim, rawInput: PlayerInputFrame, map: Ma
     state.slideCooldownMs = Math.max(0, state.slideCooldownMs - dtMs);
     state.jumpBufferMs = Math.max(0, state.jumpBufferMs - dtMs);
     const startingSpeed = Math.hypot(state.vx, state.vz);
-    if (substep === 0 && crouchPressed && state.grounded && state.slideCooldownMs <= 0 && startingSpeed >= SLIDE_MIN_SPEED) {
+    if (featureEnabled("advancedMovement") && substep === 0 && crouchPressed && state.grounded && state.slideCooldownMs <= 0 && startingSpeed >= SLIDE_MIN_SPEED) {
       // A slide never slows a player who is already faster than the boost would make them.
       setHorizontalSpeed(state, Math.max(startingSpeed, Math.min(SLIDE_MAX_SPEED, startingSpeed + SLIDE_BOOST)));
       state.sliding = true;
@@ -268,7 +269,14 @@ export function stepPlayer(state: PlayerSim, rawInput: PlayerInputFrame, map: Ma
     if (inputMagnitude > 0) {
       if (state.sliding) accelerate(state, wish, speed * inputMagnitude, SLIDE_STEER_ACCEL, dt);
       else if (state.grounded) accelerate(state, wish, speed * inputMagnitude, GROUND_ACCEL, dt);
-      else accelerate(state, wish, Math.min(speed * inputMagnitude, AIR_WISH_CAP), AIR_ACCEL, dt);
+      else {
+        // The air-control step itself never changes (ramps, ledges and every other terrain edge case were tuned
+        // against it); advanced movement gates only whether turning while airborne is allowed to gain speed from
+        // it, immediately after this one step, so a dodge or a running jump's own speed later in the tick is
+        // untouched.
+        accelerate(state, wish, Math.min(speed * inputMagnitude, AIR_WISH_CAP), AIR_ACCEL, dt);
+        if (!featureEnabled("advancedMovement")) capHorizontal(state, Math.max(RUN_SPEED, startingSpeed));
+      }
     }
 
     if (canJump) {
@@ -282,8 +290,9 @@ export function stepPlayer(state: PlayerSim, rawInput: PlayerInputFrame, map: Ma
       state.coyoteMs = 0;
       state.jumpBufferMs = 0;
     } else if (substep === 0 && jumpPressed && !state.grounded && !state.zipId && !launched && !state.grappleActive) {
-      // Air jumps: a wall jump when a wall was touched just now, otherwise the vine hop.
-      if (state.wallTouchMs <= WALL_JUMP.touchMs && state.wallJumpCooldownMs <= 0 && state.wallJumps < WALL_JUMP.maxBeforeLanding) wallJump(state);
+      // Air jumps: a wall jump when a wall was touched just now, otherwise the vine hop. The vine hop is taught in
+      // the field course and stays on regardless; the wall jump is not taught anywhere, so it needs the flag.
+      if (featureEnabled("advancedMovement") && state.wallTouchMs <= WALL_JUMP.touchMs && state.wallJumpCooldownMs <= 0 && state.wallJumps < WALL_JUMP.maxBeforeLanding) wallJump(state);
       else if (state.airJumps > 0 && !state.relicCarrier) vineHop(state, inputMagnitude);
       state.jumpBufferMs = 0;
     }
@@ -306,7 +315,8 @@ export function stepPlayer(state: PlayerSim, rawInput: PlayerInputFrame, map: Ma
       state.wallJumps = 0;
       if (!wasGrounded && landingSpeed > LANDING_GRACE.minSpeed) state.landingGraceMs = LANDING_GRACE.ms;
     } else if (!wasGrounded) state.coyoteMs = Math.max(0, state.coyoteMs - dtMs);
-    tryMantle(state, input, map);
+    // Not taught anywhere; running at a ledge just stops you against it without the flag, the same as any other wall.
+    if (featureEnabled("advancedMovement")) tryMantle(state, input, map);
 
     if (state.sliding) {
       state.slideMs = state.grounded ? 0 : state.slideMs + dtMs;

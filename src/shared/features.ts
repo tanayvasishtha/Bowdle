@@ -19,6 +19,12 @@ export const features = {
   serviceWorker: false,
   /** Old menu entries (ranked, relic, party, locker, profile, leaderboard, course). */
   legacyMenu: false,
+  /**
+   * Wall jump, ledge mantling, the crouch-slide boost and the air-strafe speed gain that goes with them. None of
+   * these are taught (the launch field course only covers move, jump and shoot); a player who stumbles into one by
+   * accident, or watches an opponent use one, has no way to know it was intentional. Plain jump and grapple stay on.
+   */
+  advancedMovement: false,
 } as const;
 
 export type FeatureFlag = keyof typeof features;

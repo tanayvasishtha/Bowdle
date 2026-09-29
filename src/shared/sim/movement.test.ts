@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FLOOD_MS, GRAVITY, JUMP_VELOCITY, MAX_HORIZONTAL_SPEED, RUN_SPEED, SLIDE_BOOST, WATER_SPEED_MULT } from "../constants.ts";
+import { setFeatureOverride } from "../features.ts";
 import { BTN, type PlayerInputFrame } from "../input.ts";
 import type { MapData } from "../maps/types.ts";
 import { matchMaps } from "../maps/registry.ts";
@@ -56,14 +57,27 @@ describe("movement", () => {
     expect(Math.hypot(state.vx, state.vz)).toBeLessThanOrEqual(MAX_HORIZONTAL_SPEED);
   });
 
-  it("slide boosts then ends below its threshold", () => {
+  describe("slide (advanced movement, off by default)", () => {
+    beforeEach(() => setFeatureOverride("advancedMovement", true));
+    afterEach(() => setFeatureOverride("advancedMovement", undefined));
+
+    it("boosts then ends below its threshold", () => {
+      const state = createPlayerSim();
+      state.vx = RUN_SPEED;
+      stepPlayer(state, { ...idle, buttons: BTN.CROUCH }, arena(), { nowMs: 0 });
+      expect(Math.hypot(state.vx, state.vz)).toBeCloseTo(RUN_SPEED + SLIDE_BOOST, 1);
+      expect(state.sliding).toBe(true);
+      run(state, { ...idle, buttons: BTN.CROUCH }, 90);
+      expect(state.sliding).toBe(false);
+    });
+  });
+
+  it("plain crouch (advanced movement off) never slides, just walks slower", () => {
     const state = createPlayerSim();
     state.vx = RUN_SPEED;
     stepPlayer(state, { ...idle, buttons: BTN.CROUCH }, arena(), { nowMs: 0 });
-    expect(Math.hypot(state.vx, state.vz)).toBeCloseTo(RUN_SPEED + SLIDE_BOOST, 1);
-    expect(state.sliding).toBe(true);
-    run(state, { ...idle, buttons: BTN.CROUCH }, 90);
     expect(state.sliding).toBe(false);
+    expect(Math.hypot(state.vx, state.vz)).toBeLessThanOrEqual(RUN_SPEED);
   });
 
   it("strafes sideways relative to facing", () => {

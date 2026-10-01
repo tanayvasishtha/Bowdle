@@ -45,9 +45,13 @@ function segmentVerticalCapsule(from: Readonly<Vec3>, to: Readonly<Vec3>, target
     }
   }
   const lower = segmentSphere(from, to, target.x, bottom, target.z, radius);
-  const upper = segmentSphere(from, to, target.x, top, target.z, radius);
   if (lower !== null && (best === null || lower < best)) best = lower;
-  if (upper !== null && (best === null || upper < best)) best = upper;
+  // A flat top at the shoulders. A rounded cap there bulged up around the head and took every shot aimed at it.
+  const dy = to.y - from.y;
+  if (dy !== 0) {
+    const t = (top - from.y) / dy;
+    if (t >= 0 && t <= 1 && (best === null || t < best) && Math.hypot(from.x + dx * t - target.x, from.z + dz * t - target.z) <= radius) best = t;
+  }
   return best;
 }
 

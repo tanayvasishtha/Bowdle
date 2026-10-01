@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ARROW_GRAVITY, ARROW_RADIUS, ARROW_SPEED_MAX, BODY_RADIUS, CROUCH_HEIGHT, HEAD_RADIUS, STAND_HEIGHT } from "../constants.ts";
+import { ARROW_GRAVITY, ARROW_RADIUS, ARROW_SPEED_MAX, BODY_RADIUS, CROUCH_HEIGHT, EYE_STAND, HEAD_RADIUS, STAND_HEIGHT, SUBSTEPS, TICK_HZ } from "../constants.ts";
 import type { MapData } from "../maps/types.ts";
 import type { Vec3 } from "../math/vec3.ts";
 import { headCenterY } from "./hitboxes.ts";
-import { stepArrow, sweepArrowVsTarget, type ArrowSim } from "./arrows.ts";
+import { aimRangeAlongLook, spawnArrow, stepArrow, sweepArrowVsTarget, type ArrowSim } from "./arrows.ts";
+import { arrowSpeed, bodyDamage } from "./bow.ts";
 
 function emptyMap(boxes: MapData["boxes"] = []): MapData {
   return { id: "test", name: "test", bounds: { min: [-100, -100, -100], max: [100, 100, 100] }, boxes, ramps: [], volumes: [], zipLines: [], boulders: [], props: [], spawns: { sun: [], moon: [] }, waypoints: [], decor: [], notes: [], look: { sunShafts: false, stainSeed: 0 } };
@@ -62,5 +63,27 @@ describe("arrows", () => {
     const to: Vec3 = { x: 2, y: 1.5, z: 0 };
     expect(sweepArrowVsTarget(from, to, standing)).not.toBeNull();
     expect(sweepArrowVsTarget(from, to, crouching)).toBeNull();
+  });
+
+  it("a crosshair on the head is a headshot and on the chest a body hit, at any range and draw", () => {
+    const ground = emptyMap([{ id: "floor", min: [-100, -1, -100], max: [100, 0, 100], material: "earth", tags: ["solid"] }]);
+    const shoot = (distance: number, aimY: number, fraction: number): string => {
+      const target = { x: 0, y: 0, z: -distance, height: STAND_HEIGHT, crouched: false };
+      const event = { type: "fire" as const, x: 0, y: 0, z: 0, yaw: 0, pitch: Math.atan2(aimY - EYE_STAND, distance), fraction, speed: arrowSpeed(fraction), damage: bodyDamage(fraction) };
+      const shot = spawnArrow({ ...event, aimRange: aimRangeAlongLook(event, false, ground, [target]) });
+      const dt = 1 / (TICK_HZ * SUBSTEPS);
+      for (let step = 0; step < TICK_HZ * SUBSTEPS * 3 && !shot.stuck; step += 1) {
+        const from = { x: shot.x, y: shot.y, z: shot.z };
+        stepArrow(shot, ground, dt);
+        const hit = sweepArrowVsTarget(from, shot, target);
+        if (hit) return hit.kind;
+      }
+      return "miss";
+    };
+    const head = headCenterY({ x: 0, y: 0, z: 0, height: STAND_HEIGHT, crouched: false });
+    for (const distance of [5, 20, 50]) for (const fraction of [0, 1]) {
+      expect(shoot(distance, head, fraction)).toBe("head");
+      expect(shoot(distance, 1.1, fraction)).toBe("body");
+    }
   });
 });

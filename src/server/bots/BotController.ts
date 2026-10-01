@@ -59,13 +59,16 @@ const noHazards: readonly (readonly [string, BoulderThreat])[] = [];
 /** What a bot knows about the relic: where it is, who carries it and their team (-1 when nobody does). */
 /**
  * Targets that are not player shaped (Expedition creatures) register the height above their feet a bot should aim at;
- * everything else is aimed at the top of the head.
+ * everything else is aimed at the chest.
  */
 export const AIM_HEIGHTS = new WeakMap<PlayerSim, number>();
+/** Chest height below the head center, standing or crouched. */
+const BOT_CHEST_BELOW_HEAD_M = 0.55;
 function aimY(target: PlayerSim): number {
   const height = AIM_HEIGHTS.get(target);
-  // Aim at the middle of the head: aiming at its top edge let small errors graze past it.
-  return height === undefined ? headCenterY(target) : target.y + height;
+  // The chest. Head aim used to land as a body hit because the body hitbox covered the head; now that a headshot
+  // counts, aiming there would make most full-draw bot shots a one-shot kill.
+  return height === undefined ? headCenterY(target) - BOT_CHEST_BELOW_HEAD_M : target.y + height;
 }
 
 export type RelicView = { x: number; y: number; z: number; carrier: string; carrierTeam: number };

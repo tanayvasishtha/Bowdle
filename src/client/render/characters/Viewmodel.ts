@@ -5,12 +5,19 @@ import { MATERIAL_ID } from "../palette.ts";
 
 const up = new Vector3(0, 1, 0);
 const scratch = new Vector3();
-const TIP_TOP = new Vector3(0, 0.8, 0);
-const TIP_BOTTOM = new Vector3(0, -0.8, 0);
-const NOCK_REST = new Vector3(-0.02, 0, 0.05);
-const PULL = new Vector3(-0.1, 0, 0.36);
-const GRIP = new Vector3(0.33, 0, -0.07);
-const ARROW_TIP = new Vector3(0.42, 0.02, -0.78);
+/** The draw hand sits just right of the string, its fingers on it. */
+const handOffset = new Vector3(0.03, -0.012, 0.015);
+// Bow space: the origin is the nock at rest and the arrow lies along -z, parallel to the view, so on screen it always
+// points at the crosshair. The limbs bend forward, away from the eye, and the string draws straight back.
+const TIP_TOP = new Vector3(0, 0.5, 0);
+const TIP_BOTTOM = new Vector3(0, -0.5, 0);
+const BELLY = new Vector3(0, 0, -0.42);
+const NOCK_REST = new Vector3(0, 0, 0);
+const PULL = new Vector3(0, 0, 0.3);
+const GRIP = new Vector3(0, 0, -0.21);
+const ARROW_LENGTH = 0.62;
+const LEFT_SHOULDER = new Vector3(-0.3, -0.75, 0.75);
+const RIGHT_ELBOW = new Vector3(0.45, -0.3, 0.45);
 
 /** A unit cylinder stretched between two points, reused every frame without allocating. */
 function stretch(mesh: Mesh, from: Vector3, to: Vector3, radius: number): void {
@@ -53,17 +60,18 @@ export class Viewmodel extends Group {
     const gold = new InkMaterial(MATERIAL_ID.gold);
     const unit = new CylinderGeometry(1, 1, 1, 6);
 
-    const curve = new QuadraticBezierCurve3(TIP_BOTTOM, new Vector3(0.5, 0, -0.15), TIP_TOP);
+    const curve = new QuadraticBezierCurve3(TIP_BOTTOM, BELLY, TIP_TOP);
     this.bow.add(new Mesh(new TubeGeometry(curve, 18, 0.022, 5, false), this.limbMaterial), this.ornament);
-    const grip = new Mesh(new CylinderGeometry(0.032, 0.032, 0.2, 7), this.gripMaterial);
+    const grip = new Mesh(new CylinderGeometry(0.03, 0.03, 0.16, 7), this.gripMaterial);
     grip.position.copy(GRIP);
-    const leftHand = new Mesh(new SphereGeometry(0.075, 10, 7), skin);
-    leftHand.position.copy(GRIP).add(new Vector3(0.02, -0.01, 0.03));
+    // The bow hand closes round the grip from behind and below the arrow rest.
+    const leftHand = new Mesh(new SphereGeometry(0.05, 10, 7), skin);
+    leftHand.position.copy(GRIP).add(new Vector3(-0.02, -0.06, 0.03));
     const leftSleeve = new Mesh(unit, this.sleeveMaterial);
-    stretch(leftSleeve, new Vector3(0.38, -0.06, 0.02), new Vector3(0.95, -1.0, 0.6), 0.08);
+    stretch(leftSleeve, leftHand.position, LEFT_SHOULDER, 0.048);
     this.stringTop = new Mesh(unit, rope);
     this.stringBottom = new Mesh(unit, rope);
-    this.rightHand = new Mesh(new SphereGeometry(0.068, 10, 7), skin);
+    this.rightHand = new Mesh(new SphereGeometry(0.045, 10, 7), skin);
     this.rightSleeve = new Mesh(unit, this.sleeveMaterial);
     this.arrowShaft = new Mesh(unit, wood);
     this.arrowHead = new Mesh(new ConeGeometry(0.03, 0.09, 6), gold);
@@ -72,8 +80,9 @@ export class Viewmodel extends Group {
     this.shaftMaterials = { arrow: wood, scatter: wood, tether: rope };
     for (let index = 0; index < 2; index += 1) { const head = new Mesh(new ConeGeometry(0.022, 0.07, 6), hazard); head.visible = false; this.scatterHeads.push(head); }
     this.bow.add(grip, leftHand, leftSleeve, this.stringTop, this.stringBottom, this.rightHand, this.rightSleeve, this.arrowShaft, this.arrowHead, ...this.scatterHeads);
-    this.bow.position.set(0.55, -0.3, -1.1);
-    this.bow.rotation.z = 0.12;
+    // Low and a little right of center with the usual archer's cant; turning about the arrow keeps it on the crosshair.
+    this.bow.position.set(0.17, -0.2, -0.8);
+    this.bow.rotation.z = -0.22;
 
     const blade = new Mesh(new ConeGeometry(0.03, 0.34, 6), gold);
     blade.rotation.x = -Math.PI / 2;
@@ -122,15 +131,15 @@ export class Viewmodel extends Group {
     this.nock.copy(NOCK_REST).addScaledVector(PULL, pull);
     stretch(this.stringTop, TIP_TOP, this.nock, 0.007);
     stretch(this.stringBottom, this.nock, TIP_BOTTOM, 0.007);
-    this.rightHand.position.copy(this.nock);
-    this.sleeveEnd.set(this.nock.x - 0.45, this.nock.y - 0.9, this.nock.z + 0.5);
-    stretch(this.rightSleeve, this.nock, this.sleeveEnd, 0.075);
+    this.rightHand.position.copy(this.nock).add(handOffset);
+    this.sleeveEnd.copy(RIGHT_ELBOW).addScaledVector(PULL, pull * 0.6);
+    stretch(this.rightSleeve, this.rightHand.position, this.sleeveEnd, 0.042);
     const drawn = pull > 0;
     this.arrowShaft.visible = drawn;
     this.arrowHead.visible = drawn;
     for (const head of this.scatterHeads) head.visible = drawn && this.arrowKind === "scatter";
     if (drawn) {
-      this.arrowEnd.copy(ARROW_TIP);
+      this.arrowEnd.copy(this.nock).z -= ARROW_LENGTH;
       stretch(this.arrowShaft, this.nock, this.arrowEnd, 0.011);
       this.arrowHead.position.copy(this.arrowEnd);
       this.arrowHead.quaternion.copy(this.arrowShaft.quaternion);

@@ -1,3 +1,16 @@
+## Fix 18: headshots land where you aim, and the bow is held the right way (2026-10-02)
+
+Tag `fix18`.
+
+Built:
+- Headshots work. The body hitbox was a capsule whose rounded top (radius 0.44 m centered at 1.5 m) bulged up to 1.94 m, wrapping the whole head sphere. Any arrow aimed at the head met the body first, so a crosshair dead on a head scored a body hit at every range and draw. The body now has a flat top at the shoulders (`src/shared/sim/hitboxes.ts`), with the head sphere above it. With the crosshair on the head the shot is a headshot, on the chest a body hit, and off the silhouette a miss, from 5 m to 70 m and from a 4 m high ledge.
+- Bots aim at the chest. They aimed at the head before, and those shots counted as body hits; left unchanged, a bot's full-draw shot at the head (2x damage, 120) would now kill in one hit.
+- The first-person bow is rebuilt (`Viewmodel.ts`). The old model was drawn side-on: its limbs curved left to right across the screen and the nocked arrow pointed about 24 degrees right of the crosshair. Now the limbs bend away from the eye, the string draws straight back toward the face, the bow is canted like a real archer's, and the arrow lies parallel to the view so it always points at the crosshair. Hands and sleeves are smaller and the bow sits lower right, clear of the crosshair.
+
+Verified: new test in `arrows.test.ts` flies a real shot through `aimRangeAlongLook`, `spawnArrow` and `stepArrow` and checks head aim gives a headshot and chest aim a body hit at 5, 20 and 50 m, quick tap and full draw; it fails on the old hitbox. In a live match with two real browser clients, a real mouse shot aimed at the head scored a headshot kill. Screenshots of idle and full draw checked by eye. `npm run check` 405 of 405 apart from the party server test's `fetch failed`, which also fails on the old code and passes alone (flagged separately). `npm run smoke` and a 3-seed full soak pass. Full Playwright: 60 of 65 on a slow run (18 minutes against the usual 12). `hud.spec.ts` and the clip test in `launch.spec.ts` fail on fix 17 as well on this machine today; `party.spec.ts` and `performance.spec.ts` pass alone; the locker test passed 4 of 6 alone with this change and 4 of 4 without, and its trail preview never touches the hitbox or bow code.
+
+Left: a real playtest of how the new bow looks and how headshots feel.
+
 ## Fix 17: spitters no longer stall a wave from behind the village wall (2026-09-29)
 
 Tag `fix17`.

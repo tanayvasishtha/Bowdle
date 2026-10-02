@@ -419,6 +419,13 @@ export const BOT_REACTION_MS = 250;
 
 export const BOT_AIM_ERROR_EASY_DEG = 4;
 
+/**
+ * Easy bots (every room with a new player) against players: wider aim error, a slower first shot and a rest between
+ * shots. A player who kept moving and never shot back was inked every 9 s by six easy Lobby bots. Against creatures
+ * easy bots keep BOT_AIM_ERROR_EASY_DEG and normal timing, so Village Defense teammates are not weakened.
+ */
+export const BOT_EASY_VS_PLAYER = { aimErrorDeg: 6.5, reactionMs: 550, restMs: 550 } as const;
+
 export const BOT_AIM_ERROR_NORMAL_DEG = 2;
 
 export const BOT_AIM_ERROR_HARD_DEG = 0.8;

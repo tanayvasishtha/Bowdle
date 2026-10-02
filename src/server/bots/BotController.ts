@@ -1,6 +1,7 @@
 import {
   ARROW_SPEED_MAX,
   BOT_AIM_ERROR_EASY_DEG,
+  BOT_EASY_VS_PLAYER,
   BOT_AIM_ERROR_HARD_DEG,
   BOT_AIM_ERROR_NORMAL_DEG,
   BOT_DRAW_MAX_MS,
@@ -94,6 +95,8 @@ export class BotController {
   private aimYawError = 0;
   private aimPitchError = 0;
   private errorRad = 0;
+  /** Easy bots rest this long after a shot at a player before drawing again. */
+  private restUntilMs = 0;
   difficulty: BotDifficulty = "normal";
   private routeSerial = 0;
   /** The nearest living enemy, known even when out of sight, so bots on big maps go and find a fight. */
@@ -250,14 +253,17 @@ export class BotController {
     if (range <= MELEE_RANGE && player.meleeCooldownMs <= 0 && !AIM_HEIGHTS.has(target)) { this.input.buttons = BTN.MELEE; return; }
     const wantSlot = range < BOT_SCATTER_M && player.scatterCharges > 0 ? 1 : 0;
     if (player.arrowSlot !== wantSlot && (player.prevButtons & (BTN.SLOT1 | BTN.SLOT2)) === 0) this.input.buttons |= wantSlot === 1 ? BTN.SLOT2 : BTN.SLOT1;
-    if (nowMs - this.sightedAtMs < BOT_REACTION_MS) return;
+    const gentle = this.difficulty === "easy" && !AIM_HEIGHTS.has(target);
+    if (nowMs - this.sightedAtMs < (gentle ? BOT_EASY_VS_PLAYER.reactionMs : BOT_REACTION_MS)) return;
     if (this.releaseFrame) { this.releaseFrame = false; return; }
     if (this.releaseAtMs === 0) {
+      if (gentle && nowMs < this.restUntilMs) return;
       this.releaseAtMs = nowMs + BOT_DRAW_MIN_MS + this.rng() * (BOT_DRAW_MAX_MS - BOT_DRAW_MIN_MS);
-      this.aimYawError = (this.rng() * 2 - 1) * this.errorRad; this.aimPitchError = (this.rng() * 2 - 1) * this.errorRad;
+      const errorRad = gentle ? BOT_EASY_VS_PLAYER.aimErrorDeg * Math.PI / 180 : this.errorRad;
+      this.aimYawError = (this.rng() * 2 - 1) * errorRad; this.aimPitchError = (this.rng() * 2 - 1) * errorRad;
     }
     if (nowMs < this.releaseAtMs) this.input.buttons |= BTN.FIRE;
-    else { this.releaseAtMs = 0; this.releaseFrame = true; }
+    else { this.releaseAtMs = 0; this.releaseFrame = true; if (gentle) this.restUntilMs = nowMs + BOT_EASY_VS_PLAYER.restMs; }
   }
 
   /** Drops a route the bot cannot follow, for example a deck it keeps walking under. */

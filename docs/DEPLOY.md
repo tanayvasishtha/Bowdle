@@ -1,6 +1,6 @@
 # Deploy Bowdle to Render
 
-Status: `main` at tag `fix20` is the newest checkpoint. `npm run check`, `npm run smoke` and `npm run soak` pass on it; full Playwright is 64 of 65 with the known `grapple.spec.ts` flake. Do not deploy `v3.0.1`: fixes 5 through 20 landed after it, including a server-side disconnect bug, a reconnect crash, arrow aim, wall jump/mantle/slide going off by default, spitters stalling waves, headshots that never registered, arrows that missed moving players and passed through beetles, and a game that could not start where the mouse cannot be locked.
+Status: `main` at tag `fix21` is the newest checkpoint. `npm run check`, `npm run smoke` and `npm run soak` pass on it; full Playwright is 64 of 65 with the known `grapple.spec.ts` flake. Do not deploy `v3.0.1`: fixes 5 through 21 landed after it, including a server-side disconnect bug, a reconnect crash, arrow aim, wall jump/mantle/slide going off by default, spitters stalling waves, headshots that never registered, arrows that missed moving players and passed through beetles, a game that could not start where the mouse cannot be locked, and easy bots that inked new players every few seconds.
 
 Deploy a tagged release only after `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite pass on the release commit.
 

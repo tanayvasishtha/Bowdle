@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ARROW_GRAVITY, ARROW_SPEED_MAX } from "../constants.ts";
+import { ARROW_GRAVITY, ARROW_SPEED_MAX, BOT_EASY_VS_PLAYER, BOT_REACTION_MS } from "../constants.ts";
 import { defaultMatchMap } from "../maps/registry.ts";
 import { mulberry32 } from "../math/rng.ts";
 import { solveProjectileLead } from "./aim.ts";
 import { findPath, nearestWaypoint } from "./nav.ts";
-import { BotController } from "../../server/bots/BotController.ts";
+import { AIM_HEIGHTS, BotController } from "../../server/bots/BotController.ts";
 import { createPlayerSim } from "../sim/movement.ts";
 import { BTN } from "../input.ts";
 import { kitMap } from "../maps/fixtures/kit.ts";
@@ -64,6 +64,29 @@ describe("computer-controlled abilities", () => {
     expect(fired).toBe(true);
   });
 
+
+  it("easy bots wait longer and rest between shots at players, but not at creatures", () => {
+    const shots = (difficulty: "easy" | "normal", creature: boolean): { firstDrawMs: number; releases: number } => {
+      const player = createPlayerSim(-25, 0, -8); player.team = 0;
+      const enemy = createPlayerSim(-15, 0, -8); enemy.team = 1;
+      if (creature) AIM_HEIGHTS.set(enemy, 0.35);
+      const controller = new BotController("bot", 11, difficulty);
+      let firstDrawMs = -1, releases = 0, drawing = false;
+      for (let frame = 0; frame < 150; frame += 1) {
+        const input = controller.update(player, [["bot", player], ["enemy", enemy]], defaultMatchMap, 1000 + frame * 33);
+        const fire = (input.buttons & BTN.FIRE) !== 0;
+        if (fire && firstDrawMs < 0) firstDrawMs = frame * 33;
+        if (drawing && !fire) releases += 1;
+        drawing = fire;
+      }
+      return { firstDrawMs, releases };
+    };
+    const easy = shots("easy", false), normal = shots("normal", false), easyCreature = shots("easy", true);
+    expect(easy.firstDrawMs).toBeGreaterThanOrEqual(BOT_EASY_VS_PLAYER.reactionMs);
+    expect(normal.firstDrawMs).toBeLessThan(BOT_EASY_VS_PLAYER.reactionMs);
+    expect(easyCreature.firstDrawMs).toBeLessThanOrEqual(BOT_REACTION_MS + 33);
+    expect(easy.releases).toBeLessThan(normal.releases);
+  });
 
   it("loses an enemy hidden by an ink cloud", () => {
     const player = createPlayerSim(-25, 0, -8); player.team = 0;

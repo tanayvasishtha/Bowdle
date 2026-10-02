@@ -1,3 +1,14 @@
+## Fix 21: easy bots no longer ink a new player every 9 seconds (2026-10-02)
+
+Tag `fix21`.
+
+Built:
+- Every room with a new player uses easy bots, and against players they were barely easy: 4 degrees of aim error, a 250 ms first shot and a full-draw shot about every 0.85 s. A scripted new player in a Lobby who kept moving and never shot back was inked 13 times in 2 minutes (17 at the old arrow speeds, so the fix 19 speed change was not the cause). Easy bots now aim with 6.5 degrees of error at players, wait 550 ms before their first shot and rest 550 ms between shots (`BOT_EASY_VS_PLAYER`). Against creatures they keep their old aim and timing, so Village Defense teammates are not weakened. Normal and hard bots are unchanged.
+
+Verified: same 2-minute Lobby run against six easy bots with real input in headless Chrome, not shooting back: moving, 1 death (was 13); standing and looking around, 3 deaths. Tried 7 degrees with 600 ms and 700 ms (1 death, too gentle) and 5.5 degrees with 450 ms and 400 ms (7 and 5 deaths) on the way. New test: an easy bot draws no sooner than 550 ms at a player and releases fewer shots than a normal bot, while at a creature it still draws within the normal reaction time. `npm run check` 410 of 411: `tests/server/sun-temple.test.ts` timed out under load and passes alone (23 s with this change, 25 to 29 s without; its bots are normal, which this change does not touch). 3-seed full soak passes.
+
+Left: how it feels for a real new player who shoots back.
+
 ## Fix 20: the game plays when the mouse cannot be locked, and the background sound is off (2026-10-02)
 
 Tag `fix20`.

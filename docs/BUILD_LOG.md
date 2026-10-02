@@ -1,3 +1,13 @@
+## Fix 20: the game plays when the mouse cannot be locked, and the background sound is off (2026-10-02)
+
+Tag `fix20`.
+
+Built:
+- Clicking "Click to play" did nothing in windows that refuse to lock the mouse (the desktop app's preview pane, some embedded and kiosk frames): the game only aimed while the pointer was locked, and the lock request failed. Now a refused lock switches to a free cursor. Mouse movement aims, holding the cursor near the window edge keeps turning (`edgePush` in `InputSampler.ts`), the system cursor hides behind the crosshair, and the prompt goes away. A one-time note explains it. If the lock later succeeds, normal locked aiming takes over.
+- The background sound is off, at the user's request. A new `backgroundAudio` flag (off) stops the generated music and the ambience beds (jungle hiss, wind, birds, running water). Bow, hits, footsteps, boulder rumble, zip line and lever sounds stay. The Music, Ambience and Music (M) settings are hidden while it is off; their inputs stay in the panel, because saving reads every input.
+
+Verified: reproduced in the preview pane (lock refused, prompt stuck), then after the change the prompt cleared, a cursor at the right edge turned the view, and shots landed. `npm run check` 410 of 410 and a new `edgePush` test. Full Playwright 63 of 65: hiding the audio settings by removing them broke `menu.spec.ts` (saving read a missing input), which is why they are hidden instead; it passes now along with `audio.spec.ts`. `grapple.spec.ts` is the known flake.
+
 ## Fix 19: shots at moving players land, and arrows stop passing through beetles (2026-10-02)
 
 Tag `fix19`.

@@ -1,5 +1,6 @@
 import { audioBuses } from "./bus.ts";
 import { ZIP_SPEED } from "../../shared/constants.ts";
+import { featureEnabled } from "../../shared/features.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import { mulberry32, type SeededRng } from "../../shared/math/rng.ts";
 
@@ -70,13 +71,19 @@ export class Ambience {
     const context = buses.context; this.context = context; this.master = context.createGain(); this.master.connect(buses.ambience);
     this.noise = context.createBuffer(1, context.sampleRate * AUDIO.noiseSeconds, context.sampleRate); const samples = this.noise.getChannelData(0);
     let seed = this.map.look.stainSeed ^ 0x4f1bbcdc; for (let index = 0; index < samples.length; index += 1) { seed = Math.imul(seed ^ seed >>> 15, 1 | seed); samples[index] = (seed >>> 0) / 2147483648 - 1; }
-    const jungle = this.loopNoise("bandpass", 1800), jungleGain = context.createGain(); jungleGain.gain.value = AUDIO.jungleGain; jungle.connect(jungleGain).connect(this.master);
-    const tremolo = context.createOscillator(), tremoloDepth = context.createGain(); tremolo.frequency.value = 0.12; tremoloDepth.gain.value = AUDIO.jungleGain * 0.35; tremolo.connect(tremoloDepth).connect(jungleGain.gain); tremolo.start(); this.running.push(tremolo);
-    const wind = this.loopNoise("lowpass", 520), windGain = context.createGain(); windGain.gain.value = AUDIO.windGain; wind.connect(windGain).connect(this.master);
-    this.water = context.createGain(); this.water.gain.value = 0; this.loopNoise("lowpass", 900).connect(this.water).connect(this.master);
+    // The beds that play all match long only run with background audio on; the event sounds below always do.
+    if (featureEnabled("backgroundAudio")) this.startBeds(context, this.master);
     this.rumble = context.createGain(); this.rumble.gain.value = 0; this.loopNoise("lowpass", 110).connect(this.rumble).connect(this.master);
     this.roll = context.createGain(); this.roll.gain.value = 0; this.loopNoise("bandpass", 280).connect(this.roll).connect(this.master);
     this.zip = context.createGain(); this.zip.gain.value = 0; this.zipTone = context.createOscillator(); this.zipTone.type = "triangle"; const zipSoften = context.createBiquadFilter(); zipSoften.type = "lowpass"; zipSoften.frequency.value = 1000; this.zipTone.connect(zipSoften).connect(this.zip).connect(this.master); this.zipTone.start(); this.running.push(this.zipTone);
+  }
+
+  /** Jungle hiss, wind, running water near rivers and the odd bird: the sound bed under a whole match. */
+  private startBeds(context: AudioContext, master: GainNode): void {
+    const jungle = this.loopNoise("bandpass", 1800), jungleGain = context.createGain(); jungleGain.gain.value = AUDIO.jungleGain; jungle.connect(jungleGain).connect(master);
+    const tremolo = context.createOscillator(), tremoloDepth = context.createGain(); tremolo.frequency.value = 0.12; tremoloDepth.gain.value = AUDIO.jungleGain * 0.35; tremolo.connect(tremoloDepth).connect(jungleGain.gain); tremolo.start(); this.running.push(tremolo);
+    const wind = this.loopNoise("lowpass", 520), windGain = context.createGain(); windGain.gain.value = AUDIO.windGain; wind.connect(windGain).connect(master);
+    this.water = context.createGain(); this.water.gain.value = 0; this.loopNoise("lowpass", 900).connect(this.water).connect(master);
     this.scheduleBird();
   }
 

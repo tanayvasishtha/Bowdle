@@ -40,6 +40,8 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
   let settings = loadSettings();
   const panel = document.createElement("section");
   panel.className = "bowdle-panel bowdle-settings";
+  // The music and ambience inputs stay in the panel while background audio is off, so saving still reads them.
+  const backgroundAudio = featureEnabled("backgroundAudio") ? "" : "hidden";
   panel.innerHTML = `<h2>Settings</h2>
     <label>Mouse sensitivity <input data-setting="sensitivity" type="range" min="0.0005" max="0.012" step="0.0005" value="${settings.sensitivity}"></label>
     <label><input data-setting="invertY" type="checkbox" ${settings.invertY ? "checked" : ""}> Invert vertical look</label>
@@ -54,10 +56,10 @@ export function showSettings(container: HTMLElement, onClose: () => void): void 
     <label><input data-setting="colorblindSymbols" type="checkbox" ${settings.colorblindSymbols ? "checked" : ""}> Team symbols</label>
     <label><input data-setting="reduceMotion" type="checkbox" ${settings.reduceMotion ? "checked" : ""}> Reduce motion</label>
     <label><input data-setting="damageNumbers" type="checkbox" ${settings.damageNumbers ? "checked" : ""}> Damage numbers</label>
-    <label>Music <input data-setting="musicVolume" type="range" min="0" max="1" step="0.05" value="${settings.musicVolume}"></label>
+    <label ${backgroundAudio}>Music <input data-setting="musicVolume" type="range" min="0" max="1" step="0.05" value="${settings.musicVolume}"></label>
     <label>Effects <input data-setting="effectsVolume" type="range" min="0" max="1" step="0.05" value="${settings.effectsVolume}"></label>
-    <label>Ambience <input data-setting="ambienceVolume" type="range" min="0" max="1" step="0.05" value="${settings.ambienceVolume}"></label>
-    <label><input data-setting="music" type="checkbox" ${settings.music ? "checked" : ""}> Music (M)</label>
+    <label ${backgroundAudio}>Ambience <input data-setting="ambienceVolume" type="range" min="0" max="1" step="0.05" value="${settings.ambienceVolume}"></label>
+    <label ${backgroundAudio}><input data-setting="music" type="checkbox" ${settings.music ? "checked" : ""}> Music (M)</label>
     <label><input data-setting="soundIndicators" type="checkbox" ${settings.soundIndicators ? "checked" : ""}> Sound indicators</label>
     <label><input data-setting="tips" type="checkbox" ${settings.tips ? "checked" : ""}> Tips for new players</label>
     <label>Aim sensitivity <input data-setting="aimSensitivity" type="range" min="0.3" max="1.5" step="0.05" value="${settings.aimSensitivity}"></label>

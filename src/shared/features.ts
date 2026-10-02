@@ -25,6 +25,12 @@ export const features = {
    * accident, or watches an opponent use one, has no way to know it was intentional. Plain jump and grapple stay on.
    */
   advancedMovement: false,
+  /**
+   * The generated music and the ambience beds (jungle hiss, wind, birds, running water) that play the whole match.
+   * Playtesters found the constant background sound annoying. One-off sounds (bow, hits, footsteps, boulder rumble,
+   * zip line, lever) stay on.
+   */
+  backgroundAudio: false,
 } as const;
 
 export type FeatureFlag = keyof typeof features;

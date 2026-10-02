@@ -5,6 +5,17 @@ import { loadSettings, type GameSettings } from "../settings.ts";
 import type { TouchControls } from "../ui/touchControls.ts";
 import { PAD, TrackpadToggles, emptyPad, firstPad, readPad } from "./gamepad.ts";
 
+/** Outer share of the window where a free cursor keeps turning, and the turn rate at the very edge. */
+const EDGE_BAND = 0.12;
+const EDGE_TURN_RAD_PER_S = 2.6;
+
+/** How hard a free cursor at position 0..1 across the window pushes the view: -1 at one edge, 1 at the other, 0 inside. */
+export function edgePush(position: number, band = EDGE_BAND): number {
+  if (position < band) return -Math.min(1, (band - position) / band);
+  if (position > 1 - band) return Math.min(1, (position - (1 - band)) / band);
+  return 0;
+}
+
 export class InputSampler {
   private readonly canvas: HTMLCanvasElement;
   private readonly keys = new Set<string>();
@@ -22,6 +33,14 @@ export class InputSampler {
   /** True while an enemy is under the crosshair; stick look slows down, nothing else changes. */
   private aimSlowdown = false;
   private touch: TouchControls | undefined;
+  /**
+   * Some windows (an embedded preview, some kiosk and portal frames) refuse to lock the mouse. Then the game still
+   * plays: the cursor's movement aims, and holding it at the edge of the window keeps turning.
+   */
+  private freeMouse = false;
+  private cursorX = 0.5;
+  private cursorY = 0.5;
+  private cursorInside = false;
 
   constructor(canvas: HTMLCanvasElement, initialYaw = -Math.PI / 2) {
     this.canvas = canvas;
@@ -31,7 +50,13 @@ export class InputSampler {
     window.addEventListener("mousedown", (event) => { this.mouseButtons |= 1 << event.button; this.toggle(`Mouse${event.button}`); });
     window.addEventListener("mouseup", (event) => { this.mouseButtons &= ~(1 << event.button); });
     window.addEventListener("mousemove", (event) => {
-      if (document.pointerLockElement !== this.canvas) return;
+      const locked = document.pointerLockElement === this.canvas;
+      if (!locked && !this.freeMouse) return;
+      if (!locked) {
+        const rect = this.canvas.getBoundingClientRect();
+        this.cursorX = (event.clientX - rect.left) / Math.max(1, rect.width);
+        this.cursorY = (event.clientY - rect.top) / Math.max(1, rect.height);
+      }
       const scale = this.settings.sensitivity * (this.aiming() ? this.settings.aimSensitivity : 1);
       this.turn(-event.movementX * scale, -event.movementY * scale * this.settings.verticalSensitivity);
     });
@@ -40,11 +65,22 @@ export class InputSampler {
       if (this.paused || event.deltaY === 0) return;
       this.wheelSteps = Math.max(-3, Math.min(3, this.wheelSteps + Math.sign(event.deltaY)));
     }, { passive: true });
-    this.canvas.addEventListener("click", () => lockPointer(this.canvas));
+    this.canvas.addEventListener("click", () => { if (!this.freeMouse) lockPointer(this.canvas, () => this.useFreeMouse(true)); });
+    this.canvas.addEventListener("mouseenter", () => { this.cursorInside = true; });
+    this.canvas.addEventListener("mouseleave", () => { this.cursorInside = false; });
+    document.addEventListener("pointerlockchange", () => { if (document.pointerLockElement === this.canvas) this.useFreeMouse(false); });
     window.addEventListener("bowdle-settings", (event) => {
       this.settings = (event as CustomEvent<GameSettings>).detail;
       if (!this.settings.trackpadMode) this.toggles.reset();
     });
+  }
+
+  private useFreeMouse(on: boolean): void {
+    this.freeMouse = on;
+    this.cursorInside = on;
+    if (on) this.canvas.dataset.freeMouse = "on"; else delete this.canvas.dataset.freeMouse;
+    // The crosshair is the aim, so the system cursor would only be a second, wrong one.
+    this.canvas.style.cursor = on ? "none" : "";
   }
 
   /** In trackpad mode the draw and aim bindings flip a toggle on each press instead of acting while held. */
@@ -96,6 +132,10 @@ export class InputSampler {
    */
   frame(elapsedMs: number): void {
     readPad(firstPad(), this.pad);
+    if (this.freeMouse && this.cursorInside && !this.paused) {
+      const seconds = Math.min(0.1, elapsedMs / 1000);
+      this.turn(-edgePush(this.cursorX) * EDGE_TURN_RAD_PER_S * seconds, -edgePush(this.cursorY) * EDGE_TURN_RAD_PER_S * 0.6 * seconds * this.settings.verticalSensitivity);
+    }
     if (this.pad.start && !this.padStartWasDown) window.dispatchEvent(new KeyboardEvent("keydown", { code: this.settings.keys.menu }));
     this.padStartWasDown = this.pad.start;
     if (this.paused || !this.pad.connected) return;

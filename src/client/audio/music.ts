@@ -1,4 +1,5 @@
 import { mulberry32 } from "../../shared/math/rng.ts";
+import { featureEnabled } from "../../shared/features.ts";
 import { AUDIO_MIX } from "../render/look.ts";
 import { audioBuses, type AudioBuses } from "./bus.ts";
 import { layerMix, type LayerMix } from "./spatial.ts";
@@ -116,6 +117,8 @@ export function music(): MusicDirector {
   if (director) return director;
   const created = new MusicDirector();
   director = created;
+  // With background audio off the director still tracks intensity but never makes a sound.
+  if (!featureEnabled("backgroundAudio")) return created;
   const begin = (): void => created.start();
   window.addEventListener("pointerdown", begin, { once: true });
   window.addEventListener("keydown", begin, { once: true });

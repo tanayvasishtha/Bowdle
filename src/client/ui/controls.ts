@@ -35,7 +35,7 @@ export function attachControlsHelp(container: HTMLElement, canvas: HTMLCanvasEle
   const updateHint = (): void => {
     const pauseOpen = [...container.querySelectorAll<HTMLElement>(".bowdle-pause,.bowdle-settings,.bowdle-course-done")].some((panel) => panel.style.display !== "none");
     // Pad players never capture the mouse, so they do not need the hint.
-    hint.style.display = document.pointerLockElement === canvas || pauseOpen || firstPad() ? "none" : "block";
+    hint.style.display = document.pointerLockElement === canvas || canvas.dataset.freeMouse === "on" || pauseOpen || firstPad() ? "none" : "block";
   };
   document.addEventListener("pointerlockchange", updateHint);
   window.setInterval(updateHint, 500);

@@ -16,6 +16,7 @@ import {
   END_SCREEN_MS,
   EXPEDITION,
   MAX_REWIND_MS,
+  ARROW_PLAYER_ASSIST_M,
   BOULDER_RADIUS,
   PLAYER_WIDTH,
   AIM_RANGE_MAX_M,
@@ -437,13 +438,14 @@ export class TdmRoom extends Room<{ state: MatchState; input: PlayerInput; clien
         if (isDamaging(arrow.kind) && !boulderBlocked && this.swatArrow(id, arrow, fromX, fromY, fromZ)) continue;
         if (isDamaging(arrow.kind) && !boulderBlocked) {
           const seen = this.rewindState.lastSeenBy(arrow.owner);
+          const assist = this.state.players.get(arrow.owner)?.isBot === false ? ARROW_PLAYER_ASSIST_M : 0;
           for (const [candidateId, target] of this.state.players) {
             if (candidateId === arrow.owner || target.team === arrow.team || !target.alive || target.spawnProtectMs > 0) continue;
             this.arrowFrom.x = fromX; this.arrowFrom.y = fromY; this.arrowFrom.z = fromZ;
             this.arrowTo.x = arrow.x; this.arrowTo.y = arrow.y; this.arrowTo.z = arrow.z;
             this.hitTarget.x = seen.value(target, "x"); this.hitTarget.y = seen.value(target, "y"); this.hitTarget.z = seen.value(target, "z");
             this.hitTarget.height = seen.value(target, "height"); this.hitTarget.crouched = this.hitTarget.height < STAND_HEIGHT;
-            const hit = sweepArrowVsTarget(this.arrowFrom, this.arrowTo, this.hitTarget, arrow.kind);
+            const hit = sweepArrowVsTarget(this.arrowFrom, this.arrowTo, this.hitTarget, arrow.kind, assist);
             if (hit && hit.t < earliest) { earliest = hit.t; targetId = candidateId; headshot = hit.kind === "head"; }
           }
         }

@@ -100,6 +100,14 @@ describe("creatures", () => {
     expect(run(idle, [], 1)).toEqual([]);
   });
 
+  it("an arrow stretch that passes through a beetle hits it, however far before the beetle the stretch starts", () => {
+    // A beetle's body is as tall as it is wide, so its capsule shrinks to a point; the stretch must still be measured end to end.
+    const beetle = createCreature("beetle", 0, 0, -10);
+    const middle = 0.35;
+    for (const start of [-9.5, -6, 0]) expect(creatureHit(beetle, { x: 0, y: middle, z: start }, { x: 0, y: middle, z: -14 })).not.toBeNull();
+    expect(creatureHit(beetle, { x: 1, y: middle, z: 0 }, { x: 1, y: middle, z: -14 })).toBeNull();
+  });
+
   it("spitters keep their distance and lob ink at the target", () => {
     const close = createCreature("spitter", 0, 0, 0);
     run(close, [player(5, 0)], 2);

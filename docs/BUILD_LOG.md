@@ -1,3 +1,17 @@
+## Fix 19: shots at moving players land, and arrows stop passing through beetles (2026-10-02)
+
+Tag `fix19`.
+
+Built:
+- Faster arrows and a small aim assist, chosen by the user. A strafing player moves 8.5 m/s, and at the old 70 m/s (tap) and 140 m/s (full draw) an arrow aimed straight at one missed past about 4 m and 8 m. Arrows now fly 160 to 280 m/s, and a human player's arrow gets 0.25 m of extra body radius against other players (`ARROW_PLAYER_ASSIST_M`). Heads get no assist, so a near miss beside the head never becomes a headshot, and bot arrows get none. The server, the client's hit prediction, the aim dot and the practice camp all use the same rule.
+- Arrows stop passing through beetles. `segmentDistance` treated a zero-length segment as the distance from the other segment's start, and a beetle's body capsule is exactly that (it is as tall as it is wide). So an arrow stretch only hit a beetle when it started within about 0.6 m of it: at the old speed a point-blank or 6 m shot at a still beetle could miss, and at the new speed almost every shot did. Both segment ends now count, the same helper replaces a copy in `creatures.ts`, and rope cuts and arrow clashes get the fix too.
+
+Found by: live tests with two real browser clients, one strafing with real keys and one tracking its chest with real mouse shots. The old code hit 0 of 10 at 30 m; server logs showed the lag compensation was correct (it rewound about 140 ms to what the shooter saw) and the misses came from flight time. After the change, 10 of 10 shots hit at 13 to 17 m with no lead. The beetle bug showed up when the faster arrows made Village Defense fail 5 of 5 seeds: bots stood 1.8 m from a beetle and missed every shot.
+
+Verified: new tests for a strafing target (hits out to 20 m with the assist; 20 m without it needs a lead), for the assist leaving heads alone, for segment distance against a point, and for an arrow stretch through a beetle (fails on the old helper). Two existing aim tests sampled the arrow only at step ends and on a 400 m map; they now measure the whole stretch and use a wider map, with the same limits. `npm run check` 409 of 409, `npm run smoke` passes, and a 5-seed full soak passes 15 of 15 (Village Defense runs now clear all 20 waves in about 20 minutes, down from 27). Full Playwright 64 of 65: `grapple.spec.ts` fails at the step where the grapple re-attaches, which involves no arrows, passed 2 of 3 alone, and also failed in the fix 16 and 17 full runs.
+
+Left: how 280 m/s arrows feel by eye (they cross a 20 m gap in 0.07 s) and whether bots now feel too deadly.
+
 ## Fix 18: headshots land where you aim, and the bow is held the right way (2026-10-02)
 
 Tag `fix18`.

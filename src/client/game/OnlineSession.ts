@@ -2,7 +2,7 @@ import { saveRejoinTicket, clearRejoinTicket, loadRejoinTicket, showRejoinBanner
 import { featureEnabled } from "../../shared/features.ts";
 import { Callbacks, Client, Predict, type PredictedSpawns, type Reconciler, type Room } from "@colyseus/sdk";
 import type { Data } from "@colyseus/schema";
-import { ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, CREATURE_TUNING, EXPEDITION, EYE_CROUCH, EYE_STAND, HEAD_AIM_OFFSET, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
+import { ARROW_PLAYER_ASSIST_M, ARROW_SPEED_MAX, BODY_ARROW_STUCK_MS, CREATURE_TUNING, EXPEDITION, EYE_CROUCH, EYE_STAND, HEAD_AIM_OFFSET, HUD_REFRESH_MS, INK_CLOUD_GRAVITY, INTERP_DELAY_MS, LONG_SHOT_M, RECONCILE_SMOOTH_MS, STUCK_ARROW_MS, RETENTION_XP, ZIP_SPEED } from "../../shared/constants.ts";
 import { defaultMatchMap, mapById, matchMaps } from "../../shared/maps/registry.ts";
 import type { MapData } from "../../shared/maps/types.ts";
 import type { PlayerSim } from "../../shared/sim/movement.ts";
@@ -956,6 +956,8 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     if (!damaging && arrow.kind !== "spit") return -1;
     this.predictFrom.x = fromX; this.predictFrom.y = fromY; this.predictFrom.z = fromZ;
     let nearest = -1, hitPlayer = "", headshot = false, damage = 0;
+    // The server gives a human's arrows the body assist and a bot's none; this screen draws the same hits.
+    const assist = this.room.state.players.get(arrow.owner)?.isBot === false ? ARROW_PLAYER_ASSIST_M : 0;
     for (const [targetId, player] of this.room.state.players) {
       // Team numbers are unique per player in the Lobby, so this skips only the shooter there and teammates elsewhere.
       if (targetId === arrow.owner || player.team === arrow.team) continue;
@@ -965,7 +967,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
       const target = this.predictTarget;
       target.x = this.predict.value(player, "x"); target.y = this.predict.value(player, "y"); target.z = this.predict.value(player, "z");
       target.height = this.predict.value(player, "height"); target.crouched = target.height < EYE_STAND;
-      const hit = sweepArrowVsTarget(this.predictFrom, to, target, arrow.kind);
+      const hit = sweepArrowVsTarget(this.predictFrom, to, target, arrow.kind, assist);
       if (!hit || (nearest >= 0 && hit.t >= nearest)) continue;
       nearest = hit.t; hitPlayer = targetId; headshot = hit.kind === "head"; damage = arrow.damage * hit.damageMultiplier;
     }

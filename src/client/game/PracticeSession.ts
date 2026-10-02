@@ -2,6 +2,7 @@ import { platform } from "../platform/sdk.ts";
 import type { Group } from "three";
 import {
   ARROW_LIFETIME_MS,
+  ARROW_PLAYER_ASSIST_M,
   ARROW_RADIUS,
   EYE_STAND,
   HEAD_MULT,
@@ -198,7 +199,7 @@ export class PracticeSession {
         let hitTarget = false;
         for (const target of this.targets) {
           if (!target.alive) continue;
-          const hit = sweepArrowVsTarget(segmentStart, segmentEnd, { x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false });
+          const hit = sweepArrowVsTarget(segmentStart, segmentEnd, { x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false }, "arrow", ARROW_PLAYER_ASSIST_M);
           if (!hit) continue;
           entry.sim.stuck = true; hitTarget = true;
           entry.stuckAtMs = this.simTimeMs;
@@ -402,7 +403,7 @@ export class PracticeSession {
       if (step % SUBSTEPS === 0 && trailCount < PRACTICE_TRAIL_POINTS) { const offset = trailCount++ * 3; trail[offset] = shot.x; trail[offset + 1] = shot.y; trail[offset + 2] = shot.z; }
       stepArrow(shot, campMap, dt);
       segmentEnd.x = shot.x; segmentEnd.y = shot.y; segmentEnd.z = shot.z;
-      const hit = sweepArrowVsTarget(segmentStart, segmentEnd, { x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false });
+      const hit = sweepArrowVsTarget(segmentStart, segmentEnd, { x: target.x, y: target.pos[1], z: target.pos[2], height: STAND_HEIGHT, crouched: false }, "arrow", ARROW_PLAYER_ASSIST_M);
       if (hit) { const result = this.damageTarget(target, shot.damage, hit.kind === "head"); if (result.killed && horizontal > PRACTICE_REPLAY_MIN_M) this.showReplayCard(horizontal, trail, trailCount); return result; }
       if (shot.stuck) break;
     }

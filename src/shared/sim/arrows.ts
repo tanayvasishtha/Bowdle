@@ -1,4 +1,4 @@
-import { ARROW_GRAVITY, ARROW_LIFETIME_MS, ARROW_RADIUS, ARROW_SPAWN_FORWARD, EYE_CROUCH, EYE_STAND, HEAD_MULT, QUIVER } from "../constants.ts";
+import { ARROW_GRAVITY, ARROW_LIFETIME_MS, ARROW_PLAYER_ASSIST_M, ARROW_RADIUS, ARROW_SPAWN_FORWARD, EYE_CROUCH, EYE_STAND, HEAD_MULT, QUIVER } from "../constants.ts";
 import type { MapData } from "../maps/types.ts";
 import { rampHeightAt } from "../maps/ramps.ts";
 import type { Vec3 } from "../math/vec3.ts";
@@ -232,7 +232,7 @@ export function predictLanding(event: Omit<FireEvent, "kind">, crouched: boolean
     stepArrow(arrow, map, LANDING_STEP_S, gravity, matchTimeMs);
     let nearest = 2;
     for (const target of targets) {
-      const hit = sweepTargetHit(landingFrom, arrow, target, ARROW_RADIUS);
+      const hit = sweepTargetHit(landingFrom, arrow, target, ARROW_RADIUS, ARROW_RADIUS + ARROW_PLAYER_ASSIST_M);
       if (hit && hit.t < nearest) { nearest = hit.t; out.kind = hit.kind; }
     }
     const creature = creatures ? creatures(landingFrom, arrow) : -1;
@@ -249,8 +249,9 @@ export function predictLanding(event: Omit<FireEvent, "kind">, crouched: boolean
   return out;
 }
 
-export function sweepArrowVsTarget(start: Readonly<Vec3>, end: Readonly<Vec3>, target: HitboxTarget, kind = "arrow"): (TargetHit & { damageMultiplier: number }) | null {
-  const hit = sweepTargetHit(start, end, target, ARROW_RADIUS);
+/** assist widens the body for a human player's arrow (ARROW_PLAYER_ASSIST_M); bots and creatures pass 0. */
+export function sweepArrowVsTarget(start: Readonly<Vec3>, end: Readonly<Vec3>, target: HitboxTarget, kind = "arrow", assist = 0): (TargetHit & { damageMultiplier: number }) | null {
+  const hit = sweepTargetHit(start, end, target, ARROW_RADIUS, ARROW_RADIUS + assist);
   if (!hit) return null;
   return { ...hit, damageMultiplier: hit.kind === "head" ? headMultiplier(kind) : 1 };
 }

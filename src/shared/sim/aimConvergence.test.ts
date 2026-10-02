@@ -3,11 +3,13 @@ import { ARROW_SPEED_MAX, EYE_STAND, HEAD_RADIUS } from "../constants.ts";
 import { aimPointFromLook, aimRangeAlongLook, predictLanding, spawnArrow, stepArrow, sweepArrowVsTarget } from "./arrows.ts";
 import { arrowSpeed } from "./bow.ts";
 import type { MapData } from "../maps/types.ts";
+import { pointSegmentDistance } from "../math/segments.ts";
 
 const emptyMap: MapData = {
   id: "empty", name: "empty",
-  bounds: { min: [-200, -5, -200], max: [200, 40, 200] },
-  boxes: [{ id: "floor", min: [-200, -1, -200], max: [200, 0, 200], material: "earth", tags: ["solid"] }],
+  // Wide enough that a near-level full-draw shot comes down on the floor inside it.
+  bounds: { min: [-500, -5, -500], max: [500, 40, 500] },
+  boxes: [{ id: "floor", min: [-500, -1, -500], max: [500, 0, 500], material: "earth", tags: ["solid"] }],
   ramps: [], volumes: [], zipLines: [], boulders: [], props: [],
   spawns: { sun: [], moon: [] }, waypoints: [], decor: [], notes: [],
   look: { sunShafts: false, stainSeed: 0 },
@@ -23,9 +25,11 @@ function closestMiss(distance: number): number {
   const arrow = spawnArrow(event, false);
   const dt = 1 / 120;
   let best = Infinity;
+  // Distance from the aim point to each step's stretch of flight, so a fast arrow's long steps cannot skip the closest pass.
   for (let i = 0; i < 2000 && !arrow.stuck; i += 1) {
+    const from = { x: arrow.x, y: arrow.y, z: arrow.z };
     stepArrow(arrow, emptyMap, dt);
-    const miss = Math.hypot(arrow.x - aim.x, arrow.y - aim.y, arrow.z - aim.z);
+    const miss = pointSegmentDistance(aim, from, arrow);
     if (miss < best) best = miss;
     if (arrow.z < aim.z - 2) break;
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ARROW_GRAVITY, ARROW_RADIUS, ARROW_SPEED_MAX, BODY_RADIUS, CROUCH_HEIGHT, EYE_STAND, HEAD_RADIUS, STAND_HEIGHT, SUBSTEPS, TICK_HZ } from "../constants.ts";
+import { ARROW_GRAVITY, ARROW_PLAYER_ASSIST_M, ARROW_RADIUS, ARROW_SPEED_MAX, BODY_RADIUS, CROUCH_HEIGHT, EYE_STAND, HEAD_RADIUS, RUN_SPEED, STAND_HEIGHT, SUBSTEPS, TICK_HZ } from "../constants.ts";
 import type { MapData } from "../maps/types.ts";
 import type { Vec3 } from "../math/vec3.ts";
 import { headCenterY } from "./hitboxes.ts";
@@ -85,5 +85,34 @@ describe("arrows", () => {
       expect(shoot(distance, head, fraction)).toBe("head");
       expect(shoot(distance, 1.1, fraction)).toBe("body");
     }
+  });
+
+  it("a full-draw arrow aimed straight at a strafing player's chest hits out to 20 m with the assist", () => {
+    const ground = emptyMap([{ id: "floor", min: [-100, -1, -100], max: [100, 0, 100], material: "earth", tags: ["solid"] }]);
+    const shoot = (distance: number, assist: number): boolean => {
+      // The crosshair is on the chest where the target is at release; it keeps strafing at run speed.
+      const target = { x: 0, y: 0, z: -distance, height: STAND_HEIGHT, crouched: false };
+      const event = { type: "fire" as const, x: 0, y: 0, z: 0, yaw: 0, pitch: Math.atan2(1.1 - EYE_STAND, distance), fraction: 1, speed: arrowSpeed(1), damage: bodyDamage(1) };
+      const shot = spawnArrow({ ...event, aimRange: aimRangeAlongLook(event, false, ground, [target]) });
+      const dt = 1 / (TICK_HZ * SUBSTEPS);
+      for (let step = 0; step < TICK_HZ * SUBSTEPS && !shot.stuck; step += 1) {
+        const from = { x: shot.x, y: shot.y, z: shot.z };
+        stepArrow(shot, ground, dt);
+        target.x += RUN_SPEED * dt;
+        if (sweepArrowVsTarget(from, shot, target, "arrow", assist)) return true;
+      }
+      return false;
+    };
+    for (const distance of [5, 10, 15, 20]) expect(shoot(distance, ARROW_PLAYER_ASSIST_M)).toBe(true);
+    // Without the assist (a bot's arrow) the same 20 m shot needs a lead.
+    expect(shoot(20, 0)).toBe(false);
+  });
+
+  it("the assist widens the body only, so a shot just beside the head is not a headshot", () => {
+    const target = { x: 0, y: 0, z: -10, height: STAND_HEIGHT, crouched: false };
+    const head = headCenterY(target);
+    const beside = HEAD_RADIUS + ARROW_RADIUS + 0.1;
+    const hit = sweepArrowVsTarget({ x: beside, y: head, z: 0 }, { x: beside, y: head, z: -20 }, target, "arrow", ARROW_PLAYER_ASSIST_M);
+    expect(hit?.kind).not.toBe("head");
   });
 });

@@ -1,6 +1,6 @@
 # Deploy Bowdle to Render
 
-Status: `main` at tag `fix18` is the newest checkpoint. `npm run check`, `npm run smoke` and `npm run soak` pass on it. Full Playwright was 60 of 65 on a slow run; `hud.spec.ts` and the clip test in `launch.spec.ts` also fail on `fix17` on the same machine, so rerun the suite on a quiet machine before a release. Do not deploy `v3.0.1`: fixes 5 through 18 landed after it, including a server-side disconnect bug, a reconnect crash, arrow aim, wall jump/mantle/slide going off by default, spitters stalling waves, and headshots that never registered.
+Status: `main` at tag `fix19` is the newest checkpoint. `npm run check`, `npm run smoke` and `npm run soak` pass on it; full Playwright is 64 of 65 with the known `grapple.spec.ts` flake. Do not deploy `v3.0.1`: fixes 5 through 19 landed after it, including a server-side disconnect bug, a reconnect crash, arrow aim, wall jump/mantle/slide going off by default, spitters stalling waves, headshots that never registered, and arrows that missed moving players and passed through beetles.
 
 Deploy a tagged release only after `npm run check`, `npm run smoke`, `npm run soak` and the full Playwright suite pass on the release commit.
 

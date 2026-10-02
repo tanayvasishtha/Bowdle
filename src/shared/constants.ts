@@ -210,12 +210,20 @@ export const DRAW_FULL_MS = 400;
 
 export const RELEASE_COOLDOWN_MS = 200;
 
-export const ARROW_SPEED_MIN = 70;
+/**
+ * Arrow speeds. A strafing player moves 8.5 m/s, so at 70 and 140 m/s an arrow aimed straight at one missed past about
+ * 4 m (tap) and 8 m (full draw). At these speeds, with the assist below, a full-draw shot aimed at a strafing body hits
+ * out to about 20 m before it needs a lead.
+ */
+export const ARROW_SPEED_MIN = 160;
 /** Limits on the crosshair range a client sends with a shot. */
 export const AIM_RANGE_MIN_M = 2;
 export const AIM_RANGE_MAX_M = 200;
 
-export const ARROW_SPEED_MAX = 140;
+export const ARROW_SPEED_MAX = 280;
+
+/** Extra body radius a player's arrow gets against other players: aim assist. Heads and bot arrows get none. */
+export const ARROW_PLAYER_ASSIST_M = 0.25;
 
 export const ARROW_GRAVITY = 4.5;
 

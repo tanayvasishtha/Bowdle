@@ -1,6 +1,6 @@
 import { ARROW_RADIUS, CREATURE_TUNING, EXPEDITION, GRAVITY, JUMP_VELOCITY } from "../constants.ts";
 import type { MapData } from "../maps/types.ts";
-import { segmentDistance } from "../math/segments.ts";
+import { pointSegmentDistance, segmentDistance } from "../math/segments.ts";
 import { movePlayer, moveResult } from "./collision.ts";
 import { sightBlocked, solidBoundsFor } from "./sight.ts";
 import { bossHp, type CreatureKind } from "./waves.ts";
@@ -214,13 +214,6 @@ const lower: Point = { x: 0, y: 0, z: 0 };
 const upper: Point = { x: 0, y: 0, z: 0 };
 
 export type CreatureHit = { gem: boolean };
-
-function pointSegmentDistance(point: Point, from: Point, to: Point): number {
-  const dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
-  const lengthSq = dx * dx + dy * dy + dz * dz;
-  const t = lengthSq > 0 ? Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy + (point.z - from.z) * dz) / lengthSq)) : 0;
-  return Math.hypot(from.x + dx * t - point.x, from.y + dy * t - point.y, from.z + dz * t - point.z);
-}
 
 /** An arrow step against a creature: a vertical capsule, and for guardians and the Colossus a gem sphere. */
 export function creatureHit(creature: CreatureSim, from: Point, to: Point): CreatureHit | null {

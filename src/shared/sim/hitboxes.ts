@@ -59,9 +59,10 @@ export function headCenterY(target: HitboxTarget): number {
   return target.y + (target.crouched ? EYE_CROUCH : EYE_STAND) + 0.05;
 }
 
-export function sweepTargetHit(from: Readonly<Vec3>, to: Readonly<Vec3>, target: HitboxTarget, padding: number): TargetHit | null {
+/** bodyPadding widens only the body, so aim assist never turns a near miss beside the head into a headshot. */
+export function sweepTargetHit(from: Readonly<Vec3>, to: Readonly<Vec3>, target: HitboxTarget, padding: number, bodyPadding = padding): TargetHit | null {
   const head = segmentSphere(from, to, target.x, headCenterY(target), target.z, HEAD_RADIUS + padding);
-  const body = segmentVerticalCapsule(from, to, target, BODY_RADIUS + padding);
+  const body = segmentVerticalCapsule(from, to, target, BODY_RADIUS + bodyPadding);
   if (head !== null && (body === null || head <= body + 1e-9)) return { kind: "head", t: head };
   if (body !== null) return { kind: "body", t: body };
   return null;

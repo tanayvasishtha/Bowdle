@@ -1,3 +1,17 @@
+## Fix 22: a quarter of the triangles, and the HEADSHOT banner only for your own kills (2026-10-07)
+
+Tag `fix22`.
+
+Built:
+- The scene drew about 738,000 triangles on Home Grove, two and a half times the 300,000 budget in `docs/DEPLOY.md`. Most of it was the 3,638 grass patches (196 triangles each), drawn out to the full prop distance and in every direction, including behind the camera. Grass and ferns now stop at 60% of the prop distance (54 m on high), and props more than 8 m behind the camera plane are skipped. Triangles in view now run from about 45,000 to 221,000 depending on where you look. Side-by-side screenshots from the same spot in four directions show the same scene, with slightly less grass at the far tree line.
+- `PropsRenderer` also re-culled and re-uploaded every instance every frame, about 280 KB of buffer upload per frame on Home Grove. Still props are now culled only when the camera moves 1 m or turns about 8 degrees; torches, ropes and water still animate every frame.
+- The audio listener scheduled nine automation events every frame. It now writes values directly, only when the camera moved, and sets the up vector once.
+- The big centre banner ("HEADSHOT!", "LONG SHOT!") and the portal celebration fired for every kill in the match, so a Lobby full of bots flashed HEADSHOT! about kills you had nothing to do with. Both are now only for your own kills; the kill feed still shows the rest.
+
+Found by: a fresh-player walkthrough in headless Chrome, a frame profile of a Lobby match, and `hud.spec.ts`, which failed 4 of 4 because the software-rendered test browser managed 1.5 frames a second. It now gets about 4 and passes.
+
+Verified: in a visible Chrome window on this laptop, long frames (over 20 ms) in an 8 s Lobby sample went from 132 to 53 after the upload fix, with more frames drawn (699 against 560). `npm run check` 411 of 411. Full Playwright 65 of 65. A 30 s Lobby with bots trading headshots showed no banner.
+
 ## Fix 21: easy bots no longer ink a new player every 9 seconds (2026-10-02)
 
 Tag `fix21`.

@@ -1029,8 +1029,10 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     if (message.weapon === "boulder" && message.killer === this.sessionId) this.hud.banner("TRAP!");
     else if (message.weapon === "fall" && message.killer === this.sessionId) this.hud.banner("KNOCKED OFF");
     else if (message.weapon === "fall" && message.victim === this.sessionId) this.hud.banner(message.killer === "Ravine" ? "LOST IN THE RAVINE" : "KNOCKED OFF");
-    else if (message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
-    else if (message.distance >= LONG_SHOT_M) { this.hud.banner("LONG SHOT!"); happyTime("longShot"); }
+    // Only your own kills get the big banner; everyone else's are in the kill feed. Showing it for every kill made
+    // the middle of the screen shout HEADSHOT! about bots shooting each other.
+    else if (message.killer === this.sessionId && message.headshot) { this.hud.banner("HEADSHOT!"); happyTime("headshot"); }
+    else if (message.killer === this.sessionId && message.distance >= LONG_SHOT_M) { this.hud.banner("LONG SHOT!"); happyTime("longShot"); }
     if (message.killer === this.sessionId) {
       this.hud.killConfirm(message.headshot); this.sounds.play("kill");
       const feedback = this.feedback.kill({ atMs, headshot: message.headshot, distance: message.distance, weapon: message.weapon });

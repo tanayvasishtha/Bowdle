@@ -65,15 +65,23 @@ export class SoundEffects {
   /** A small random pitch change per play. */
   private jitter(): number { return 1 + (Math.random() * 2 - 1) * AUDIO_MIX.pitchJitter; }
 
-  /** Moves the ear to the camera. Yaw 0 faces -z. */
+  private readonly heard = { x: Number.NaN, y: 0, z: 0, yaw: 0 };
+
+  /**
+   * Moves the ear to the camera. Yaw 0 faces -z. Called every frame, so it writes values directly and only when the
+   * camera moved: scheduling nine automation events per frame showed up in the frame profile.
+   */
   setListener(x: number, y: number, z: number, yaw: number): void {
     const context = this.context; if (!context) return;
+    const heard = this.heard;
+    if (Math.abs(x - heard.x) < 0.01 && Math.abs(y - heard.y) < 0.01 && Math.abs(z - heard.z) < 0.01 && Math.abs(yaw - heard.yaw) < 0.002) return;
+    const first = Number.isNaN(heard.x);
+    heard.x = x; heard.y = y; heard.z = z; heard.yaw = yaw;
     const listener = context.listener, forwardX = -Math.sin(yaw), forwardZ = -Math.cos(yaw);
     if (listener.positionX) {
-      const now = context.currentTime;
-      listener.positionX.setValueAtTime(x, now); listener.positionY.setValueAtTime(y, now); listener.positionZ.setValueAtTime(z, now);
-      listener.forwardX.setValueAtTime(forwardX, now); listener.forwardY.setValueAtTime(0, now); listener.forwardZ.setValueAtTime(forwardZ, now);
-      listener.upX.setValueAtTime(0, now); listener.upY.setValueAtTime(1, now); listener.upZ.setValueAtTime(0, now);
+      listener.positionX.value = x; listener.positionY.value = y; listener.positionZ.value = z;
+      listener.forwardX.value = forwardX; listener.forwardY.value = 0; listener.forwardZ.value = forwardZ;
+      if (first) { listener.upX.value = 0; listener.upY.value = 1; listener.upZ.value = 0; }
     } else {
       listener.setPosition(x, y, z); listener.setOrientation(forwardX, 0, forwardZ, 0, 1, 0);
     }

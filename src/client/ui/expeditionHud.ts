@@ -15,6 +15,13 @@ export type ReviveView = { name: string; progress: number } | null;
 
 export type ShopPick = (upgradeId: string) => void;
 
+const TOTEM_ALERT_MS = 2500;
+
+/** Why a run ended, for the wave line and the banner. */
+export function runOverReason(totemFell: boolean): string {
+  return totemFell ? "The totem fell" : "Everyone is down";
+}
+
 /** Village Defense overlays: wave, totem, coins, shop, boss bar, downed, revive. */
 export class ExpeditionHud {
   private readonly root = document.createElement("div");
@@ -27,6 +34,10 @@ export class ExpeditionHud {
   private readonly bossFill = document.createElement("div");
   private readonly downed = document.createElement("div");
   private readonly revive = document.createElement("div");
+  /** A warning while the totem takes hits; the only other sign was its health bar shrinking. */
+  private readonly totemAlert = document.createElement("div");
+  private lastTotemHp = Number.POSITIVE_INFINITY;
+  private alertUntilMs = 0;
   private readonly onPick: ShopPick;
 
   constructor(container: HTMLElement, onPick: ShopPick = () => {}) {
@@ -39,17 +50,23 @@ export class ExpeditionHud {
     this.boss.dataset.testid = "boss-bar";
     this.downed.dataset.testid = "downed";
     this.revive.dataset.testid = "revive-prompt";
+    this.totemAlert.dataset.testid = "totem-alert";
+    this.totemAlert.textContent = "THE TOTEM IS UNDER ATTACK";
     this.totem.innerHTML = "<span>VILLAGE TOTEM</span>";
     this.totem.append(this.totemFill);
     this.boss.innerHTML = "<span>CHIEF</span>";
     this.boss.append(this.bossFill);
-    this.root.append(this.wave, this.totem, this.coins, this.shop, this.boss, this.downed, this.revive);
+    this.root.append(this.wave, this.totem, this.totemAlert, this.coins, this.shop, this.boss, this.downed, this.revive);
     const style = document.createElement("style");
     style.textContent = `.bowdle-expedition{position:absolute;inset:0;pointer-events:none;color:#4a3527;font-family:'Gochi Hand',cursive;text-shadow:1px 1px #efe3c6}
 .bowdle-expedition [data-testid=wave]{position:absolute;top:18px;left:50%;transform:translateX(-50%);font:30px 'Permanent Marker';letter-spacing:3px;white-space:nowrap;text-align:center}
 .bowdle-expedition [data-testid=wave] small{display:block;font:20px 'Gochi Hand';letter-spacing:0}
 .bowdle-expedition [data-testid=totem-bar]{display:none;position:absolute;top:86px;left:50%;transform:translateX(-50%) rotate(0.4deg);width:min(420px,60vw);padding:4px 8px 8px;background:#efe3c6dd;border:3px solid #4a3527;text-align:center;font:16px 'Permanent Marker'}
 .bowdle-expedition [data-testid=totem-bar]>div{height:10px;background:#2f6b4f;border:2px solid #4a3527;transition:width 120ms linear}
+.bowdle-expedition [data-testid=totem-bar].hit{border-color:#d2531f}
+.bowdle-expedition [data-testid=totem-bar].hit>div{background:#d2531f}
+.bowdle-expedition [data-testid=totem-alert]{display:none;position:absolute;top:128px;left:50%;transform:translateX(-50%) rotate(-1deg);padding:4px 14px;background:#d2531f;color:#fffaf0;text-shadow:none;border:3px solid #4a3527;font:20px 'Permanent Marker';white-space:nowrap;animation:bowdle-totem-pulse 600ms ease-in-out infinite alternate}
+@keyframes bowdle-totem-pulse{from{opacity:1}to{opacity:.55}}
 .bowdle-expedition [data-testid=coins]{display:none;position:absolute;top:18px;right:18px;padding:4px 12px;background:#efe3c6dd;border:2px solid #4a3527;font:22px 'Permanent Marker'}
 .bowdle-expedition [data-testid=village-shop]{display:none;pointer-events:auto;position:absolute;left:50%;bottom:12%;transform:translateX(-50%);gap:10px;padding:10px;background:#efe3c6ee;border:3px solid #4a3527}
 .bowdle-expedition [data-testid=village-shop] button{pointer-events:auto;cursor:pointer;min-width:140px;padding:10px 12px;border:2px solid #4a3527;background:#fffaf0;font:18px 'Gochi Hand';color:#4a3527;text-align:left}
@@ -76,12 +93,17 @@ export class ExpeditionHud {
     } else if (run.phase === "fight") {
       this.wave.innerHTML = `WAVE ${run.wave}${modifier ? ` · ${modifier.toUpperCase()}` : ""}<small>${run.left} left${lives}</small>`;
     } else {
-      this.wave.innerHTML = `RUN OVER<small>Reached wave ${run.wave}</small>`;
+      this.wave.innerHTML = `RUN OVER<small>${runOverReason(run.totemMaxHp > 0 && run.totemHp <= 0)} · reached wave ${run.wave}</small>`;
     }
 
     const showTotem = run.totemMaxHp > 0 && run.phase !== "over";
     this.totem.style.display = showTotem ? "block" : "none";
     if (showTotem) this.totemFill.style.width = `${Math.max(0, Math.round(run.totemHp / run.totemMaxHp * 100))}%`;
+    if (run.phase === "fight" && run.totemHp < this.lastTotemHp) this.alertUntilMs = serverNow + TOTEM_ALERT_MS;
+    this.lastTotemHp = run.totemHp;
+    const alerting = showTotem && serverNow < this.alertUntilMs;
+    this.totemAlert.style.display = alerting ? "block" : "none";
+    this.totem.classList.toggle("hit", alerting);
 
     this.coins.style.display = run.totemMaxHp > 0 ? "block" : "none";
     this.coins.textContent = `${run.coins} coins`;

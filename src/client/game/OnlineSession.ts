@@ -23,7 +23,7 @@ import { type CameraView } from "./CameraRig.ts";
 import { creatureHit } from "../../shared/sim/creatures.ts";
 import { MatchHud, type RunSummary } from "../ui/hud.ts";
 import { chooseRegion, probeRegions, regionEndpoint } from "../regions.ts";
-import { ExpeditionHud, MODIFIER_NAMES, type ReviveView } from "../ui/expeditionHud.ts";
+import { ExpeditionHud, MODIFIER_NAMES, runOverReason, type ReviveView } from "../ui/expeditionHud.ts";
 import type { CreaturePose } from "../render/creatures.ts";
 import { SoundEffects } from "../audio/sfx.ts";
 import { happyTime } from "../platform/web.ts";
@@ -813,7 +813,7 @@ static async connect(renderer: Renderer, sampler: InputSampler, name = "Player",
     } else if (message.event === "clear") {
       this.hud.banner(`WAVE ${message.wave} CLEARED`);
       this.sounds.play("multikill");
-    } else this.hud.banner("RUN OVER");
+    } else this.hud.banner(runOverReason(message.totemFell === true).toUpperCase());
   }
 
   private onDowned(message: DownedMessage): void {

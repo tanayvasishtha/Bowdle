@@ -28,7 +28,8 @@ export type RelicMessage = z.infer<typeof RelicMessage>;
 /** Expedition: an arrow hit a creature (to the shooter), a creature fell, a wave changed, a player went down or got up. */
 export const CreatureHitMessage = z.object({ id: z.string(), damage: z.number().nonnegative(), gem: z.boolean(), blocked: z.boolean() });
 export const CreatureDownMessage = z.object({ id: z.string(), kind: z.string(), killer: z.string() });
-export const WaveMessage = z.object({ event: z.enum(["start", "clear", "over"]), wave: z.number().int(), modifier: z.string(), boss: z.boolean() });
+/** totemFell rides on "over": the message reaches clients before the state patch with the totem at zero. */
+export const WaveMessage = z.object({ event: z.enum(["start", "clear", "over"]), wave: z.number().int(), modifier: z.string(), boss: z.boolean(), totemFell: z.boolean().optional() });
 export const DownedMessage = z.object({ player: z.string(), event: z.enum(["down", "revived", "out", "life"]) });
 export type HutBurnedMessage = z.infer<typeof HutBurnedMessage>;
 export type CreatureHitMessage = z.infer<typeof CreatureHitMessage>;

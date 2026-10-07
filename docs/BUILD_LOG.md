@@ -1,3 +1,17 @@
+## Fix 23: Village Defense tells you the totem is under attack, and why the run ended (2026-10-07)
+
+Tag `fix23`.
+
+Built:
+- A beginner lost Village Defense (Play) 15 to 25 s into wave 1, run after run, with full health and no idea why. Players get no bot teammates there, Runners (beetles) head straight for the totem unless a player is within 8 m, and the only sign of trouble was the totem bar shrinking at the top of the screen. Now a pulsing "THE TOTEM IS UNDER ATTACK" warning shows under the bar, which turns red, for 2.5 s after every hit.
+- "RUN OVER" now says why: "The totem fell" or "Everyone is down", on the wave line and in the banner. The reason rides on the "over" wave message (`totemFell`), because that message reaches the client before the state patch that zeroes the totem.
+- Creature hits on the totem now get the same two-thirds softening in waves 1 and 2 that hits on players got in fix 8. An undefended totem now lasts about 37 s in wave 1 instead of about 20.
+
+Found by: a fresh-player walkthrough. The bot soak never saw it because it switches the totem off to measure wave clears. A server simulation with the totem on found a solo bot defender, which hunts creatures across the map instead of guarding, losing in waves 1 to 3 even with the totem at 1,500 health. So more health alone would not have helped; knowing to guard the totem does.
+Verified: an idle run in headless Chrome shows the warning at the first totem hit (21 s), the wave line "RUN OVER, The totem fell · reached wave 1" and the banner "THE TOTEM FELL". The first try at the banner read the reason from state and said "EVERYONE IS DOWN"; that is why the reason now travels with the message. `npm run check` 409 of 411 on a busy machine: `sun-temple.test.ts` (a Lobby match this change does not touch, which ran 23 to 29 s against its 25 s limit before this change too) and the grapple prediction test, which passes alone. 2-seed full soak, `npm run smoke`, and Playwright 64 of 65 (the known grapple flake).
+
+Left: whether a real beginner now learns to guard the totem, and whether solo needs bot teammates.
+
 ## Fix 22: a quarter of the triangles, and the HEADSHOT banner only for your own kills (2026-10-07)
 
 Tag `fix22`.

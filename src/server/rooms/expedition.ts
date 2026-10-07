@@ -358,9 +358,12 @@ export class ExpeditionDirector {
   }
 
   /** Creature damage to a player. At zero a player goes down instead of dying; a solo player with a spare life gets straight up. */
-  /** A creature's hit: softer on players in the first waves, full on the totem. */
+  /**
+   * A creature's hit, softer in the first waves on players and the totem alike. A solo player who had not yet learned
+   * to guard the totem lost it 15 to 25 s into wave 1, before the game had shown what the totem was for.
+   */
   private creatureHurt(targetId: string, damage: number): void {
-    this.hurt(targetId, targetId === TOTEM_ID ? damage : damage * creatureDamageMult(this.run.wave));
+    this.hurt(targetId, damage * creatureDamageMult(this.run.wave));
   }
 
   hurt(playerId: string, damage: number): void {
@@ -439,7 +442,7 @@ export class ExpeditionDirector {
     const run = this.run;
     run.phase = "over";
     this.host.state.creatures.clear();
-    this.host.broadcastWave({ event: "over", wave: run.wave, modifier: run.modifier, boss: false });
+    this.host.broadcastWave({ event: "over", wave: run.wave, modifier: run.modifier, boss: false, totemFell: run.totemMaxHp > 0 && run.totemHp <= 0 });
     this.host.runOver();
   }
 
